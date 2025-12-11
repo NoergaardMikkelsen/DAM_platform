@@ -119,59 +119,34 @@ export default function ProfilePage() {
         </TabsList>
 
         <TabsContent value="profile">
-<<<<<<< Updated upstream
           {isLoading ? (
             <div className="flex min-h-[400px] items-center justify-center">
               <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
                 <p className="text-gray-600">Loading profile...</p>
               </div>
             </div>
           ) : (
             <div className="flex items-start gap-8">
               <div className="flex flex-col items-center gap-4">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
-                  {initials}
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#DF475C] text-2xl font-bold text-white">
+                  {userData?.full_name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()}
                 </div>
                 <div className="text-center">
                   <div className="font-semibold text-gray-900">{userData?.full_name}</div>
                   <div className="text-sm text-gray-500">
-                    {userData?.department ? `${userData?.department}` : "Odense, Denmark"}
+                    {userData?.department ? `${userData.department}` : "Odense, Denmark"}
                   </div>
                   <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
                     {role}
-=======
-          <div className="flex items-start gap-8">
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
-                {initials}
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-gray-900">{userData?.full_name}</div>
-                <div className="text-sm text-gray-500">
-                  {userData?.department ? `${userData.department}` : "Odense, Denmark"}
-                </div>
-                <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
-                  {role}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1">
-              <form className="space-y-6" autoComplete="off" suppressHydrationWarning>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full name</Label>
-                    <Input id="full_name" defaultValue={userData?.full_name} autoComplete="off" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input id="phone" defaultValue={userData?.phone || ""} autoComplete="off" />
                   </div>
                 </div>
               </div>
 
-<<<<<<< Updated upstream
               <div className="flex-1">
                 {!isEditing ? (
                   <div className="space-y-6">
@@ -203,7 +178,10 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={() => setIsEditing(true)}>
+                      <Button
+                        className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]"
+                        onClick={() => setIsEditing(true)}
+                      >
                         Edit Profile
                       </Button>
                     </div>
@@ -264,7 +242,11 @@ export default function ProfilePage() {
                       <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
                         Cancel
                       </Button>
-                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={handleEdit} disabled={isLoading}>
+                      <Button
+                        className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]"
+                        onClick={handleEdit}
+                        disabled={isLoading}
+                      >
                         {isLoading ? "Saving..." : "Save Changes"}
                       </Button>
                     </div>
