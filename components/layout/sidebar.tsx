@@ -44,10 +44,11 @@ export function Sidebar({ user, role }: SidebarProps) {
     <div className="flex h-screen w-64 flex-col border-r bg-white">
       {/* Logo */}
       <div className="flex h-20 items-center border-b px-6">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-gray-900">nørgård mikkelsen</span>
-          <span className="text-xl font-bold text-[#dc3545]">↗</span>
-        </div>
+        <img
+          src="/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"
+          alt="Nørgård Mikkelsen Logo"
+          className="h-12 w-auto"
+        />
       </div>
 
       {/* Navigation */}
@@ -113,14 +114,14 @@ export function Sidebar({ user, role }: SidebarProps) {
       <div className="border-t p-4">
         <Link href="/profile" className="flex items-center gap-3 rounded-lg p-2 hover:bg-gray-50">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#dc3545] text-sm font-semibold text-white">
-            {user.full_name
+            {(user.full_name || user.email)
               .split(" ")
               .map((n) => n[0])
               .join("")
               .toUpperCase()}
           </div>
           <div className="flex-1 overflow-hidden">
-            <div className="truncate text-sm font-medium text-gray-900">{user.full_name}</div>
+            <div className="truncate text-sm font-medium text-gray-900">{user.full_name || user.email}</div>
             <div className="truncate text-xs text-gray-500">{user.email}</div>
           </div>
         </Link>

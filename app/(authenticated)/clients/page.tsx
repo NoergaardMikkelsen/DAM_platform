@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Building, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
@@ -133,114 +134,115 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      <div className="mb-6 flex gap-2">
-        <Button
-          variant={statusFilter === "all" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setStatusFilter("all")}
-        >
-          All clients
-        </Button>
-        <Button
-          variant={statusFilter === "active" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setStatusFilter("active")}
-        >
-          Active
-        </Button>
-        <Button
-          variant={statusFilter === "inactive" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setStatusFilter("inactive")}
-        >
-          Inactive
-        </Button>
-        <Button
-          variant={statusFilter === "deactivated" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setStatusFilter("deactivated")}
-        >
-          Deactivated
-        </Button>
-      </div>
+      {/* Tabs */}
+      <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-6">
+        <TabsList suppressHydrationWarning>
+          <TabsTrigger value="all">All clients</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="inactive">Inactive</TabsTrigger>
+          <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
+      {/* Clients Table */}
       <div className="rounded-lg border bg-white">
-        <div className="grid grid-cols-[2fr,1fr,1.5fr,1fr,auto] gap-4 border-b px-6 py-4 text-sm font-medium text-gray-700">
-          <div>Client</div>
-          <div>Users</div>
-          <div>Storage</div>
-          <div>Status</div>
-          <div>Actions</div>
+        <table className="w-full">
+          <thead className="border-b bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Client</th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Users</th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Storage</th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
+              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {filteredClients?.map((client) => {
+              const storageUsedGB = (client.storage_used_bytes / 1024 / 1024 / 1024).toFixed(0)
+              const storageLimitGB = (client.storage_limit_mb / 1024).toFixed(0)
+              const storagePercentage = client.storage_percentage || 0
+
+              return (
+                <tr key={client.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{ backgroundColor: client.primary_color || "#dc3545" }}
+                      >
+                        <Building className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{client.name}</div>
+                        <div className="text-sm text-gray-500">{client.slug}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">{client.user_count || 0} users</td>
+                  <td className="px-6 py-4">
+                    <div className="mb-1 text-sm font-medium text-gray-900">
+                      {storageUsedGB} GB / {storageLimitGB} GB
+                    </div>
+                    <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className="h-full rounded-full bg-[#dc3545] transition-all"
+                        style={{ width: `${Math.min(storagePercentage, 100)}%` }}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge
+                      variant={client.status === "active" ? "default" : "secondary"}
+                      className={
+                        client.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                      }
+                    >
+                      {client.status}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Pencil className="h-4 w-4 text-gray-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                      <Link href={`/clients/${client.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full bg-[#dc3545] text-white hover:bg-[#c82333]"
+                        >
+                          →
+                        </Button>
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-end gap-2 border-t px-6 py-4">
+          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+            ←
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
+            1
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
+            2
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
+            3
+          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+            →
+          </Button>
         </div>
-
-        {filteredClients?.map((client) => {
-          const storageUsedGB = (client.storage_used_bytes / 1024 / 1024 / 1024).toFixed(0)
-          const storageLimitGB = (client.storage_limit_mb / 1024).toFixed(0)
-          const storagePercentage = client.storage_percentage || 0
-
-          return (
-            <div
-              key={client.id}
-              className="grid grid-cols-[2fr,1fr,1.5fr,1fr,auto] items-center gap-4 border-b px-6 py-4 last:border-b-0"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-10 w-10 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: client.primary_color || "#dc3545" }}
-                >
-                  <Building className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900">{client.name}</div>
-                  <div className="text-sm text-gray-500">{client.slug}</div>
-                </div>
-              </div>
-
-              <div className="text-sm text-gray-900">{client.user_count || 0} users</div>
-
-              <div>
-                <div className="mb-1 text-sm font-medium text-gray-900">
-                  {storageUsedGB} GB / {storageLimitGB} GB
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                  <div
-                    className="h-full rounded-full bg-[#dc3545] transition-all"
-                    style={{ width: `${Math.min(storagePercentage, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Badge
-                  variant={client.status === "active" ? "default" : "secondary"}
-                  className={
-                    client.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                  }
-                >
-                  {client.status}
-                </Badge>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
-                <Link href={`/clients/${client.id}`}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full bg-[#dc3545] text-white hover:bg-[#c82333]"
-                  >
-                    →
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          )
-        })}
       </div>
 
       {clients?.length === 0 && (
