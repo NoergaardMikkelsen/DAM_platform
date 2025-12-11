@@ -107,6 +107,138 @@ export default function ProfilePage() {
       .join("")
       .toUpperCase() || ""
 
+  const profileContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-start gap-8">
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
+            {initials}
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-gray-900">{userData?.full_name}</div>
+            <div className="text-sm text-gray-500">
+              {userData?.department ? `${userData?.department}` : "Odense, Denmark"}
+            </div>
+            <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
+              {role}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1">
+          {!isEditing ? (
+            <div className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Full name</Label>
+                  <p className="text-gray-900">{userData?.full_name}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <p className="text-gray-900">{userData?.phone || "Not provided"}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <p className="text-gray-900">{userData?.email}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Current Position</Label>
+                  <p className="text-gray-900">{userData?.current_position || "Not specified"}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <p className="text-gray-900">{userData?.department || "Not specified"}</p>
+              </div>
+
+              <div className="flex justify-end">
+                <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={() => setIsEditing(true)}>
+                  Edit Profile
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <form className="space-y-6" autoComplete="off" suppressHydrationWarning>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full name</Label>
+                  <Input
+                    id="full_name"
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+45 12 34 56 78"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={userData?.email || ""} disabled className="bg-gray-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="current_position">Current Position</Label>
+                  <Input
+                    id="current_position"
+                    value={editForm.current_position}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, current_position: e.target.value }))}
+                    placeholder="Marketing Manager"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  value={editForm.department}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
+                  placeholder="Marketing"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
+                  Cancel
+                </Button>
+                <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={handleEdit} disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       <h1 className="mb-8 text-3xl font-bold text-gray-900">Profile</h1>
@@ -119,160 +251,7 @@ export default function ProfilePage() {
         </TabsList>
 
         <TabsContent value="profile">
-<<<<<<< Updated upstream
-          {isLoading ? (
-            <div className="flex min-h-[400px] items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
-                <p className="text-gray-600">Loading profile...</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-start gap-8">
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
-                  {initials}
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900">{userData?.full_name}</div>
-                  <div className="text-sm text-gray-500">
-                    {userData?.department ? `${userData?.department}` : "Odense, Denmark"}
-                  </div>
-                  <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
-                    {role}
-=======
-          <div className="flex items-start gap-8">
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
-                {initials}
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-gray-900">{userData?.full_name}</div>
-                <div className="text-sm text-gray-500">
-                  {userData?.department ? `${userData.department}` : "Odense, Denmark"}
-                </div>
-                <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
-                  {role}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1">
-              <form className="space-y-6" autoComplete="off" suppressHydrationWarning>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full name</Label>
-                    <Input id="full_name" defaultValue={userData?.full_name} autoComplete="off" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input id="phone" defaultValue={userData?.phone || ""} autoComplete="off" />
-                  </div>
-                </div>
-              </div>
-
-<<<<<<< Updated upstream
-              <div className="flex-1">
-                {!isEditing ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Full name</Label>
-                        <p className="text-gray-900">{userData?.full_name}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Phone</Label>
-                        <p className="text-gray-900">{userData?.phone || "Not provided"}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Email</Label>
-                        <p className="text-gray-900">{userData?.email}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Current Position</Label>
-                        <p className="text-gray-900">{userData?.current_position || "Not specified"}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Department</Label>
-                      <p className="text-gray-900">{userData?.department || "Not specified"}</p>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={() => setIsEditing(true)}>
-                        Edit Profile
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="full_name">Full name</Label>
-                        <Input
-                          id="full_name"
-                          value={editForm.full_name}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
-                          autoComplete="off"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
-                          placeholder="+45 12 34 56 78"
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" type="email" value={userData?.email || ""} disabled className="bg-gray-50" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="current_position">Current Position</Label>
-                        <Input
-                          id="current_position"
-                          value={editForm.current_position}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, current_position: e.target.value }))}
-                          placeholder="Marketing Manager"
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="department">Department</Label>
-                      <Input
-                        id="department"
-                        value={editForm.department}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
-                        placeholder="Marketing"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
-                        Cancel
-                      </Button>
-                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={handleEdit} disabled={isLoading}>
-                        {isLoading ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {profileContent()}
         </TabsContent>
 
         <TabsContent value="account">
@@ -296,7 +275,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </TabsContent>
-
       </Tabs>
     </div>
   )
