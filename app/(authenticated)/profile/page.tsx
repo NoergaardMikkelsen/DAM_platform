@@ -271,28 +271,6 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-=======
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" defaultValue={userData?.email} autoComplete="off" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="current_position">Current Position</Label>
-                    <Input id="current_position" defaultValue={userData?.current_position || ""} autoComplete="off" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Input id="department" defaultValue={userData?.department || ""} autoComplete="off" />
-                </div>
-
-                <div className="flex justify-end">
-                  <Button className="bg-[#dc3545] hover:bg-[#c82333]">Edit Profile</Button>
-                </div>
-              </form>
->>>>>>> Stashed changes
             </div>
           )}
         </TabsContent>
