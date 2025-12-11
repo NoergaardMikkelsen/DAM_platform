@@ -136,7 +136,7 @@ export default function ProfilePage() {
                 <div className="text-center">
                   <div className="font-semibold text-gray-900">{userData?.full_name}</div>
                   <div className="text-sm text-gray-500">
-                    {userData?.department ? `${userData.department}` : "Odense, Denmark"}
+                    {userData?.department ? `${userData?.department}` : "Odense, Denmark"}
                   </div>
                   <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
                     {role}
