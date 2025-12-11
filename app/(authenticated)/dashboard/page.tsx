@@ -1,0 +1,431 @@
+"use client"
+
+import { createClient } from "@/lib/supabase/client"
+import { Clock, Download, Package, TrendingUp, Heart, ArrowRight, Filter } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { AssetPreview } from "@/components/asset-preview"
+import { FilterPanel } from "@/components/filter-panel"
+import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
+
+interface Collection {
+  id: string
+  label: string
+  slug: string
+  assetCount: number
+  previewAssets: Array<{
+    id: string
+    title: string
+    storage_path: string
+    mime_type: string
+  }>
+}
+
+interface Asset {
+  id: string
+  title: string
+  storage_path: string
+  mime_type: string
+  category_tag_id: string | null
+}
+
+export default function DashboardPage() {
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [filteredCollections, setFilteredCollections] = useState<Collection[]>([])
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [stats, setStats] = useState({
+    totalAssets: 0,
+    recentUploads: [] as Asset[],
+    downloadsLastWeek: 0,
+    storagePercentage: 0,
+    userName: ""
+  })
+
+  const router = useRouter()
+  const supabaseRef = useRef(createClient())
+
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    const supabase = supabaseRef.current
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      router.push("/login")
+      return
+    }
+
+    // Check if user is superadmin
+    const { data: userRole } = await supabase
+      .from("client_users")
+      .select(`roles(key)`)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle()
+
+    const isSuperAdmin = userRole?.roles?.key === "superadmin"
+
+    let clientIds: string[] = []
+
+    if (isSuperAdmin) {
+      // Superadmin can see all clients
+      const { data: allClients } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("status", "active")
+      clientIds = allClients?.map((c: any) => c.id) || []
+    } else {
+      // Regular users see only their clients
+      const { data: clientUsers } = await supabase
+        .from("client_users")
+        .select(`client_id`)
+        .eq("user_id", user.id)
+        .eq("status", "active")
+      clientIds = clientUsers?.map((cu: any) => cu.client_id) || []
+    }
+
+    // Get stats
+    const { count: totalAssetsCount } = await supabase
+      .from("assets")
+      .select("*", { count: "exact", head: true })
+      .in("client_id", clientIds)
+
+    const { data: recentUploadsData } = await supabase
+      .from("assets")
+      .select("id, title, storage_path, mime_type, category_tag_id")
+      .in("client_id", clientIds)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(10)
+
+    const { data: recentEvents } = await supabase
+      .from("asset_events")
+      .select("*")
+      .eq("event_type", "download")
+      .in("client_id", clientIds)
+      .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+
+    const downloadsLastWeek = recentEvents?.length || 0
+
+    // Get storage usage
+    const { data: assetsData } = await supabase.from("assets").select("file_size, id, title, storage_path, mime_type, category_tag_id").in("client_id", clientIds)
+
+    const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
+    const storageUsedMB = Math.round(storageUsedBytes / (1024 * 1024))
+    const storageLimitMB = 10000
+    const storagePercentage = Math.round((storageUsedMB / storageLimitMB) * 100)
+
+    const { data: userData } = await supabase.from("users").select("full_name").eq("id", user.id).single()
+
+    const { data: categoryTags } = await supabase
+      .from("tags")
+      .select("id, label, slug")
+      .eq("tag_type", "category")
+      .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
+      .order("sort_order", { ascending: true })
+
+    // Get all assets to build collection previews
+    const { data: allAssetsData } = await supabase
+      .from("assets")
+      .select("id, title, storage_path, mime_type, category_tag_id")
+      .in("client_id", clientIds)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+
+    // Build collections from category tags
+    const collectionsData: Collection[] = (categoryTags || [])
+      .map((tag: any) => {
+        const tagAssets = (allAssetsData || []).filter((a: any) => a.category_tag_id === tag.id)
+        return {
+          id: tag.id,
+          label: tag.label,
+          slug: tag.slug,
+          assetCount: tagAssets.length,
+          previewAssets: tagAssets.slice(0, 4),
+        }
+      })
+        .filter((c: any) => c.assetCount > 0)
+
+    setCollections(collectionsData)
+    setFilteredCollections(collectionsData)
+    setAssets(allAssetsData || [])
+    setFilteredAssets(allAssetsData || [])
+    setStats({
+      totalAssets: totalAssetsCount || 0,
+      recentUploads: recentUploadsData || [],
+      downloadsLastWeek,
+      storagePercentage,
+      userName: userData?.full_name || ""
+    })
+    setIsLoading(false)
+  }
+
+  const handleApplyFilters = async (filters: {
+    categoryTags: string[]
+    descriptionTags: string[]
+    usageTags: string[]
+    visualStyleTags: string[]
+  }) => {
+    const allSelectedTags = [
+      ...filters.categoryTags,
+      ...filters.descriptionTags,
+      ...filters.usageTags,
+      ...filters.visualStyleTags,
+    ]
+
+    const supabase = supabaseRef.current
+
+    // Filter assets
+    let filteredAssetsResult = [...assets]
+
+    if (allSelectedTags.length > 0) {
+      // Filter by category tags directly on assets
+      if (filters.categoryTags.length > 0) {
+        filteredAssetsResult = filteredAssetsResult.filter(
+          (asset) => asset.category_tag_id && filters.categoryTags.includes(asset.category_tag_id),
+        )
+      }
+
+      // Filter by other tags via asset_tags junction
+      const otherTags = [...filters.descriptionTags, ...filters.usageTags, ...filters.visualStyleTags]
+
+      if (otherTags.length > 0) {
+        const { data: assetTags } = await supabase.from("asset_tags").select("asset_id").in("tag_id", otherTags)
+
+        const assetIds = [...new Set(assetTags?.map((at: any) => at.asset_id) || [])]
+        filteredAssetsResult = filteredAssetsResult.filter((asset) => assetIds.includes(asset.id))
+      }
+    }
+
+    // Filter collections based on the same filters
+    let filteredCollectionsResult = [...collections]
+
+    if (allSelectedTags.length > 0) {
+      // For collections, we filter by category tags only (simplified for dashboard)
+      if (filters.categoryTags.length > 0) {
+        filteredCollectionsResult = collections.filter((collection: any) =>
+          filters.categoryTags.includes(collection.id)
+        )
+      } else {
+        // For other tags, show collections that have assets (simplified)
+        filteredCollectionsResult = collections.filter((collection: any) => collection.assetCount > 0)
+      }
+    }
+
+    setFilteredAssets(filteredAssetsResult)
+    setFilteredCollections(filteredCollectionsResult)
+    setIsFilterOpen(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const sortedCollections = [...filteredCollections].sort((a, b) => b.assetCount - a.assetCount)
+
+  return (
+    <div className="p-8">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Velkommen {stats.userName}</h1>
+          <p className="mt-2 text-gray-600">
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse varius enim
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
+          <Filter className="mr-2 h-4 w-4" />
+          Filters
+        </Button>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Storage usage</CardTitle>
+            <Package className="h-5 w-5 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">{stats.storagePercentage}%</div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+              <div className="h-full bg-[#dc3545]" style={{ width: `${stats.storagePercentage}%` }} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Total assets</CardTitle>
+            <TrendingUp className="h-5 w-5 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">{stats.totalAssets}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Recent uploads</CardTitle>
+            <Clock className="h-5 w-5 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">{stats.recentUploads.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Assets downloaded</CardTitle>
+            <Download className="h-5 w-5 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">{stats.downloadsLastWeek}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mb-10">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-gray-900">{filteredCollections.length} Collections</h2>
+            <Link href="/assets" className="text-sm text-gray-500 hover:text-gray-700">
+              See all collections →
+            </Link>
+          </div>
+          <span className="text-sm text-gray-500">Sort collection by Newest</span>
+        </div>
+
+        {filteredCollections.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
+            <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
+            <Link href="/assets/upload">
+              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {sortedCollections.slice(0, 4).map((collection) => (
+              <Link key={collection.id} href={`/assets/collections/${collection.id}`}>
+                <Card className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg">
+                  {/* Preview Grid */}
+                  <div className="relative aspect-square bg-gray-100">
+                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-0.5">
+                      {collection.previewAssets.slice(0, 4).map((asset) => (
+                        <div key={asset.id} className="relative overflow-hidden bg-gray-200">
+                          {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
+                            <AssetPreview
+                              storagePath={asset.storage_path}
+                              mimeType={asset.mime_type}
+                              alt={asset.title}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                        </div>
+                      ))}
+                      {/* Fill empty slots */}
+                      {[...Array(Math.max(0, 4 - collection.previewAssets.length))].map((_, idx) => (
+                        <div key={`empty-${idx}`} className="bg-gray-200" />
+                      ))}
+                    </div>
+
+                    {/* Overlay with collection info */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <h3 className="font-semibold text-white">{collection.label}</h3>
+                      <p className="text-sm text-white/80">{collection.assetCount} assets</p>
+                    </div>
+
+                    {/* Favorite button */}
+                    <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100">
+                      <Heart className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Bottom action bar */}
+                  <div className="flex items-center justify-between border-t bg-white p-3">
+                    <span className="text-sm text-gray-600">Se hele kampagnen</span>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-[#dc3545] group-hover:text-white">
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Assets Preview */}
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-gray-900">{stats.totalAssets} Assets</h2>
+            <Link href="/assets" className="text-sm text-gray-500 hover:text-gray-700">
+              See all assets →
+            </Link>
+          </div>
+          <span className="text-sm text-gray-500">Sort assets by Newest</span>
+        </div>
+
+        {stats.recentUploads.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
+            <p className="text-gray-500">No assets uploaded yet.</p>
+            <Link href="/assets/upload">
+              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+            {stats.recentUploads.map((asset) => (
+              <Link key={asset.id} href={`/assets/${asset.id}`}>
+                <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
+                  <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
+                    {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
+                      <AssetPreview
+                        storagePath={asset.storage_path}
+                        mimeType={asset.mime_type}
+                        alt={asset.title}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <FilterPanel
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        onApplyFilters={handleApplyFilters}
+      />
+    </div>
+  )
+}
