@@ -108,6 +108,19 @@ const presetOptions = [
   { id: "print", label: "Print - 300 DPI TIFF", width: null, height: null, format: "tiff" as const, dpi: 300 },
 ]
 
+const videoPresetOptions = [
+  { id: "hd", label: "HD Quality (1080p)", width: 1920, height: 1080, quality: "high" },
+  { id: "sd", label: "SD Quality (720p)", width: 1280, height: 720, quality: "medium" },
+  { id: "mobile", label: "Mobile Quality (480p)", width: 854, height: 480, quality: "low" },
+  { id: "original", label: "Original Quality", quality: "original" },
+]
+
+const videoFormatOptions = [
+  { value: "mp4", label: "MP4 (H.264)" },
+  { value: "webm", label: "WebM (VP9)" },
+  { value: "original", label: "Original Format" },
+]
+
 const formatOptions = [
   { value: "jpeg", label: "JPEG" },
   { value: "png", label: "PNG" },
@@ -133,12 +146,16 @@ export default function AssetDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDownloadingPreset, setIsDownloadingPreset] = useState(false)
   const [isDownloadingCustom, setIsDownloadingCustom] = useState(false)
+  const [isDownloadingVideoCustom, setIsDownloadingVideoCustom] = useState(false)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [versions, setVersions] = useState<AssetVersion[]>([])
   const [selectedPresetId, setSelectedPresetId] = useState<string>("social")
   const [customFormat, setCustomFormat] = useState<string>("jpeg")
   const [customWidth, setCustomWidth] = useState<string>("")
   const [customHeight, setCustomHeight] = useState<string>("")
+  const [videoFormat, setVideoFormat] = useState<string>("mp4")
+  const [videoWidth, setVideoWidth] = useState<string>("")
+  const [videoHeight, setVideoHeight] = useState<string>("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isCopyingLink, setIsCopyingLink] = useState(false)
   const [downloadMode, setDownloadMode] = useState<"preset" | "custom">("preset")
@@ -153,9 +170,11 @@ export default function AssetDetailPage() {
   useEffect(() => {
     if (asset?.width) {
       setCustomWidth(String(asset.width))
+      setVideoWidth(String(asset.width))
     }
     if (asset?.height) {
       setCustomHeight(String(asset.height))
+      setVideoHeight(String(asset.height))
     }
   }, [asset?.width, asset?.height])
 
@@ -633,6 +652,45 @@ export default function AssetDetailPage() {
     setIsDownloadingPreset(false)
   }
 
+  const handleVideoPresetDownload = async (presetId: string) => {
+    const preset = videoPresetOptions.find((p) => p.id === presetId)
+    if (!preset) return
+
+    // For now, all video presets download the original file
+    // Later we can implement actual video transcoding based on quality
+    await downloadOriginal({
+      kind: "original",
+      quality: preset.quality,
+      label: preset.label
+    })
+  }
+
+  const handleVideoCustomDownload = async () => {
+    if (!videoWidth || !videoHeight) {
+      setErrorMessage("Angiv både bredde og højde for custom video export.")
+      return
+    }
+    const width = Number(videoWidth)
+    const height = Number(videoHeight)
+    if (Number.isNaN(width) || Number.isNaN(height) || width <= 0 || height <= 0) {
+      setErrorMessage("Bredde og højde skal være gyldige tal større end 0.")
+      return
+    }
+    setIsDownloadingVideoCustom(true)
+
+    // For now, download original file with custom dimensions label
+    // Later we can implement actual video transcoding
+    await downloadOriginal({
+      kind: "custom",
+      width,
+      height,
+      format: videoFormat,
+      label: `Custom ${width}x${height} ${videoFormat.toUpperCase()}`
+    })
+
+    setIsDownloadingVideoCustom(false)
+  }
+
   const handleCustomDownload = async () => {
     if (!customWidth || !customHeight) {
       setErrorMessage("Angiv både bredde og højde for custom export.")
@@ -922,37 +980,39 @@ export default function AssetDetailPage() {
                     <span className="hidden sm:inline">Edit</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="center"
-                  side="top"
-                  className="w-72 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
-                >
-                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Crop / Transform
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem
-                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                    onSelect={() => {
-                      handleCustomDownload()
-                    }}
+                {isImage && (
+                  <DropdownMenuContent
+                    align="center"
+                    side="top"
+                    className="w-72 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
                   >
-                    <div className="flex items-center gap-2">
-                      <SlidersHorizontal className="h-4 w-4 text-gray-500" />
-                      <span>Apply custom resize (download)</span>
-          </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                    onSelect={() => {
-                      handlePresetDownload()
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-gray-500" />
-                      <span>Apply current preset download</span>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                    <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                      Crop / Transform
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                      onSelect={() => {
+                        handleCustomDownload()
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                        <span>Apply custom resize (download)</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                      onSelect={() => {
+                        handlePresetDownload()
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-gray-500" />
+                        <span>Apply current preset download</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                )}
               </DropdownMenu>
 
               {/* Download dropup (right, primary) */}
@@ -968,68 +1028,153 @@ export default function AssetDetailPage() {
                   side="top"
                   className="w-80 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
                 >
-                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Preset (current)
-                  </DropdownMenuLabel>
+                  {isImage ? (
+                    <>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                        Image Presets
+                      </DropdownMenuLabel>
                       {presetOptions.map((preset) => (
-                    <DropdownMenuItem
-                      key={preset.id}
-                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                      onSelect={() => {
-                        setSelectedPresetId(preset.id)
-                        void handlePresetDownload()
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-gray-500" />
-                        <span>{preset.label}</span>
+                        <DropdownMenuItem
+                          key={preset.id}
+                          className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                          onSelect={() => {
+                            setSelectedPresetId(preset.id)
+                            void handlePresetDownload()
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-gray-500" />
+                            <span>{preset.label}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                        Custom Resize
+                      </DropdownMenuLabel>
+                      <div className="px-2 pb-2 pt-1 space-y-2">
+                        <Select value={customFormat} onValueChange={setCustomFormat}>
+                          <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs shadow-sm transition hover:border-gray-300">
+                            <SelectValue placeholder="Format" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-2xl border border-gray-200 bg-white/98 shadow-2xl backdrop-blur">
+                            {formatOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={customWidth}
+                            onChange={(e) => setCustomWidth(e.target.value)}
+                            placeholder="W"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                          />
+                          <Input
+                            type="number"
+                            min={1}
+                            value={customHeight}
+                            onChange={(e) => setCustomHeight(e.target.value)}
+                            placeholder="H"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-10 w-full rounded-full bg-[#e65872] text-white hover:bg-[#d74f68]"
+                          onClick={handleCustomDownload}
+                          disabled={isDownloadingCustom}
+                        >
+                          {isDownloadingCustom ? "Downloading…" : "Download custom"}
+                        </Button>
                       </div>
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Custom (current)
-                  </DropdownMenuLabel>
-                  <div className="px-2 pb-2 pt-1 space-y-2">
-                    <Select value={customFormat} onValueChange={setCustomFormat}>
-                      <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs shadow-sm transition hover:border-gray-300">
-                        <SelectValue placeholder="Format" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-2xl border border-gray-200 bg-white/98 shadow-2xl backdrop-blur">
-                        {formatOptions.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        value={customWidth}
-                        onChange={(e) => setCustomWidth(e.target.value)}
-                        placeholder="W"
-                        className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
-                      />
-                      <Input
-                        type="number"
-                        min={1}
-                        value={customHeight}
-                        onChange={(e) => setCustomHeight(e.target.value)}
-                        placeholder="H"
-                        className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      className="h-10 w-full rounded-full bg-[#e65872] text-white hover:bg-[#d74f68]"
-                      onClick={handleCustomDownload}
-                      disabled={isDownloadingCustom}
-                    >
-                      {isDownloadingCustom ? "Downloading…" : "Download custom"}
-                    </Button>
-                  </div>
+                    </>
+                  ) : isVideo ? (
+                    <>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                        Video Presets
+                      </DropdownMenuLabel>
+                      {videoPresetOptions.map((preset) => (
+                        <DropdownMenuItem
+                          key={preset.id}
+                          className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                          onSelect={() => {
+                            void handleVideoPresetDownload(preset.id)
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Download className="h-4 w-4 text-gray-500" />
+                            <span>{preset.label}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                        Custom Video
+                      </DropdownMenuLabel>
+                      <div className="px-2 pb-2 pt-1 space-y-2">
+                        <Select value={videoFormat} onValueChange={setVideoFormat}>
+                          <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs shadow-sm transition hover:border-gray-300">
+                            <SelectValue placeholder="Format" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-2xl border border-gray-200 bg-white/98 shadow-2xl backdrop-blur">
+                            {videoFormatOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={videoWidth}
+                            onChange={(e) => setVideoWidth(e.target.value)}
+                            placeholder="W"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                          />
+                          <Input
+                            type="number"
+                            min={1}
+                            value={videoHeight}
+                            onChange={(e) => setVideoHeight(e.target.value)}
+                            placeholder="H"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-10 w-full rounded-full bg-[#e65872] text-white hover:bg-[#d74f68]"
+                          onClick={handleVideoCustomDownload}
+                          disabled={isDownloadingVideoCustom}
+                        >
+                          {isDownloadingVideoCustom ? "Downloading…" : "Download custom video"}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                        Download Options
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                        onSelect={() => {
+                          void downloadOriginal({ kind: "original" })
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Download className="h-4 w-4 text-gray-500" />
+                          <span>Download original PDF</span>
+                        </div>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
