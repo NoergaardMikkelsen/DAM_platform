@@ -24,12 +24,19 @@ if (!DATABASE_URL) {
 }
 
 async function runMigration(filename: string) {
-  const client = new Client({
+  // Parse connection string to handle SSL properly
+  const connectionConfig: any = {
     connectionString: DATABASE_URL as string,
-    ssl: {
-      rejectUnauthorized: false,
-    },
-  })
+  }
+
+  // Add SSL configuration for Supabase
+  if (DATABASE_URL?.includes("supabase") || DATABASE_URL?.includes("pooler")) {
+    connectionConfig.ssl = {
+      rejectUnauthorized: false, // Supabase uses self-signed certificates
+    }
+  }
+
+  const client = new Client(connectionConfig)
 
   try {
     await client.connect()

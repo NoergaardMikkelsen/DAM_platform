@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { createClient } from "@/lib/supabase/client"
-import { uploadAsset, getImageDimensions, getVideoDimensions } from "@/lib/utils/storage"
+import { uploadAsset, getImageDimensions, getVideoDimensions, generateVideoThumbnail } from "@/lib/utils/storage"
 import { getFileTypeFromMimeType } from "@/lib/utils/file-type-detector"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -168,7 +168,28 @@ export default function UploadAssetPage() {
       })
 
       console.log("File uploaded to:", uploadResult.path)
-      setUploadProgress(80)
+      setUploadProgress(75)
+
+      // Generate thumbnail for video files
+      let thumbnailPath: string | null = null
+      if (file.type.startsWith("video/")) {
+        try {
+          const thumbnailFile = await generateVideoThumbnail(file)
+          if (thumbnailFile) {
+            const thumbnailUploadResult = await uploadAsset({
+              clientId,
+              file: thumbnailFile,
+              onProgress: () => {}, // No progress for thumbnail
+            })
+            thumbnailPath = thumbnailUploadResult.path
+          }
+        } catch (error) {
+          console.warn("Failed to generate video thumbnail:", error)
+          // Continue without thumbnail - not critical
+        }
+      }
+
+      setUploadProgress(85)
 
       const { data: newAsset, error: dbError } = await supabase
         .from("assets")
@@ -209,6 +230,7 @@ export default function UploadAssetPage() {
           height: dimensions?.height || null,
           dpi: null,
           file_size: file.size,
+          thumbnail_path: thumbnailPath,
           created_by: userId,
         })
         .select("id")

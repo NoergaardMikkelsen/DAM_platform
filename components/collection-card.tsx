@@ -21,19 +21,33 @@ interface CollectionCardProps {
 export function CollectionCard({ id, label, assetCount, previewAssets }: CollectionCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [assetTypes, setAssetTypes] = useState<string[]>([])
+  const [videoUrls, setVideoUrls] = useState<string[]>([])
 
   useEffect(() => {
     const fetchImageUrls = async () => {
       const supabase = createClient()
       const urls: string[] = []
+      const types: string[] = []
+      const videoUrlsArr: string[] = []
 
       for (const asset of previewAssets.slice(0, 4)) {
         if (asset.storage_path) {
           try {
-            // For video files, use thumbnail if available, otherwise placeholder
+            // For video files, use thumbnail if available, otherwise use video itself
             if (asset.mime_type.startsWith("video/")) {
+              types.push("video")
+              // Always create video URL for video assets
+              const cleanVideoPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+              const { data: videoData, error: videoError } = await supabase.storage
+                .from('assets')
+                .createSignedUrl(cleanVideoPath, 3600) // 1 hour expiry
+
+              if (videoError) throw videoError
+              videoUrlsArr.push(videoData.signedUrl)
+
               if (asset.thumbnail_path) {
-                // Clean path - remove leading/trailing slashes
+                // Use thumbnail for image pattern if available
                 const cleanThumbnailPath = asset.thumbnail_path.replace(/^\/+|\/+$/g, "")
                 const { data, error } = await supabase.storage
                   .from('assets')
@@ -42,9 +56,12 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                 if (error) throw error
                 urls.push(data.signedUrl)
               } else {
-                urls.push("/placeholder.jpg")
+                // Use video URL as fallback for image pattern (won't work but at least consistent)
+                urls.push(videoData.signedUrl)
               }
             } else {
+              types.push("image")
+              videoUrlsArr.push("") // Empty for non-video assets
               // Clean path - remove leading/trailing slashes
               const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
               const { data, error } = await supabase.storage
@@ -56,18 +73,26 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
             }
           } catch (error) {
             urls.push("/placeholder.jpg")
+            types.push("unknown")
+            videoUrlsArr.push("")
           }
         } else {
           urls.push("/placeholder.jpg")
+          types.push("unknown")
+          videoUrlsArr.push("")
         }
       }
 
       // Fill remaining slots with placeholder
       while (urls.length < 4) {
         urls.push("/placeholder.jpg")
+        types.push("unknown")
+        videoUrlsArr.push("")
       }
 
       setImageUrls(urls)
+      setAssetTypes(types)
+      setVideoUrls(videoUrlsArr)
     }
 
     if (previewAssets.length > 0) {
@@ -77,31 +102,320 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
   return (
     <Link href={`/assets/collections/${id}`}>
-      <div className="relative w-full min-w-[200px] aspect-[239/200] overflow-hidden rounded-lg bg-gray-100">
-        {/* Simple grid layout with 4 images */}
-        <div className="grid grid-cols-2 grid-rows-2 h-full">
-          <div className="bg-cover bg-center" style={{ backgroundImage: `url(${imageUrls[0] || "/placeholder.jpg"})` }} />
-          <div className="bg-cover bg-center" style={{ backgroundImage: `url(${imageUrls[1] || "/placeholder.jpg"})` }} />
-          <div className="bg-cover bg-center" style={{ backgroundImage: `url(${imageUrls[2] || "/placeholder.jpg"})` }} />
-          <div className="bg-cover bg-center" style={{ backgroundImage: `url(${imageUrls[3] || "/placeholder.jpg"})` }} />
-        </div>
+      <div className="relative w-full min-w-[200px] aspect-[239/200] overflow-hidden" style={{ containerType: 'inline-size' }}>
+        {/* SVG with mask for the exact shape */}
+        <svg viewBox="0 0 239 200" className="w-full h-full absolute inset-0" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            {/* Define the mask with the exact path */}
+            <mask id={`cardMask-${id}`} maskUnits="userSpaceOnUse" x="0" y="0" width="239" height="200">
+              <path
+                d="M0 179V21C0 9.40202 9.40202 0 21 0H216.195C227.67 0 237.02 9.17764 237.181 20.652C237.598 50.258 238.304 103.407 238.304 123.5C238.304 152 206.152 133 188.658 156C171.163 179 193.386 200 144.499 200H20.9761C9.37811 200 0 190.598 0 179Z"
+                fill="white"
+              />
+            </mask>
 
-        {/* Overlay with collection info */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <h3 className="font-semibold text-white text-lg">{label}</h3>
-          <p className="text-sm text-white/80">{assetCount} assets</p>
-        </div>
+            {/* Define clipPath for buttons outside SVG */}
+            <clipPath id={`cardClipPath-${id}`} clipPathUnits="userSpaceOnUse">
+              <path
+                d="M0 179V21C0 9.40202 9.40202 0 21 0H216.195C227.67 0 237.02 9.17764 237.181 20.652C237.598 50.258 238.304 103.407 238.304 123.5C238.304 152 206.152 133 188.658 156C171.163 179 193.386 200 144.499 200H20.9761C9.37811 200 0 190.598 0 179Z"
+              />
+            </clipPath>
 
-        {/* Heart button */}
+            {/* Dynamic image patterns */}
+            <pattern id={`img1-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
+              <image
+                href={imageUrls[0] || "/placeholder.jpg"}
+                width="1"
+                height="1"
+                preserveAspectRatio="xMidYMid slice"
+                crossorigin="anonymous"
+              />
+            </pattern>
+
+            <pattern id={`img2-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
+              <image
+                href={imageUrls[1] || "/placeholder.jpg"}
+                width="1"
+                height="1"
+                preserveAspectRatio="xMidYMid slice"
+                crossorigin="anonymous"
+              />
+            </pattern>
+
+            <pattern id={`img3-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
+              <image
+                href={imageUrls[2] || "/placeholder.jpg"}
+                width="1"
+                height="1"
+                preserveAspectRatio="xMidYMid slice"
+                crossorigin="anonymous"
+              />
+            </pattern>
+
+            <pattern id={`img4-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
+              <image
+                href={imageUrls[3] || "/placeholder.jpg"}
+                width="1"
+                height="1"
+                preserveAspectRatio="xMidYMid slice"
+                crossorigin="anonymous"
+              />
+            </pattern>
+
+            {/* Gradient overlays */}
+            <linearGradient id={`topGradient-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="2%" stopColor="rgba(0, 0, 0, 0.55)" />
+              <stop offset="65%" stopColor="rgba(34, 34, 34, 0.00)" />
+            </linearGradient>
+            <linearGradient id={`bottomGradient-${id}`} x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0.23%" stopColor="rgba(0, 0, 0, 0.70)" />
+              <stop offset="45%" stopColor="rgba(34, 34, 34, 0.00)" />
+            </linearGradient>
+          </defs>
+
+          {/* Background images with mask */}
+          <g mask={`url(#cardMask-${id})`}>
+            {/* 2x2 grid of images - positioned based on reference */}
+            <rect x="0" y="0" width="119.5" height="95" fill={`url(#img1-${id})`} />
+            <rect x="119.5" y="0" width="119.5" height="95" fill={`url(#img2-${id})`} />
+            <rect x="0" y="95" width="119.5" height="105" fill={`url(#img3-${id})`} />
+            <rect x="119.5" y="95" width="119.5" height="105" fill={`url(#img4-${id})`} />
+
+            {/* Top gradient overlay */}
+            <rect x="0" y="0" width="239" height="200" fill={`url(#topGradient-${id})`} />
+
+            {/* Bottom gradient overlay */}
+            <rect x="0" y="0" width="239" height="200" fill={`url(#bottomGradient-${id})`} />
+
+            {/* Horizontal grid line (at y=95, midt i højden) */}
+            <line
+              x1="0"
+              y1="95"
+              x2="239"
+              y2="95"
+              stroke="#FFFDFD"
+              strokeWidth="1.5"
+              opacity="0.6"
+            />
+
+            {/* Vertical grid line (at x=119.5, midt i bredden) */}
+            <line
+              x1="119.5"
+              y1="0"
+              x2="119.5"
+              y2="200"
+              stroke="#FFFDFD"
+              strokeWidth="1.5"
+              opacity="0.6"
+            />
+
+          </g>
+
+          {/* Video play icons - outside mask */}
+          {assetTypes[0] === "video" && (
+            <g>
+              <circle cx="59.75" cy="47.5" r="15" fill="rgba(0,0,0,0.8)" />
+              <polygon points="56.75,43.5 56.75,51.5 62.75,47.5" fill="white" />
+            </g>
+          )}
+          {assetTypes[1] === "video" && (
+            <g>
+              <circle cx="179.25" cy="47.5" r="15" fill="rgba(0,0,0,0.8)" />
+              <polygon points="176.25,43.5 176.25,51.5 182.25,47.5" fill="white" />
+            </g>
+          )}
+          {assetTypes[2] === "video" && (
+            <g>
+              <circle cx="59.75" cy="142.5" r="15" fill="rgba(0,0,0,0.8)" />
+              <polygon points="56.75,138.5 56.75,146.5 62.75,142.5" fill="white" />
+            </g>
+          )}
+          {assetTypes[3] === "video" && (
+            <g>
+              <circle cx="179.25" cy="142.5" r="15" fill="rgba(0,0,0,0.8)" />
+              <polygon points="176.25,138.5 176.25,146.5 182.25,142.5" fill="white" />
+            </g>
+          )}
+
+          {/* Video overlays for video assets */}
+          {assetTypes[0] === "video" && videoUrls[0] && (
+            <foreignObject x="0" y="0" width="119.5" height="95">
+              <video
+                src={videoUrls[0]}
+                className="w-full h-full object-cover"
+                preload="metadata"
+                muted
+                playsInline
+                style={{ pointerEvents: 'none' }}
+              />
+            </foreignObject>
+          )}
+          {assetTypes[1] === "video" && videoUrls[1] && (
+            <foreignObject x="119.5" y="0" width="119.5" height="95">
+              <video
+                src={videoUrls[1]}
+                className="w-full h-full object-cover"
+                preload="metadata"
+                muted
+                playsInline
+                style={{ pointerEvents: 'none' }}
+              />
+            </foreignObject>
+          )}
+          {assetTypes[2] === "video" && videoUrls[2] && (
+            <foreignObject x="0" y="95" width="119.5" height="105">
+              <video
+                src={videoUrls[2]}
+                className="w-full h-full object-cover"
+                preload="metadata"
+                muted
+                playsInline
+                style={{ pointerEvents: 'none' }}
+              />
+            </foreignObject>
+          )}
+          {assetTypes[3] === "video" && videoUrls[3] && (
+            <foreignObject x="119.5" y="95" width="119.5" height="105">
+              <video
+                src={videoUrls[3]}
+                className="w-full h-full object-cover"
+                preload="metadata"
+                muted
+                playsInline
+                style={{ pointerEvents: 'none' }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                  <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center">
+                    <div className="w-0 h-0 border-l-2 border-l-gray-700 border-t-1 border-t-transparent border-b-1 border-b-transparent ml-0.5"></div>
+                  </div>
+                </div>
+              </div>
+            </foreignObject>
+          )}
+
+          {/* HTML content inside SVG using foreignObject - automatically clipped by mask */}
+          <foreignObject x="0" y="0" width="239" height="200" mask={`url(#cardMask-${id})`}>
+            <div
+              className="w-full h-full relative pointer-events-none"
+              style={{
+                fontFamily: 'Inter, sans-serif',
+                boxSizing: 'border-box',
+                width: '100%',
+                height: '100%',
+              }}
+            >
+              {/* Header section */}
+              <div className="absolute" style={{ left: '5.02%', top: '8%' }}>
+                <h2
+                  className="text-white font-bold"
+                  style={{
+                    fontSize: 'clamp(13px, 2.88cqw, 15px)',
+                    textShadow: '0px 2px 2px rgba(0, 0, 0, 0.10)',
+                    lineHeight: '1',
+                  }}
+                >
+                  {label}
+                </h2>
+                <p
+                  className="text-white font-light"
+                  style={{
+                    fontSize: 'clamp(9px, 1.92cqw, 10px)',
+                    textShadow: '0px 2px 2px rgba(0, 0, 0, 0.10)',
+                    marginTop: '7px',
+                    lineHeight: '1',
+                  }}
+                >
+                  {assetCount} assets
+                </p>
+              </div>
+            </div>
+          </foreignObject>
+        </svg>
+
+        {/* Heart button - outside SVG for blur to work */}
         <button
           onClick={(e) => {
             e.preventDefault()
             setIsLiked(!isLiked)
           }}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100"
+          className="absolute pointer-events-auto rounded-full flex items-center justify-center hover:opacity-80 transition-all z-10"
+          style={{
+            left: '77.82%',
+            top: '5%',
+            width: 'clamp(38px, 13cqw, 100px)',
+            height: 'clamp(38px, 13cqw, 100px)',
+            background: 'rgba(255, 255, 255, 0.30)',
+            backdropFilter: 'blur(14.5px)',
+            WebkitBackdropFilter: 'blur(14.5px)',
+          }}
+          aria-label="Like"
         >
-          <Heart className={`h-4 w-4 ${isLiked ? "fill-current text-[#dc3545]" : ""}`} />
+          <Heart
+            className={`transition-all ${isLiked ? "fill-white text-white scale-110" : "text-white"}`}
+            style={{ width: 'clamp(16px, 5cqw, 48px)', height: 'clamp(16px, 5cqw, 46px)' }}
+          />
+        </button>
+
+        {/* "Se hele kampagnen" button - outside SVG for blur to work */}
+        {/* Justeret bottom så knappen holder sig inden for kortets kurve */}
+        <div
+          className="absolute pointer-events-auto z-10"
+          style={{
+            left: '5.02%',
+            bottom: '8%',
+            width: '65%',
+            height: 'clamp(40px, 12cqw, 90px)',
+            background: 'rgba(255, 255, 255, 0.30)',
+            borderRadius: 'clamp(25px, 8cqw, 60px)',
+            backdropFilter: 'blur(14.550000190734863px)',
+            WebkitBackdropFilter: 'blur(14.550000190734863px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <span
+            className="text-white font-semibold text-center whitespace-nowrap"
+            style={{
+              fontSize: 'clamp(12px, 4cqw, 28px)',
+              textShadow: '1px 1px 1px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            Se hele kampagnen
+          </span>
+        </div>
+
+        {/* Arrow button positioned outside - not clipped */}
+        <button
+          className="absolute rounded-full flex items-center justify-center hover:scale-105 transition-transform pointer-events-auto z-20"
+          style={{
+            bottom: 'clamp(2px, 0.66cqw, 8px)',
+            right: 'clamp(2px, 0.66cqw, 8px)',
+            width: 'clamp(42px, 18cqw, 135px)',
+            height: 'clamp(42px, 18cqw, 135px)',
+            backgroundColor: '#E5E5E5',
+          }}
+        >
+          <svg
+            viewBox="0 8 25 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            preserveAspectRatio="xMidYMid"
+            style={{
+              width: 'clamp(22px, 7.5cqw, 56px)',
+              height: 'clamp(18px, 6cqw, 46px)',
+            }}
+          >
+            <path
+              d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+              stroke="black"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
         </button>
       </div>
     </Link>

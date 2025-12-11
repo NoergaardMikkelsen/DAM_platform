@@ -132,3 +132,68 @@ export async function getVideoDimensions(
     video.src = URL.createObjectURL(file)
   })
 }
+
+/**
+ * Generate a thumbnail image from a video file
+ */
+export async function generateVideoThumbnail(file: File): Promise<File | null> {
+  if (!file.type.startsWith("video/")) {
+    return null
+  }
+
+  return new Promise((resolve) => {
+    const video = document.createElement("video")
+    video.preload = "metadata"
+    video.currentTime = 1 // Seek to 1 second to get a frame
+
+    video.onloadedmetadata = () => {
+      // Create canvas to capture video frame
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+
+      if (!ctx) {
+        resolve(null)
+        return
+      }
+
+      // Set canvas size to video dimensions (but limit max size)
+      const maxDimension = 300
+      const aspectRatio = video.videoWidth / video.videoHeight
+
+      if (video.videoWidth > video.videoHeight) {
+        canvas.width = Math.min(video.videoWidth, maxDimension)
+        canvas.height = canvas.width / aspectRatio
+      } else {
+        canvas.height = Math.min(video.videoHeight, maxDimension)
+        canvas.width = canvas.height * aspectRatio
+      }
+
+      video.onseeked = () => {
+        // Draw video frame to canvas
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+        // Convert canvas to blob
+        canvas.toBlob((blob) => {
+          if (blob) {
+            // Create File from blob
+            const thumbnailFile = new File([blob], `${file.name.split('.')[0]}_thumbnail.jpg`, {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            })
+            resolve(thumbnailFile)
+          } else {
+            resolve(null)
+          }
+          URL.revokeObjectURL(video.src)
+        }, "image/jpeg", 0.8)
+      }
+
+      video.onerror = () => {
+        resolve(null)
+        URL.revokeObjectURL(video.src)
+      }
+    }
+
+    video.src = URL.createObjectURL(file)
+  })
+}

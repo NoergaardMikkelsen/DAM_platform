@@ -7,6 +7,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
+import { CollectionCard } from "@/components/collection-card"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
@@ -20,6 +21,7 @@ interface Collection {
     title: string
     storage_path: string
     mime_type: string
+    thumbnail_path?: string | null
   }>
 }
 
@@ -29,6 +31,9 @@ interface Asset {
   storage_path: string
   mime_type: string
   category_tag_id: string | null
+  current_version?: {
+    thumbnail_path: string | null
+  } | null
 }
 
 export default function DashboardPage() {
@@ -38,6 +43,7 @@ export default function DashboardPage() {
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [maxCollections, setMaxCollections] = useState(3)
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -51,6 +57,25 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboardData()
+  }, [])
+
+  useEffect(() => {
+    const updateMaxCollections = () => {
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth
+        // Calculate how many 200px+ cards can fit
+        const availableWidth = width - 64 // Account for padding
+        const cardWidth = 200 + 32 // 200px min card + 32px gap
+        const maxCols = Math.floor(availableWidth / cardWidth)
+
+        // Cap at 4 max, minimum 2
+        setMaxCollections(Math.min(Math.max(maxCols, 2), 4))
+      }
+    }
+
+    updateMaxCollections()
+    window.addEventListener('resize', updateMaxCollections)
+    return () => window.removeEventListener('resize', updateMaxCollections)
   }, [])
 
   const loadDashboardData = async () => {
@@ -117,7 +142,17 @@ export default function DashboardPage() {
     const downloadsLastWeek = recentEvents?.length || 0
 
     // Get storage usage
-    const { data: assetsData } = await supabase.from("assets").select("file_size, id, title, storage_path, mime_type, category_tag_id").in("client_id", clientIds)
+    const { data: assetsData } = await supabase.from("assets").select(`
+      file_size,
+      id,
+      title,
+      storage_path,
+      mime_type,
+      category_tag_id,
+      current_version:asset_versions!current_version_id (
+        thumbnail_path
+      )
+    `).in("client_id", clientIds)
 
     const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
     const storageUsedMB = Math.round(storageUsedBytes / (1024 * 1024))
@@ -136,7 +171,16 @@ export default function DashboardPage() {
     // Get all assets to build collection previews
     const { data: allAssetsData } = await supabase
       .from("assets")
-      .select("id, title, storage_path, mime_type, category_tag_id")
+      .select(`
+        id,
+        title,
+        storage_path,
+        mime_type,
+        category_tag_id,
+        current_version:asset_versions!current_version_id (
+          thumbnail_path
+        )
+      `)
       .in("client_id", clientIds)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -150,10 +194,13 @@ export default function DashboardPage() {
           label: tag.label,
           slug: tag.slug,
           assetCount: tagAssets.length,
-          previewAssets: tagAssets.slice(0, 4),
+          previewAssets: tagAssets.slice(0, 4).map(asset => ({
+            ...asset,
+            thumbnail_path: asset.current_version?.thumbnail_path || null
+          })),
         }
       })
-        .filter((c: any) => c.assetCount > 0)
+      .filter((c: any) => c.assetCount > 0)
 
     setCollections(collectionsData)
     setFilteredCollections(collectionsData)
@@ -321,53 +368,15 @@ export default function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {sortedCollections.slice(0, 4).map((collection) => (
-              <Link key={collection.id} href={`/assets/collections/${collection.id}`}>
-                <Card className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg">
-                  {/* Preview Grid */}
-                  <div className="relative aspect-square bg-gray-100">
-                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-0.5">
-                      {collection.previewAssets.slice(0, 4).map((asset) => (
-                        <div key={asset.id} className="relative overflow-hidden bg-gray-200">
-                          {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
-                            <AssetPreview
-                              storagePath={asset.storage_path}
-                              mimeType={asset.mime_type}
-                              alt={asset.title}
-                              className="h-full w-full object-cover"
-                            />
-                          )}
-                        </div>
-                      ))}
-                      {/* Fill empty slots */}
-                      {[...Array(Math.max(0, 4 - collection.previewAssets.length))].map((_, idx) => (
-                        <div key={`empty-${idx}`} className="bg-gray-200" />
-                      ))}
-                    </div>
-
-                    {/* Overlay with collection info */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <h3 className="font-semibold text-white">{collection.label}</h3>
-                      <p className="text-sm text-white/80">{collection.assetCount} assets</p>
-                    </div>
-
-                    {/* Favorite button */}
-                    <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100">
-                      <Heart className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* Bottom action bar */}
-                  <div className="flex items-center justify-between border-t bg-white p-3">
-                    <span className="text-sm text-gray-600">Se hele kampagnen</span>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-[#dc3545] group-hover:text-white">
-                      <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </div>
-                </Card>
-              </Link>
+          <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            {sortedCollections.slice(0, maxCollections).map((collection) => (
+              <CollectionCard
+                key={collection.id}
+                id={collection.id}
+                label={collection.label}
+                assetCount={collection.assetCount}
+                previewAssets={collection.previewAssets}
+              />
             ))}
           </div>
         )}

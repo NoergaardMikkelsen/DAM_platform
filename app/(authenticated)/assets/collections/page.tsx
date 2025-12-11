@@ -4,10 +4,9 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Heart, ArrowRight, ArrowLeft } from "lucide-react"
+import { Search, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { Card } from "@/components/ui/card"
-import { AssetPreview } from "@/components/asset-preview"
+import { CollectionCard } from "@/components/collection-card"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
@@ -16,6 +15,7 @@ interface Asset {
   title: string
   storage_path: string
   mime_type: string
+  thumbnail_path?: string | null
 }
 
 interface Collection {
@@ -32,6 +32,7 @@ export default function CollectionsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
+  const [maxCollections, setMaxCollections] = useState(3)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -42,6 +43,25 @@ export default function CollectionsPage() {
   useEffect(() => {
     applySearchAndSort()
   }, [collections, searchQuery, sortBy])
+
+  useEffect(() => {
+    const updateMaxCollections = () => {
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth
+        // Calculate how many 200px+ cards can fit
+        const availableWidth = width - 64 // Account for padding
+        const cardWidth = 200 + 32 // 200px min card + 32px gap
+        const maxCols = Math.floor(availableWidth / cardWidth)
+
+        // For collections page, allow more columns since users can scroll
+        setMaxCollections(Math.min(Math.max(maxCols, 2), 6)) // Allow up to 6 on collections page
+      }
+    }
+
+    updateMaxCollections()
+    window.addEventListener('resize', updateMaxCollections)
+    return () => window.removeEventListener('resize', updateMaxCollections)
+  }, [])
 
   const loadData = async () => {
     const supabase = supabaseRef.current
@@ -85,7 +105,16 @@ export default function CollectionsPage() {
     // Get all assets for the user's clients
     const { data: assetsData } = await supabase
       .from("assets")
-      .select("id, title, storage_path, mime_type, category_tag_id")
+      .select(`
+        id,
+        title,
+        storage_path,
+        mime_type,
+        category_tag_id,
+        current_version:asset_versions!current_version_id (
+          thumbnail_path
+        )
+      `)
       .in("client_id", clientIds)
       .eq("status", "active")
 
@@ -106,7 +135,10 @@ export default function CollectionsPage() {
             label: tag.label,
             slug: tag.slug,
             assetCount: tagAssets.length,
-            previewAssets: tagAssets.slice(0, 4),
+            previewAssets: tagAssets.slice(0, 4).map(asset => ({
+              ...asset,
+              thumbnail_path: asset.current_version?.thumbnail_path || null
+            })),
           }
         })
         .filter((c: any) => c.assetCount > 0)
@@ -187,11 +219,9 @@ export default function CollectionsPage() {
 
       {/* Collections Grid */}
       {isLoading ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           {[...Array(8)].map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <div className="aspect-[4/3] animate-pulse bg-gray-200" />
-            </Card>
+            <div key={i} className="relative w-full min-w-[200px] aspect-[239/200] animate-pulse bg-gray-200 rounded-lg" />
           ))}
         </div>
       ) : filteredCollections.length === 0 ? (
@@ -202,52 +232,15 @@ export default function CollectionsPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           {filteredCollections.map((collection) => (
-            <Link key={collection.id} href={`/assets/collections/${collection.id}`}>
-              <Card className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg">
-                {/* Preview Grid */}
-                <div className="relative aspect-square bg-gray-100">
-                  <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-0.5">
-                    {collection.previewAssets.slice(0, 4).map((asset) => (
-                      <div key={asset.id} className="relative overflow-hidden bg-gray-200">
-                        {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
-                          <AssetPreview
-                            storagePath={asset.storage_path}
-                            mimeType={asset.mime_type}
-                            alt={asset.title}
-                            className="h-full w-full object-cover"
-                          />
-                        )}
-                      </div>
-                    ))}
-                    {[...Array(Math.max(0, 4 - collection.previewAssets.length))].map((_, idx) => (
-                      <div key={`empty-${idx}`} className="bg-gray-200" />
-                    ))}
-                  </div>
-
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <h3 className="font-semibold text-white">{collection.label}</h3>
-                    <p className="text-sm text-white/80">{collection.assetCount} assets</p>
-                  </div>
-
-                  {/* Favorite button */}
-                  <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100">
-                    <Heart className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Bottom action bar */}
-                <div className="flex items-center justify-between border-t bg-white p-3">
-                  <span className="text-sm text-gray-600">View collection</span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-[#dc3545] group-hover:text-white">
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
-                </div>
-              </Card>
-            </Link>
+            <CollectionCard
+              key={collection.id}
+              id={collection.id}
+              label={collection.label}
+              assetCount={collection.assetCount}
+              previewAssets={collection.previewAssets}
+            />
           ))}
         </div>
       )}

@@ -9,6 +9,7 @@ import Link from "next/link"
 import { Card, CardHeader } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
+import { CollectionCard } from "@/components/collection-card"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
@@ -20,6 +21,9 @@ interface Asset {
   created_at: string
   file_size: number
   category_tag_id: string | null
+  current_version?: {
+    thumbnail_path: string | null
+  } | null
 }
 
 interface Collection {
@@ -40,6 +44,7 @@ export default function AssetsPage() {
   const [sortBy, setSortBy] = useState("newest")
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
+  const [maxCollections, setMaxCollections] = useState(3)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -50,6 +55,25 @@ export default function AssetsPage() {
   useEffect(() => {
     applySearchAndSort()
   }, [assets, searchQuery, sortBy])
+
+  useEffect(() => {
+    const updateMaxCollections = () => {
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth
+        // Calculate how many 200px+ cards can fit
+        const availableWidth = width - 64 // Account for padding
+        const cardWidth = 200 + 32 // 200px min card + 32px gap
+        const maxCols = Math.floor(availableWidth / cardWidth)
+
+        // Cap at 4 max, minimum 2
+        setMaxCollections(Math.min(Math.max(maxCols, 2), 4))
+      }
+    }
+
+    updateMaxCollections()
+    window.addEventListener('resize', updateMaxCollections)
+    return () => window.removeEventListener('resize', updateMaxCollections)
+  }, [])
 
   const loadData = async () => {
     const supabase = supabaseRef.current
@@ -93,7 +117,18 @@ export default function AssetsPage() {
 
     const { data: assetsData } = await supabase
       .from("assets")
-      .select("id, title, storage_path, mime_type, created_at, file_size, category_tag_id")
+      .select(`
+        id,
+        title,
+        storage_path,
+        mime_type,
+        created_at,
+        file_size,
+        category_tag_id,
+        current_version:asset_versions!current_version_id (
+          thumbnail_path
+        )
+      `)
       .in("client_id", clientIds)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -120,7 +155,10 @@ export default function AssetsPage() {
             label: tag.label,
             slug: tag.slug,
             assetCount: tagAssets.length,
-            previewAssets: tagAssets.slice(0, 4), // First 4 assets for preview
+            previewAssets: tagAssets.slice(0, 4).map(asset => ({
+              ...asset,
+              thumbnail_path: asset.current_version?.thumbnail_path || null
+            })), // First 4 assets for preview
           }
         })
         .filter((c: Collection) => c.assetCount > 0) // Only show collections with assets
@@ -275,11 +313,9 @@ export default function AssetsPage() {
         </div>
 
         {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <div className="aspect-[4/3] animate-pulse bg-gray-200" />
-              </Card>
+          <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            {[...Array(maxCollections)].map((_, i) => (
+              <div key={i} className="relative w-full min-w-[200px] aspect-[239/200] animate-pulse bg-gray-200 rounded-lg" />
             ))}
           </div>
         ) : filteredCollections.length === 0 ? (
@@ -287,53 +323,15 @@ export default function AssetsPage() {
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {sortedCollections.slice(0, 4).map((collection) => (
-              <Link key={collection.id} href={`/assets/collections/${collection.id}`}>
-                <Card className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg">
-                  {/* Preview Grid */}
-                  <div className="relative aspect-square bg-gray-100">
-                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-0.5">
-                      {collection.previewAssets.slice(0, 4).map((asset, idx) => (
-                        <div key={asset.id} className="relative overflow-hidden bg-gray-200">
-                          {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
-                            <AssetPreview
-                              storagePath={asset.storage_path}
-                              mimeType={asset.mime_type}
-                              alt={asset.title}
-                              className="h-full w-full object-cover"
-                            />
-                          )}
-                        </div>
-                      ))}
-                      {/* Fill empty slots */}
-                      {[...Array(Math.max(0, 4 - collection.previewAssets.length))].map((_, idx) => (
-                        <div key={`empty-${idx}`} className="bg-gray-200" />
-                      ))}
-                    </div>
-
-                    {/* Overlay with collection info */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <h3 className="font-semibold text-white">{collection.label}</h3>
-                      <p className="text-sm text-white/80">{collection.assetCount} assets</p>
-                    </div>
-
-                    {/* Favorite button */}
-                    <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100">
-                      <Heart className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* Bottom action bar */}
-                  <div className="flex items-center justify-between border-t bg-white p-3">
-                    <span className="text-sm text-gray-600">Se hele kampagnen</span>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-[#dc3545] group-hover:text-white">
-                      <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </div>
-                </Card>
-              </Link>
+          <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            {sortedCollections.slice(0, maxCollections).map((collection) => (
+              <CollectionCard
+                key={collection.id}
+                id={collection.id}
+                label={collection.label}
+                assetCount={collection.assetCount}
+                previewAssets={collection.previewAssets}
+              />
             ))}
           </div>
         )}
