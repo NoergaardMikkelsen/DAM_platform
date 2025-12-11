@@ -12,7 +12,6 @@ import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import Masonry from 'react-masonry-css'
 
 interface Asset {
   id: string
@@ -381,7 +380,7 @@ export default function AssetsPage() {
             </Link>
           </div>
         ) : (
-          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-6">
+          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {filteredAssets.map((asset) => (
               <Link key={asset.id} href={`/assets/${asset.id}?context=all`} className="block mb-6 break-inside-avoid">
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">

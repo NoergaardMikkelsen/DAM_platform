@@ -90,7 +90,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
 
   if (isPdf) {
     return (
-      <div className={`${className} bg-white border border-gray-300 overflow-hidden relative`}>
+      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative`}>
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
           className="w-full h-full"
@@ -98,7 +98,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
           style={{ border: 'none' }}
         />
         {/* PDF overlay */}
-        <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded font-medium">
+        <div className="absolute top-2 right-2 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded font-medium backdrop-blur-sm border border-gray-200">
           PDF
         </div>
       </div>
