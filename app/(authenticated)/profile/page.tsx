@@ -100,6 +100,13 @@ export default function ProfilePage() {
     setIsLoading(false)
   }
 
+  const initials =
+    userData?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || ""
+
   return (
     <div className="p-8">
       <h1 className="mb-8 text-3xl font-bold text-gray-900">Profile</h1>
@@ -113,7 +120,7 @@ export default function ProfilePage() {
 
         <TabsContent value="profile">
           {isLoading ? (
-            <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex min-h-[400px] items-center justify-center">
               <div className="flex flex-col items-center gap-4">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
                 <p className="text-gray-600">Loading profile...</p>
@@ -123,11 +130,7 @@ export default function ProfilePage() {
             <div className="flex items-start gap-8">
               <div className="flex flex-col items-center gap-4">
                 <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
-                  {userData?.full_name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()}
+                  {initials}
                 </div>
                 <div className="text-center">
                   <div className="font-semibold text-gray-900">{userData?.full_name}</div>
@@ -171,10 +174,7 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button
-                        className="bg-[#dc3545] hover:bg-[#c82333]"
-                        onClick={() => setIsEditing(true)}
-                      >
+                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={() => setIsEditing(true)}>
                         Edit Profile
                       </Button>
                     </div>
@@ -187,7 +187,8 @@ export default function ProfilePage() {
                         <Input
                           id="full_name"
                           value={editForm.full_name}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                          autoComplete="off"
                         />
                       </div>
                       <div className="space-y-2">
@@ -195,8 +196,9 @@ export default function ProfilePage() {
                         <Input
                           id="phone"
                           value={editForm.phone}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
                           placeholder="+45 12 34 56 78"
+                          autoComplete="off"
                         />
                       </div>
                     </div>
@@ -204,21 +206,16 @@ export default function ProfilePage() {
                     <div className="grid gap-6 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={userData?.email}
-                          disabled
-                          className="bg-gray-50"
-                        />
+                        <Input id="email" type="email" value={userData?.email || ""} disabled className="bg-gray-50" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="current_position">Current Position</Label>
                         <Input
                           id="current_position"
                           value={editForm.current_position}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, current_position: e.target.value }))}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, current_position: e.target.value }))}
                           placeholder="Marketing Manager"
+                          autoComplete="off"
                         />
                       </div>
                     </div>
@@ -228,24 +225,17 @@ export default function ProfilePage() {
                       <Input
                         id="department"
                         value={editForm.department}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
                         placeholder="Marketing"
+                        autoComplete="off"
                       />
                     </div>
 
                     <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsEditing(false)}
-                        disabled={isLoading}
-                      >
+                      <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
                         Cancel
                       </Button>
-                      <Button
-                        className="bg-[#dc3545] hover:bg-[#c82333]"
-                        onClick={handleEdit}
-                        disabled={isLoading}
-                      >
+                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={handleEdit} disabled={isLoading}>
                         {isLoading ? "Saving..." : "Save Changes"}
                       </Button>
                     </div>

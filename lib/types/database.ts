@@ -69,6 +69,8 @@ export type Asset = {
   duration_seconds: number | null
   category_tag_id: string | null
   status: string
+  current_version_id?: string | null
+  previous_version_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -78,7 +80,7 @@ export type AssetEvent = {
   asset_id: string
   client_id: string
   user_id: string | null
-  event_type: "upload" | "download" | "update" | "delete" | "view"
+  event_type: "upload" | "download" | "update" | "delete" | "view" | "replace" | "restore"
   source: string | null
   client_ip: string | null
   created_at: string

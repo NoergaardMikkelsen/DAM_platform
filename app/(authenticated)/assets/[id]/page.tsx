@@ -1,11 +1,20 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import type { ChangeEvent } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Accordion,
   AccordionContent,
@@ -21,9 +30,23 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, ArrowRight, Download, Heart, Link2, Share2, Sparkles, SlidersHorizontal } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  Download,
+  Heart,
+  Link2,
+  Share2,
+  Sparkles,
+  History,
+  Wand2,
+  Upload,
+  RotateCcw,
+  SlidersHorizontal,
+} from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { uploadAsset, getImageDimensions, getVideoDimensions } from "@/lib/utils/storage"
 
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -44,6 +67,8 @@ interface Asset {
   uploaded_by: string | null
   created_at: string
   category_tag_id: string | null
+  current_version_id?: string | null
+  previous_version_id?: string | null
 }
 
 interface User {
@@ -91,10 +116,13 @@ const formatOptions = [
 
 export default function AssetDetailPage() {
   const params = useParams()
-  const id = params.id as string
+  const id = useMemo(() => (params.id as string) || "", [params.id])
+  const rawSearchParams = useSearchParams()
+  const searchParams = useMemo(() => rawSearchParams, [rawSearchParams])
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+  const [isNavigating, startNavigation] = useTransition()
 
   const [asset, setAsset] = useState<Asset | null>(null)
   const [uploader, setUploader] = useState<User | null>(null)
@@ -114,6 +142,13 @@ export default function AssetDetailPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isCopyingLink, setIsCopyingLink] = useState(false)
   const [downloadMode, setDownloadMode] = useState<"preset" | "custom">("preset")
+  const [navAssets, setNavAssets] = useState<Asset[]>([])
+  const [navIndex, setNavIndex] = useState<number>(-1)
+  const [videoErrorCount, setVideoErrorCount] = useState(0)
+  const [isReplacing, setIsReplacing] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [previousVersion, setPreviousVersion] = useState<any | null>(null)
+  const [previousPreviewUrl, setPreviousPreviewUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (asset?.width) {
@@ -129,10 +164,17 @@ export default function AssetDetailPage() {
       router.push("/assets")
       return
     }
-    void loadAsset()
+    void loadAsset(id, false)
   }, [id, router])
 
-  const loadAsset = async () => {
+  const loadAsset = async (targetId: string, soft: boolean) => {
+    // clear previous signed URL to avoid stale previews during navigation
+    setStorageData(null)
+    setVideoErrorCount(0)
+    if (!soft) {
+      setIsLoading(true)
+    }
+
     const supabase = supabaseRef.current
   const {
     data: { user },
@@ -143,7 +185,7 @@ export default function AssetDetailPage() {
       return
     }
 
-    const { data: assetData, error } = await supabase.from("assets").select("*").eq("id", id).single()
+    const { data: assetData, error } = await supabase.from("assets").select("*").eq("id", targetId).single()
 
     if (!assetData || error) {
       router.push("/assets")
@@ -159,12 +201,12 @@ export default function AssetDetailPage() {
     .from("favorites")
     .select("id")
     .eq("user_id", user.id)
-    .eq("asset_id", id)
+      .eq("asset_id", targetId)
     .maybeSingle()
     setFavorite(favoriteData)
     setIsFavorited(!!favoriteData)
 
-  const { data: assetTags } = await supabase.from("asset_tags").select("tags(*)").eq("asset_id", id)
+    const { data: assetTags } = await supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId)
     setTags(assetTags?.map((at: any) => at.tags) || [])
 
     // Ensure storage_path doesn't have leading/trailing slashes
@@ -190,35 +232,143 @@ export default function AssetDetailPage() {
 
     console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
     setStorageData(storageUrl)
+    setVideoErrorCount(0)
 
-    await Promise.all([loadActivity(), loadVersions()])
+    // Load previous version preview (if any)
+    setPreviousVersion(null)
+    setPreviousPreviewUrl(null)
+    if (assetData.previous_version_id) {
+      const { data: prevVersion } = await supabase
+        .from("asset_versions")
+        .select("id, storage_bucket, storage_path, mime_type, version_label, created_at, file_size")
+        .eq("id", assetData.previous_version_id)
+        .single()
 
+      if (prevVersion) {
+        setPreviousVersion(prevVersion)
+        const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
+        const { data: prevUrl } = await supabase.storage.from(prevVersion.storage_bucket).createSignedUrl(prevClean, 3600)
+        if (prevUrl?.signedUrl) {
+          setPreviousPreviewUrl(prevUrl.signedUrl)
+        }
+      }
+    }
+
+    await Promise.all([loadActivity(assetData.id), loadVersions(assetData.id)])
+
+    // Load navigation assets based on context
+    const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
+    const collectionId =
+      searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
+    await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
+
+    if (!soft) {
     setIsLoading(false)
+    }
   }
 
-  const loadActivity = async () => {
+  const loadActivity = async (assetId: string) => {
       const supabase = supabaseRef.current
     const { data } = await supabase
       .from("asset_events")
       .select("*")
-      .eq("asset_id", id)
+      .eq("asset_id", assetId)
       .order("created_at", { ascending: false })
       .limit(20)
 
     setActivity(data || [])
   }
 
-  const loadVersions = async () => {
+  const loadNavAssets = async ({
+    context,
+    collectionId,
+    currentAssetId,
+    clientId,
+  }: {
+    context: string
+    collectionId: string | null
+    currentAssetId: string
+    clientId: string
+  }) => {
     const supabase = supabaseRef.current
-    const { data } = await supabase
+
+    let query = supabase
+      .from("assets")
+      .select("id, client_id, title, storage_path, mime_type, created_at, category_tag_id, status")
+      .eq("status", "active")
+
+    if (context === "collection" && collectionId) {
+      query = query.eq("category_tag_id", collectionId)
+    } else {
+      query = query.eq("client_id", clientId)
+    }
+
+    const { data } = await query.order("created_at", { ascending: false })
+    if (!data) return
+
+    setNavAssets(data as Asset[])
+    const idx = data.findIndex((a: { id: string }) => a.id === currentAssetId)
+    setNavIndex(idx)
+  }
+
+  const goToNeighbor = (direction: -1 | 1) => {
+    if (navIndex < 0) return
+    const nextIndex = navIndex + direction
+    if (nextIndex < 0 || nextIndex >= navAssets.length) return
+    const nextAsset = navAssets[nextIndex]
+    const context = searchParams.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    const collectionId =
+      searchParams.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+    const query = new URLSearchParams()
+    query.set("context", context)
+    if (collectionId) query.set("collectionId", collectionId)
+    const targetUrl = `/assets/${nextAsset.id}?${query.toString()}`
+    startNavigation(async () => {
+      window.history.replaceState(null, "", targetUrl)
+      await loadAsset(nextAsset.id, true)
+    })
+  }
+
+  // Prefetch neighbor routes for smoother navigation
+  useEffect(() => {
+    const context = searchParams.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    const collectionId =
+      searchParams.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+    const buildUrl = (assetId: string) => {
+      const q = new URLSearchParams()
+      q.set("context", context)
+      if (collectionId) q.set("collectionId", collectionId)
+      return `/assets/${assetId}?${q.toString()}`
+    }
+    if (navIndex > 0) {
+      router.prefetch(buildUrl(navAssets[navIndex - 1].id))
+    }
+    if (navIndex >= 0 && navIndex < navAssets.length - 1) {
+      router.prefetch(buildUrl(navAssets[navIndex + 1].id))
+    }
+  }, [navIndex, navAssets, asset?.category_tag_id, searchParams, router])
+
+  const loadVersions = async (assetId: string) => {
+    try {
+      const supabase = supabaseRef.current
+      const { data, error } = await supabase
       .from("asset_versions")
       .select(
         "id, version_label, storage_path, storage_bucket, mime_type, width, height, dpi, file_size, created_at",
       )
-      .eq("asset_id", id)
+        .eq("asset_id", assetId)
       .order("created_at", { ascending: false })
 
+      // Handle gracefully - table might not exist (PGRST205) or no versions (PGRST116)
+      // Silently ignore these expected errors
+      if (error && error.code !== "PGRST116" && error.code !== "PGRST205") {
+        console.error("Error loading versions:", error)
+      }
     setVersions(data || [])
+    } catch (err) {
+      // Silently ignore - table doesn't exist or other non-critical errors
+      setVersions([])
+    }
   }
 
   const handleFavorite = async () => {
@@ -269,7 +419,129 @@ export default function AssetDetailPage() {
       source: "web",
       metadata,
     })
-    await loadActivity()
+    await loadActivity(asset.id)
+  }
+
+  const handleRestorePrevious = async () => {
+    if (!asset?.previous_version_id) return
+    const supabase = supabaseRef.current
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: prevVersion, error } = await supabase
+      .from("asset_versions")
+      .select("*")
+      .eq("id", asset.previous_version_id)
+      .single()
+    if (error || !prevVersion) {
+      setErrorMessage("Previous version not found.")
+      return
+    }
+
+    const updatePayload = {
+      current_version_id: prevVersion.id,
+      previous_version_id: asset.current_version_id ?? null,
+      storage_path: prevVersion.storage_path,
+      storage_bucket: prevVersion.storage_bucket,
+      mime_type: prevVersion.mime_type || asset.mime_type,
+      file_size: prevVersion.file_size ?? asset.file_size,
+      width: prevVersion.width ?? asset.width,
+      height: prevVersion.height ?? asset.height,
+    }
+
+    const { error: updateError } = await supabase.from("assets").update(updatePayload).eq("id", asset.id)
+    if (updateError) {
+      setErrorMessage("Failed to restore previous version.")
+      return
+    }
+
+    await supabase
+      .from("asset_events")
+      .insert({ asset_id: asset.id, client_id: asset.client_id, user_id: user.id, event_type: "restore", source: "web" })
+
+    await loadAsset(asset.id, false)
+  }
+
+  const handleReplaceInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const newFile = e.target.files?.[0]
+    e.target.value = ""
+    if (!newFile || !asset) return
+
+    const supabase = supabaseRef.current
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    setIsReplacing(true)
+    setErrorMessage(null)
+
+    try {
+      let dimensions: { width: number; height: number; duration?: number } | null = null
+      if (newFile.type.startsWith("image/")) {
+        dimensions = await getImageDimensions(newFile)
+      } else if (newFile.type.startsWith("video/")) {
+        dimensions = await getVideoDimensions(newFile)
+      }
+
+      const uploadResult = await uploadAsset({
+        clientId: asset.client_id,
+        file: newFile,
+      })
+
+      // Move current -> previous, set new current
+      const { data: newVersion, error: versionError } = await supabase
+        .from("asset_versions")
+        .insert({
+          asset_id: asset.id,
+          client_id: asset.client_id,
+          version_label: "replace",
+          storage_bucket: "assets",
+          storage_path: uploadResult.path,
+          mime_type: newFile.type,
+          width: dimensions?.width || null,
+          height: dimensions?.height || null,
+          file_size: newFile.size,
+          created_by: user.id,
+        })
+        .select("id")
+        .single()
+
+      if (versionError || !newVersion) {
+        setErrorMessage("Failed to create new version.")
+        return
+      }
+
+      const updatePayload = {
+        previous_version_id: asset.current_version_id ?? null,
+        current_version_id: newVersion.id,
+        storage_path: uploadResult.path,
+        storage_bucket: "assets",
+        mime_type: newFile.type,
+        file_size: newFile.size,
+        width: dimensions?.width || null,
+        height: dimensions?.height || null,
+      }
+
+      const { error: updateError } = await supabase.from("assets").update(updatePayload).eq("id", asset.id)
+      if (updateError) {
+        setErrorMessage("Failed to update asset with new version.")
+        return
+      }
+
+      await supabase
+        .from("asset_events")
+        .insert({ asset_id: asset.id, client_id: asset.client_id, user_id: user.id, event_type: "replace", source: "web" })
+
+      await loadAsset(asset.id, false)
+    } catch (err) {
+      console.error("Replace failed:", err)
+      setErrorMessage("Failed to replace file.")
+    } finally {
+      setIsReplacing(false)
+    }
   }
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -412,9 +684,20 @@ export default function AssetDetailPage() {
     }
   }
 
+  const handleDownloadPrevious = async () => {
+    if (!asset || !previousPreviewUrl || !previousVersion) return
+    const res = await fetch(previousPreviewUrl)
+    const blob = await res.blob()
+    downloadBlob(blob, `${asset.title || "asset"}-previous`)
+    await logAssetEvent("download", { kind: "previous" })
+  }
+
   const previewUrl = useMemo(() => {
-    return storageData?.signedUrl || null
-  }, [storageData?.signedUrl])
+    if (!storageData?.signedUrl || !asset?.storage_path) return null
+    // Only return URL if it matches current asset's storage path
+    const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+    return storageData.signedUrl.includes(cleanPath) ? storageData.signedUrl : null
+  }, [storageData?.signedUrl, asset?.storage_path])
 
   const isImage = asset?.mime_type?.startsWith("image/")
   const isVideo = asset?.mime_type?.startsWith("video/")
@@ -456,15 +739,15 @@ export default function AssetDetailPage() {
       <div className="relative flex min-h-screen flex-1">
         <div className="relative mx-auto flex w-full max-w-5xl flex-col px-6 pb-32 pt-6">
           {/* Header */}
-          <div className="flex w-full items-center justify-between text-sm text-gray-500 mb-8">
+          <div className="mb-6 flex w-full items-center justify-between text-sm text-gray-500">
             <div className="flex items-center gap-3">
               <Link
                 href="/assets"
                 className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-white"
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
-              </Link>
+        </Link>
               <span className="truncate text-sm text-gray-500">{asset.title}</span>
             </div>
             <button
@@ -474,7 +757,17 @@ export default function AssetDetailPage() {
             >
               <Heart className={`h-5 w-5 ${isFavorited ? "fill-rose-500" : ""}`} />
             </button>
-          </div>
+        </div>
+
+          {/* Hidden file input for replace (used by version dropup) */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={handleReplaceInputChange}
+          />
+
 
           {/* Asset Preview - Centered */}
           <div className="flex flex-1 items-center justify-center min-h-0">
@@ -482,23 +775,51 @@ export default function AssetDetailPage() {
               {previewUrl ? (
                 <>
                   {isImage && (
-                    <img src={previewUrl} alt={asset.title} className="max-h-[72vh] max-w-full object-contain" />
+                    <img key={asset.id} src={previewUrl} alt={asset.title} className="max-h-[72vh] max-w-full object-contain" />
                   )}
                   {isVideo && (
                     <video
-                      src={previewUrl || undefined}
+                      key={asset.id}
+                      src={previewUrl}
                       controls
                       className="max-h-[72vh] max-w-full object-contain rounded-2xl"
                       preload="metadata"
                       crossOrigin="anonymous"
-                      onError={(e) => {
-                        console.error("Video load error:", e);
-                        console.error("Video URL:", previewUrl);
-                        console.error("Asset storage path:", asset?.storage_path);
-                        setErrorMessage("Failed to load video. The file may not exist or be corrupted. Check console for details.");
+                      onError={async (e) => {
+                        const videoEl = e.target as HTMLVideoElement
+                        const currentSrc = videoEl.src
+                        const expectedPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+                        
+                        // Only log if URL doesn't match current asset
+                        if (!currentSrc.includes(expectedPath)) {
+                          console.warn("Video URL mismatch - clearing and reloading")
+                          setStorageData(null)
+                          setVideoErrorCount(0)
+                          return
+                        }
+
+                        // Retry once with a fresh signed URL
+                        if (asset && videoErrorCount < 1) {
+                          setVideoErrorCount((c) => c + 1)
+                          const supabase = supabaseRef.current
+                          const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+                          const { data: storageUrl, error: storageError } = await supabase.storage
+                            .from(asset.storage_bucket)
+                            .createSignedUrl(cleanPath, 3600)
+                          if (!storageError && storageUrl) {
+                            setStorageData(storageUrl)
+                            return
+                          }
+                        }
+
+                        setErrorMessage("Failed to load video. The file may not exist or be corrupted.")
                       }}
                       onLoadStart={() => {
-                        console.log("Video loading started:", previewUrl);
+                        // Only log if URL matches current asset
+                        const expectedPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+                        if (previewUrl?.includes(expectedPath)) {
+                          console.log("Video loading started for asset:", asset.id)
+                        }
                       }}
                     >
                       Your browser does not support the video tag.
@@ -507,132 +828,206 @@ export default function AssetDetailPage() {
                 </>
               ) : (
                 <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl bg-gray-100 text-sm text-gray-500">
-                  Preview not available
+                  {previewUrl ? "Loading preview..." : "Preview not available"}
                 </div>
               )}
             </div>
           </div>
-        </div>
 
         {/* Navigation bar - positioned above download toolbar */}
         <div className="pointer-events-none absolute inset-x-0 bottom-28 z-20 flex justify-center">
           <div className="pointer-events-auto px-6">
             <div className="inline-flex items-center justify-center gap-4 rounded-full border border-gray-200 bg-white/95 px-4 py-2 shadow-md backdrop-blur">
-              <Button variant="outline" size="icon" className="h-10 w-10 rounded-full border-gray-300">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <span className="min-w-[64px] text-center text-sm font-medium text-gray-800">1 / 93</span>
-              <Button variant="outline" size="icon" className="h-10 w-10 rounded-full border-gray-300">
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Download/Transform bar - positioned at bottom */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center">
-          <div className="pointer-events-auto w-full max-w-5xl px-6">
-            <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 rounded-[18px] border border-gray-200 bg-white/96 px-4 py-3 shadow-lg backdrop-blur sm:px-5 sm:py-3 md:px-6">
-              <div className="flex items-center gap-2 text-gray-700 shrink-0">
-                <span className="hidden text-sm font-semibold sm:inline">
-                  {downloadMode === "preset" ? "Download preset" : "Download custom"}
-                </span>
-                <Download className="h-4 w-4 text-gray-500" />
-              </div>
-
-          <div className="flex h-10 flex-shrink-0 items-center rounded-full bg-gray-300/70 px-1 shadow-inner">
-            <button
-              onClick={() => setDownloadMode("preset")}
-                  className={`flex h-8 w-14 sm:w-28 items-center justify-center rounded-full text-sm font-semibold transition ${downloadMode === "preset" ? "bg-[#e65872] text-white shadow-sm" : "text-gray-700"}`}
-            >
-                  <span className="hidden sm:inline">Preset</span>
-                  <Sparkles className="h-4 w-4 sm:hidden" />
-            </button>
-            <button
-              onClick={() => setDownloadMode("custom")}
-                  className={`flex h-8 w-14 sm:w-28 items-center justify-center rounded-full text-sm font-semibold transition ${downloadMode === "custom" ? "bg-[#e65872] text-white shadow-sm" : "text-gray-700"}`}
-            >
-                  <span className="hidden sm:inline">Custom</span>
-                  <SlidersHorizontal className="h-4 w-4 sm:hidden" />
-            </button>
-          </div>
-
-              {downloadMode === "preset" ? (
-                <>
-                  <Select value={selectedPresetId} onValueChange={handlePresetChange}>
-                    <SelectTrigger className="h-10 w-32 sm:w-64 rounded-full border border-gray-200 bg-white text-xs sm:text-sm shadow-lg shadow-gray-200/70 transition hover:border-gray-300">
-                      <SelectValue placeholder="Preset" className="text-left" />
-                    </SelectTrigger>
-                    <SelectContent className="min-w-[220px] rounded-2xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur">
-                      {presetOptions.map((preset) => (
-                        <SelectItem key={preset.id} value={preset.id}>
-                          {preset.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </>
-              ) : (
-                <>
-                  <Select value={customFormat} onValueChange={setCustomFormat}>
-                    <SelectTrigger className="h-10 w-20 sm:w-28 rounded-full border border-gray-200 bg-white text-xs sm:text-sm shadow-lg shadow-gray-200/70 transition hover:border-gray-300">
-                      <SelectValue placeholder="Fmt" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-2xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur">
-                      {formatOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="flex h-10 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs sm:text-sm shadow-sm shrink-0">
-                    <span className="text-gray-600">W</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={customWidth}
-                      onChange={(e) => setCustomWidth(e.target.value)}
-                      placeholder="px"
-                      className="h-8 w-14 sm:w-16 border-none bg-transparent p-0 text-right text-xs sm:text-sm focus-visible:ring-0 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                  </div>
-                  <div className="flex h-10 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs sm:text-sm shadow-sm shrink-0">
-                    <span className="text-gray-600">H</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={customHeight}
-                      onChange={(e) => setCustomHeight(e.target.value)}
-                      placeholder="px"
-                      className="h-8 w-14 sm:w-16 border-none bg-transparent p-0 text-right text-xs sm:text-sm focus-visible:ring-0 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                  </div>
-                </>
-              )}
-
-          <div className="flex flex-1" />
-
               <Button
-                size="sm"
-                className="ml-auto h-10 shrink-0 rounded-full bg-[#e65872] px-4 sm:px-6 text-white hover:bg-[#d74f68]"
-                onClick={downloadMode === "preset" ? handlePresetDownload : handleCustomDownload}
-                disabled={downloadMode === "preset" ? isDownloadingPreset : isDownloadingCustom}
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full border-gray-300"
+                disabled={navIndex <= 0}
+                onClick={() => goToNeighbor(-1)}
               >
-                <Download className="mr-0 h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">
-                  {downloadMode === "preset"
-                    ? isDownloadingPreset
-                      ? "Downloading…"
-                      : "Download"
-                    : isDownloadingCustom
-                      ? "Downloading…"
-                      : "Download"}
-                </span>
-              </Button>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+              <span className="min-w-[64px] text-center text-sm font-medium text-gray-800">
+                {navIndex >= 0 ? navIndex + 1 : "-"} / {navAssets.length || "-"}
+                {isNavigating ? " · Loading…" : ""}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full border-gray-300"
+                disabled={navIndex < 0 || navIndex >= navAssets.length - 1}
+                onClick={() => goToNeighbor(1)}
+              >
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center">
+          <div className="pointer-events-auto px-4">
+            <div className="inline-flex items-center justify-center gap-3 rounded-[18px] border border-gray-200 bg-white/96 px-4 py-3 shadow-lg backdrop-blur sm:px-5">
+              {/* Version dropup (left) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2 rounded-full">
+                    <History className="h-4 w-4" />
+                    <span className="hidden sm:inline">Version</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="top"
+                  className="w-64 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
+                >
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                    Versioning
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                    onSelect={() => fileInputRef.current?.click()}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Upload className="h-4 w-4 text-gray-500" />
+                      <span>Replace file</span>
+              </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!asset.previous_version_id}
+                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                    onSelect={() => handleRestorePrevious()}
+                  >
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4 text-gray-500" />
+                      <span>Restore previous</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Edit (transform) dropup */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2 rounded-full">
+                    <Wand2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="center"
+                  side="top"
+                  className="w-72 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
+                >
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                    Crop / Transform
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                    onSelect={() => {
+                      handleCustomDownload()
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                      <span>Apply custom resize (download)</span>
+          </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                    onSelect={() => {
+                      handlePresetDownload()
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-gray-500" />
+                      <span>Apply current preset download</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Download dropup (right, primary) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="flex items-center gap-2 rounded-full bg-[#e65872] text-white hover:bg-[#d74f68] border-transparent">
+                    <Download className="h-4 w-4" />
+                    <span className="hidden sm:inline">Download</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  side="top"
+                  className="w-80 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
+                >
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                    Preset (current)
+                  </DropdownMenuLabel>
+                      {presetOptions.map((preset) => (
+                    <DropdownMenuItem
+                      key={preset.id}
+                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                      onSelect={() => {
+                        setSelectedPresetId(preset.id)
+                        void handlePresetDownload()
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-gray-500" />
+                        <span>{preset.label}</span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                    Custom (current)
+                  </DropdownMenuLabel>
+                  <div className="px-2 pb-2 pt-1 space-y-2">
+                    <Select value={customFormat} onValueChange={setCustomFormat}>
+                      <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs shadow-sm transition hover:border-gray-300">
+                        <SelectValue placeholder="Format" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border border-gray-200 bg-white/98 shadow-2xl backdrop-blur">
+                        {formatOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={customWidth}
+                        onChange={(e) => setCustomWidth(e.target.value)}
+                        placeholder="W"
+                        className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                      />
+                      <Input
+                        type="number"
+                        min={1}
+                        value={customHeight}
+                        onChange={(e) => setCustomHeight(e.target.value)}
+                        placeholder="H"
+                        className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-10 w-full rounded-full bg-[#e65872] text-white hover:bg-[#d74f68]"
+                      onClick={handleCustomDownload}
+                      disabled={isDownloadingCustom}
+                    >
+                      {isDownloadingCustom ? "Downloading…" : "Download custom"}
+                    </Button>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+        {/* End toolbar */}
+        </div>
       </div>
 
       {/* Sidebar (drawer) kept isolated on the right */}

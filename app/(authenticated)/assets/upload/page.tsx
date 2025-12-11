@@ -195,6 +195,34 @@ export default function UploadAssetPage() {
       console.log("Asset created with ID:", newAsset.id)
       setUploadProgress(90)
 
+      // Create initial asset_version and set as current_version_id
+      const { data: versionData, error: versionError } = await supabase
+        .from("asset_versions")
+        .insert({
+          asset_id: newAsset.id,
+          client_id: clientId,
+          version_label: "initial",
+          storage_bucket: "assets",
+          storage_path: uploadResult.path,
+          mime_type: file.type,
+          width: dimensions?.width || null,
+          height: dimensions?.height || null,
+          dpi: null,
+          file_size: file.size,
+          created_by: userId,
+        })
+        .select("id")
+        .single()
+
+      if (versionError) {
+        console.error("Failed to create initial asset version:", versionError)
+      } else {
+        await supabase
+          .from("assets")
+          .update({ current_version_id: versionData.id, previous_version_id: null })
+          .eq("id", newAsset.id)
+      }
+
       // Auto-assign file_type tag based on mime_type
       const fileTypeSlug = getFileTypeFromMimeType(file.type)
       if (fileTypeSlug) {

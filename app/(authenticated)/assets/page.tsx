@@ -384,7 +384,7 @@ export default function AssetsPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
             {filteredAssets.map((asset) => (
-              <Link key={asset.id} href={`/assets/${asset.id}`}>
+              <Link key={asset.id} href={`/assets/${asset.id}?context=all`}>
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
                   <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
                     {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
