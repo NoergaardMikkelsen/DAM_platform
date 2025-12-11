@@ -114,6 +114,13 @@ export default function ProfilePage() {
       .join("")
       .toUpperCase() || ""
 
+  const initials =
+    userData?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || ""
+
   return (
     <div className="p-8">
       <h1 className="mb-8 text-3xl font-bold text-gray-900">Profile</h1>
@@ -174,6 +181,9 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone</Label>
                     <Input id="phone" defaultValue={userData?.phone || ""} autoComplete="off" />
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                   </div>
                 </div>
