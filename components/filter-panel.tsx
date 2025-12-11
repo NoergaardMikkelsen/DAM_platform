@@ -110,7 +110,7 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/20 cursor-pointer" onClick={onClose} />
       <div className="fixed right-0 top-0 z-50 h-screen w-full max-w-md overflow-y-auto bg-white shadow-xl" suppressHydrationWarning>
         <div className="flex items-center justify-between border-b p-6">
           <h2 className="text-xl font-semibold">Filter</h2>
@@ -130,9 +130,9 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                     key={tag.id}
                     type="button"
                     onClick={() => toggleTag(tag.id, "category")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                       categoryTags.includes(tag.id)
-                        ? "border-[#dc3545] bg-[#dc3545] text-white"
+                        ? "border-[#DF475C] bg-[#DF475C] text-white"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
@@ -153,9 +153,9 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                     key={tag.id}
                     type="button"
                     onClick={() => toggleTag(tag.id, "description")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                       descriptionTags.includes(tag.id)
-                        ? "border-[#dc3545] bg-[#dc3545] text-white"
+                        ? "border-[#DF475C] bg-[#DF475C] text-white"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
@@ -176,9 +176,9 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                     key={tag.id}
                     type="button"
                     onClick={() => toggleTag(tag.id, "usage")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                       usageTags.includes(tag.id)
-                        ? "border-[#dc3545] bg-[#dc3545] text-white"
+                        ? "border-[#DF475C] bg-[#DF475C] text-white"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
@@ -199,9 +199,9 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                     key={tag.id}
                     type="button"
                     onClick={() => toggleTag(tag.id, "visual_style")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                       visualStyleTags.includes(tag.id)
-                        ? "border-[#dc3545] bg-[#dc3545] text-white"
+                        ? "border-[#DF475C] bg-[#DF475C] text-white"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
@@ -222,9 +222,9 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                     key={tag.id}
                     type="button"
                     onClick={() => toggleTag(tag.id, "file_type")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                       fileTypeTags.includes(tag.id)
-                        ? "border-[#dc3545] bg-[#dc3545] text-white"
+                        ? "border-[#DF475C] bg-[#DF475C] text-white"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
@@ -240,7 +240,7 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
           <Button variant="outline" onClick={handleClear} className="flex-1 bg-transparent">
             Clear
           </Button>
-          <Button onClick={handleApply} className="flex-1 bg-[#dc3545] hover:bg-[#c82333]">
+          <Button onClick={handleApply} className="flex-1 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
             Apply filters
           </Button>
         </div>

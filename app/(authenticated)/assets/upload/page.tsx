@@ -292,7 +292,7 @@ export default function UploadAssetPage() {
     return (
       <div className="flex min-h-[400px] items-center justify-center p-8">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-[#dc3545]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#DF475C]" />
           <p className="text-gray-600">Loading upload page...</p>
         </div>
       </div>
@@ -370,7 +370,7 @@ export default function UploadAssetPage() {
             {categoryTags.length > 0 && (
               <div className="space-y-2">
                 <Label>
-                  Category <span className="text-[#dc3545]">*</span>
+                  Category <span className="text-[#DF475C]">*</span>
                 </Label>
                 <p className="text-sm text-gray-500">Select a category to organize this asset into a collection</p>
                 <div className="flex flex-wrap gap-2">
@@ -380,9 +380,9 @@ export default function UploadAssetPage() {
                       type="button"
                       onClick={() => setCategoryTag(tag.id === categoryTag ? "" : tag.id)}
                       disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         categoryTag === tag.id
-                          ? "border-[#dc3545] bg-[#dc3545] text-white"
+                          ? "border-[#dc3545] bg-[#DF475C] text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
                     >
@@ -407,9 +407,9 @@ export default function UploadAssetPage() {
                       type="button"
                       onClick={() => toggleTag(tag.id)}
                       disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         selectedTags.includes(tag.id)
-                          ? "border-[#dc3545] bg-[#dc3545] text-white"
+                          ? "border-[#dc3545] bg-[#DF475C] text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
                     >
@@ -431,9 +431,9 @@ export default function UploadAssetPage() {
                       type="button"
                       onClick={() => toggleTag(tag.id)}
                       disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         selectedTags.includes(tag.id)
-                          ? "border-[#dc3545] bg-[#dc3545] text-white"
+                          ? "border-[#dc3545] bg-[#DF475C] text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
                     >
@@ -455,9 +455,9 @@ export default function UploadAssetPage() {
                       type="button"
                       onClick={() => toggleTag(tag.id)}
                       disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         selectedTags.includes(tag.id)
-                          ? "border-[#dc3545] bg-[#dc3545] text-white"
+                          ? "border-[#dc3545] bg-[#DF475C] text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
                     >
@@ -481,7 +481,7 @@ export default function UploadAssetPage() {
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
                   <div
-                    className="h-full bg-[#dc3545] transition-all duration-300"
+                    className="h-full bg-[#DF475C] transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -512,7 +512,7 @@ export default function UploadAssetPage() {
               </Link>
               <Button
                 type="submit"
-                className="bg-[#dc3545] hover:bg-[#c82333]"
+                className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]"
                 disabled={isLoading || success || !clientId}
               >
                 <Upload className="mr-2 h-4 w-4" />

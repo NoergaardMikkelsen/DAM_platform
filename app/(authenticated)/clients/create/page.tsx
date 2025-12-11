@@ -16,7 +16,7 @@ import { useState } from "react"
 export default function CreateClientPage() {
   const [name, setName] = useState("")
   const [domain, setDomain] = useState("")
-  const [primaryColor, setPrimaryColor] = useState("#dc3545")
+  const [primaryColor, setPrimaryColor] = useState("#DF475C")
   const [secondaryColor, setSecondaryColor] = useState("#6c757d")
   const [storageLimit, setStorageLimit] = useState("10000")
   const [status, setStatus] = useState("active")
@@ -169,7 +169,7 @@ export default function CreateClientPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" className="bg-[#dc3545] hover:bg-[#c82333]" disabled={isLoading}>
+              <Button type="submit" className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]" disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create client"}
               </Button>
             </div>

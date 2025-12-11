@@ -175,7 +175,7 @@ export default function UsersPage() {
       <div className="p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
             <p className="text-gray-600">Loading users...</p>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function UsersPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Users</h1>
         <Link href="/users/create">
-          <Button className="bg-[#dc3545] hover:bg-[#c82333]">
+          <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
             <Plus className="mr-2 h-4 w-4" />
             Create new user
           </Button>
@@ -202,7 +202,7 @@ export default function UsersPage() {
           <Input
             type="search"
             placeholder="Search user"
-            className="pl-10"
+            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -233,7 +233,7 @@ export default function UsersPage() {
           </thead>
           <tbody className="divide-y">
             {filteredUsers?.map((clientUser) => (
-              <tr key={clientUser.id} className="hover:bg-gray-50">
+              <tr key={clientUser.id} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-6 py-4 text-sm text-gray-900">{clientUser.users?.full_name}</td>
                 <td className="px-6 py-4 text-sm text-gray-600">{clientUser.users?.email}</td>
                 <td className="px-6 py-4">

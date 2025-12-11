@@ -160,13 +160,13 @@ export default function CollectionsPage() {
 
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              type="search"
-              placeholder="Search collections"
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <Input
+            type="search"
+            placeholder="Search collections"
+            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           </div>
         </div>
       </div>
@@ -198,7 +198,7 @@ export default function CollectionsPage() {
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No collections found</p>
           <Link href="/assets/upload">
-            <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload assets to create collections</Button>
+            <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload assets to create collections</Button>
           </Link>
         </div>
       ) : (
@@ -234,7 +234,7 @@ export default function CollectionsPage() {
                   </div>
 
                   {/* Favorite button */}
-                  <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100">
+                  <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#DF475C] group-hover:opacity-100">
                     <Heart className="h-4 w-4" />
                   </button>
                 </div>
@@ -242,7 +242,7 @@ export default function CollectionsPage() {
                 {/* Bottom action bar */}
                 <div className="flex items-center justify-between border-t bg-white p-3">
                   <span className="text-sm text-gray-600">View collection</span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-[#dc3545] group-hover:text-white">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors cursor-pointer group-hover:bg-[#DF475C] group-hover:text-white">
                     <ArrowRight className="h-4 w-4" />
                   </div>
                 </div>

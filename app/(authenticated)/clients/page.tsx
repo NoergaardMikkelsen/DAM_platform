@@ -101,7 +101,7 @@ export default function ClientsPage() {
       <div className="p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
             <p className="text-gray-600">Loading clients...</p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export default function ClientsPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
         <Link href="/clients/create">
-          <Button className="bg-[#dc3545] hover:bg-[#c82333]">
+          <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
             <Plus className="mr-2 h-4 w-4" />
             Create new client
           </Button>
@@ -128,7 +128,7 @@ export default function ClientsPage() {
           <Input
             type="search"
             placeholder="Search client"
-            className="pl-10"
+            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -164,7 +164,7 @@ export default function ClientsPage() {
               const storagePercentage = client.storage_percentage || 0
 
               return (
-                <tr key={client.id} className="hover:bg-gray-50">
+                <tr key={client.id} className="hover:bg-gray-50 cursor-pointer">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div
@@ -186,7 +186,7 @@ export default function ClientsPage() {
                     </div>
                     <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-200">
                       <div
-                        className="h-full rounded-full bg-[#dc3545] transition-all"
+                        className="h-full rounded-full bg-[#DF475C] transition-all"
                         style={{ width: `${Math.min(storagePercentage, 100)}%` }}
                       />
                     </div>
@@ -213,7 +213,7 @@ export default function ClientsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 rounded-full bg-[#dc3545] text-white hover:bg-[#c82333]"
+                          className="h-8 w-8 rounded-[25px] bg-[#DF475C] text-white hover:bg-[#C82333]"
                         >
                           →
                         </Button>
@@ -251,7 +251,7 @@ export default function ClientsPage() {
           <Building className="mb-4 h-12 w-12 text-gray-400" />
           <p className="text-gray-600">No clients found</p>
           <Link href="/clients/create">
-            <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Create your first client</Button>
+            <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Create your first client</Button>
           </Link>
         </div>
       )}

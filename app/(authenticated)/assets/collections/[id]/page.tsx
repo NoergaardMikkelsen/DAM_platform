@@ -199,7 +199,7 @@ export default function CollectionDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
+            <Button variant="outline" className="rounded-[25px] cursor-pointer" onClick={() => setIsFilterOpen(true)}>
               <Filter className="mr-2 h-4 w-4" />
               Filters
             </Button>
@@ -208,7 +208,7 @@ export default function CollectionDetailPage() {
               <Input
                 type="search"
                 placeholder="Search in collection"
-                className="pl-10"
+                className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -245,7 +245,7 @@ export default function CollectionDetailPage() {
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No assets found in this collection</p>
           <Link href="/assets/upload">
-            <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload assets to this collection</Button>
+            <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload assets to this collection</Button>
           </Link>
         </div>
       ) : (

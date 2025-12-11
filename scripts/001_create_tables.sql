@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS clients (
   slug TEXT UNIQUE NOT NULL,
   domain TEXT,
   status TEXT DEFAULT 'active',
-  primary_color TEXT DEFAULT '#dc3545',
+  primary_color TEXT DEFAULT '#DF475C',
   secondary_color TEXT DEFAULT '#6c757d',
   storage_limit_mb INT DEFAULT 10000,
   created_at TIMESTAMPTZ DEFAULT NOW(),

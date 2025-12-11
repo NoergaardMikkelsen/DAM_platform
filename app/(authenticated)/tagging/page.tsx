@@ -186,7 +186,7 @@ export default function TaggingPage() {
       <div className="p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
             <p className="text-gray-600">Loading tags...</p>
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function TaggingPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Tagging</h1>
         <Link href="/tagging/create">
-          <Button className="bg-[#dc3545] hover:bg-[#c82333]">
+          <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
             <Plus className="mr-2 h-4 w-4" />
             Create new tag
           </Button>
@@ -213,7 +213,7 @@ export default function TaggingPage() {
           <Input
             type="search"
             placeholder="Search tag"
-            className="pl-10"
+            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -246,7 +246,7 @@ export default function TaggingPage() {
           </thead>
           <tbody className="divide-y">
             {filteredTags?.map((tag) => (
-              <tr key={tag.id} className="hover:bg-gray-50">
+              <tr key={tag.id} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{tag.label}</td>
                 <td className="px-6 py-4 text-sm capitalize text-gray-600">{tag.tag_type.replace("_", " ")}</td>
                 <td className="px-6 py-4 text-sm text-gray-600">

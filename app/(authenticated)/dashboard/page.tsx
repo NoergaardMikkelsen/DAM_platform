@@ -231,7 +231,7 @@ export default function DashboardPage() {
       <div className="p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
             <p className="text-gray-600">Loading dashboard...</p>
           </div>
         </div>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse varius enim
           </p>
         </div>
-        <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
+        <Button variant="outline" className="rounded-[25px] cursor-pointer" onClick={() => setIsFilterOpen(true)}>
           <Filter className="mr-2 h-4 w-4" />
           Filters
         </Button>
@@ -266,7 +266,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">{stats.storagePercentage}%</div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div className="h-full bg-[#dc3545]" style={{ width: `${stats.storagePercentage}%` }} />
+              <div className="h-full bg-[#DF475C]" style={{ width: `${stats.storagePercentage}%` }} />
             </div>
           </CardContent>
         </Card>
@@ -317,7 +317,7 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
             <Link href="/assets/upload">
-              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
+              <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload your first asset</Button>
             </Link>
           </div>
         ) : (
@@ -354,7 +354,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Favorite button */}
-                    <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#dc3545] group-hover:opacity-100">
+                    <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 opacity-0 transition-opacity hover:bg-white hover:text-[#DF475C] group-hover:opacity-100">
                       <Heart className="h-4 w-4" />
                     </button>
                   </div>
@@ -362,7 +362,7 @@ export default function DashboardPage() {
                   {/* Bottom action bar */}
                   <div className="flex items-center justify-between border-t bg-white p-3">
                     <span className="text-sm text-gray-600">Se hele kampagnen</span>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-[#dc3545] group-hover:text-white">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors cursor-pointer group-hover:bg-[#DF475C] group-hover:text-white">
                       <ArrowRight className="h-4 w-4" />
                     </div>
                   </div>
@@ -389,7 +389,7 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No assets uploaded yet.</p>
             <Link href="/assets/upload">
-              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
+              <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload your first asset</Button>
             </Link>
           </div>
         ) : (
