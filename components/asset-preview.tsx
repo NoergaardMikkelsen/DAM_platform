@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Loader2, Video } from "lucide-react"
+import { Loader2, Video, FileText } from "lucide-react"
 
 interface AssetPreviewProps {
   storagePath: string
@@ -20,7 +20,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
     async function fetchPreview() {
       try {
         const supabase = createClient()
-        
+
         // Clean path - remove leading/trailing slashes
         const cleanPath = storagePath.replace(/^\/+|\/+$/g, "")
 
@@ -58,6 +58,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
 
   const isImage = mimeType.startsWith("image/")
   const isVideo = mimeType.startsWith("video/")
+  const isPdf = mimeType === "application/pdf"
 
   if (isImage) {
     return <img src={previewUrl} alt={alt} className={className} />
@@ -87,10 +88,28 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
     )
   }
 
+  if (isPdf) {
+    return (
+      <div className={`${className} bg-white border border-gray-300 overflow-hidden relative`}>
+        <iframe
+          src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+          className="w-full h-full"
+          title={`PDF Preview: ${alt}`}
+          style={{ border: 'none' }}
+        />
+        {/* PDF overlay */}
+        <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded font-medium">
+          PDF
+        </div>
+      </div>
+    )
+  }
+
   // Fallback for other file types
   return (
-    <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
-      <span className="text-xs text-gray-400">Preview not available</span>
+    <div className={`flex flex-col items-center justify-center bg-gray-100 ${className}`}>
+      <FileText className="h-6 w-6 text-gray-400 mb-1" />
+      <span className="text-xs text-gray-500">File</span>
     </div>
   )
 }

@@ -254,7 +254,7 @@ export default function CollectionDetailPage() {
             <Link key={asset.id} href={`/assets/${asset.id}?context=collection&collectionId=${params.id}`}>
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
                 <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
-                  {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/")) && asset.storage_path && (
+                  {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                     <AssetPreview
                       storagePath={asset.storage_path}
                       mimeType={asset.mime_type}

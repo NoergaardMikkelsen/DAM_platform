@@ -59,6 +59,17 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                 // Use video URL as fallback for image pattern (won't work but at least consistent)
                 urls.push(videoData.signedUrl)
               }
+            } else if (asset.mime_type === "application/pdf") {
+              types.push("pdf")
+              videoUrlsArr.push("") // Empty for non-video assets
+              // Create signed URL for PDF
+              const cleanPdfPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+              const { data, error } = await supabase.storage
+                .from('assets')
+                .createSignedUrl(cleanPdfPath, 3600) // 1 hour expiry
+
+              if (error) throw error
+              urls.push(data.signedUrl)
             } else {
               types.push("image")
               videoUrlsArr.push("") // Empty for non-video assets
@@ -128,7 +139,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                 width="1"
                 height="1"
                 preserveAspectRatio="xMidYMid slice"
-                crossorigin="anonymous"
+                crossOrigin="anonymous"
               />
             </pattern>
 
@@ -138,7 +149,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                 width="1"
                 height="1"
                 preserveAspectRatio="xMidYMid slice"
-                crossorigin="anonymous"
+                crossOrigin="anonymous"
               />
             </pattern>
 
@@ -148,7 +159,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                 width="1"
                 height="1"
                 preserveAspectRatio="xMidYMid slice"
-                crossorigin="anonymous"
+                crossOrigin="anonymous"
               />
             </pattern>
 
@@ -158,7 +169,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                 width="1"
                 height="1"
                 preserveAspectRatio="xMidYMid slice"
-                crossorigin="anonymous"
+                crossOrigin="anonymous"
               />
             </pattern>
 
@@ -186,6 +197,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   playsInline
                 />
               </foreignObject>
+            ) : assetTypes[0] === "pdf" ? (
+              <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+                <iframe
+                  src={`${imageUrls[0]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  title="PDF Preview"
+                />
+              </foreignObject>
             ) : (
               <rect x="0" y="0" width="119.5" height="95" fill={`url(#img1-${id})`} />
             )}
@@ -198,6 +222,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   preload="metadata"
                   muted
                   playsInline
+                />
+              </foreignObject>
+            ) : assetTypes[1] === "pdf" ? (
+              <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+                <iframe
+                  src={`${imageUrls[1]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  title="PDF Preview"
                 />
               </foreignObject>
             ) : (
@@ -214,6 +251,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   playsInline
                 />
               </foreignObject>
+            ) : assetTypes[2] === "pdf" ? (
+              <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+                <iframe
+                  src={`${imageUrls[2]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  title="PDF Preview"
+                />
+              </foreignObject>
             ) : (
               <rect x="0" y="95" width="119.5" height="105" fill={`url(#img3-${id})`} />
             )}
@@ -226,6 +276,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   preload="metadata"
                   muted
                   playsInline
+                />
+              </foreignObject>
+            ) : assetTypes[3] === "pdf" ? (
+              <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+                <iframe
+                  src={`${imageUrls[3]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  title="PDF Preview"
                 />
               </foreignObject>
             ) : (

@@ -701,6 +701,7 @@ export default function AssetDetailPage() {
 
   const isImage = asset?.mime_type?.startsWith("image/")
   const isVideo = asset?.mime_type?.startsWith("video/")
+  const isPdf = asset?.mime_type === "application/pdf"
 
   if (isLoading) {
     return (
@@ -824,6 +825,14 @@ export default function AssetDetailPage() {
                     >
                       Your browser does not support the video tag.
                     </video>
+                  )}
+                  {isPdf && (
+                    <iframe
+                      key={asset.id}
+                      src={previewUrl}
+                      className="h-[72vh] w-full rounded-2xl border-0"
+                      title={asset.title}
+                    />
                   )}
                 </>
               ) : (
