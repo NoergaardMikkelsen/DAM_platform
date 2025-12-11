@@ -25,7 +25,7 @@ if (!DATABASE_URL) {
 
 async function runMigration(filename: string) {
   const client = new Client({
-    connectionString: DATABASE_URL,
+    connectionString: DATABASE_URL as string,
     ssl: {
       rejectUnauthorized: false,
     },

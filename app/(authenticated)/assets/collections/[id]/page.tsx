@@ -22,6 +22,14 @@ interface Asset {
   category_tag_id: string | null
 }
 
+type ClientUserRoleRow = {
+  roles?: { key?: string | null } | null
+}
+
+type ClientIdRow = { id: string }
+type ClientUserRow = { client_id: string }
+type AssetTagRow = { asset_id: string }
+
 export default function CollectionDetailPage() {
   const params = useParams()
   const id = params.id as string
@@ -83,7 +91,8 @@ export default function CollectionDetailPage() {
       .eq("user_id", user.id)
       .eq("status", "active")
 
-    const isSuperAdmin = clientUsers?.some(cu => cu.roles?.key === "superadmin") || false
+    const isSuperAdmin =
+      (clientUsers as ClientUserRoleRow[] | null)?.some((cu) => cu.roles?.key === "superadmin") || false
 
     let clientIds: string[] = []
 
@@ -93,7 +102,7 @@ export default function CollectionDetailPage() {
         .from("clients")
         .select("id")
         .eq("status", "active")
-      clientIds = allClients?.map((c) => c.id) || []
+      clientIds = (allClients as ClientIdRow[] | null)?.map((c) => c.id) || []
     } else {
       // Regular users see only their clients
       const { data: clientUsers } = await supabase
@@ -101,7 +110,7 @@ export default function CollectionDetailPage() {
         .select("client_id")
         .eq("user_id", user.id)
         .eq("status", "active")
-      clientIds = clientUsers?.map((cu) => cu.client_id) || []
+      clientIds = (clientUsers as ClientUserRow[] | null)?.map((cu) => cu.client_id) || []
     }
 
     // Get all assets in this collection (with this category tag)
@@ -165,7 +174,7 @@ export default function CollectionDetailPage() {
     // Filter by tags via asset_tags junction
     const { data: assetTags } = await supabase.from("asset_tags").select("asset_id").in("tag_id", otherTags)
 
-    const assetIds = [...new Set(assetTags?.map((at) => at.asset_id) || [])]
+    const assetIds = [...new Set((assetTags as AssetTagRow[] | null)?.map((at) => at.asset_id) || [])]
     const filtered = assets.filter((asset) => assetIds.includes(asset.id))
 
     setFilteredAssets(filtered)

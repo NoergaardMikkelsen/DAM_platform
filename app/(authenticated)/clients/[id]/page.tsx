@@ -103,7 +103,9 @@ export default function ClientDetailPage() {
       .select("file_size")
       .eq("client_id", id)
 
-    const storageUsedBytes = assets?.reduce((sum, asset) => sum + (asset.file_size || 0), 0) || 0
+    const storageUsedBytes =
+      (assets ?? []).reduce((sum: number, asset: { file_size: number | null }) => sum + (asset.file_size || 0), 0) ||
+      0
 
     setClient({
       ...clientData,

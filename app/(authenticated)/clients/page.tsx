@@ -24,6 +24,7 @@ interface Client {
   user_count: number
   asset_count: number
   storage_used_bytes: number
+  storage_percentage?: number
 }
 
 export default function ClientsPage() {

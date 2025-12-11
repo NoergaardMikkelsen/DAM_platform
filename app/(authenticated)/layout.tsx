@@ -38,13 +38,15 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     .eq("status", "active")
     .limit(1)
 
-  const role = clientUsers?.[0]?.roles?.key?.toLowerCase()
+  const roleEntry = clientUsers?.[0]?.roles as { key?: string | null } | { key?: string | null }[] | null | undefined
+  const roleKey = Array.isArray(roleEntry) ? roleEntry[0]?.key : roleEntry?.key
+  const role = roleKey?.toLowerCase()
 
   console.log("User role data:", {
     userId: user.id,
     clientUsers,
     role,
-    rawRoleKey: clientUsers?.[0]?.roles?.key,
+    rawRoleKey: roleKey,
   })
 
   return (
