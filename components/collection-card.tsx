@@ -175,11 +175,62 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
           {/* Background images with mask */}
           <g mask={`url(#cardMask-${id})`}>
-            {/* 2x2 grid of images - positioned based on reference */}
-            <rect x="0" y="0" width="119.5" height="95" fill={`url(#img1-${id})`} />
-            <rect x="119.5" y="0" width="119.5" height="95" fill={`url(#img2-${id})`} />
-            <rect x="0" y="95" width="119.5" height="105" fill={`url(#img3-${id})`} />
-            <rect x="119.5" y="95" width="119.5" height="105" fill={`url(#img4-${id})`} />
+            {/* 2x2 grid of images/videos - positioned based on reference */}
+            {assetTypes[0] === "video" && videoUrls[0] ? (
+              <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+                <video
+                  src={videoUrls[0]}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  preload="metadata"
+                  muted
+                  playsInline
+                />
+              </foreignObject>
+            ) : (
+              <rect x="0" y="0" width="119.5" height="95" fill={`url(#img1-${id})`} />
+            )}
+
+            {assetTypes[1] === "video" && videoUrls[1] ? (
+              <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+                <video
+                  src={videoUrls[1]}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  preload="metadata"
+                  muted
+                  playsInline
+                />
+              </foreignObject>
+            ) : (
+              <rect x="119.5" y="0" width="119.5" height="95" fill={`url(#img2-${id})`} />
+            )}
+
+            {assetTypes[2] === "video" && videoUrls[2] ? (
+              <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+                <video
+                  src={videoUrls[2]}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  preload="metadata"
+                  muted
+                  playsInline
+                />
+              </foreignObject>
+            ) : (
+              <rect x="0" y="95" width="119.5" height="105" fill={`url(#img3-${id})`} />
+            )}
+
+            {assetTypes[3] === "video" && videoUrls[3] ? (
+              <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+                <video
+                  src={videoUrls[3]}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  preload="metadata"
+                  muted
+                  playsInline
+                />
+              </foreignObject>
+            ) : (
+              <rect x="119.5" y="95" width="119.5" height="105" fill={`url(#img4-${id})`} />
+            )}
 
             {/* Top gradient overlay */}
             <rect x="0" y="0" width="239" height="200" fill={`url(#topGradient-${id})`} />
@@ -237,62 +288,6 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
             </g>
           )}
 
-          {/* Video overlays for video assets */}
-          {assetTypes[0] === "video" && videoUrls[0] && (
-            <foreignObject x="0" y="0" width="119.5" height="95">
-              <video
-                src={videoUrls[0]}
-                className="w-full h-full object-cover"
-                preload="metadata"
-                muted
-                playsInline
-                style={{ pointerEvents: 'none' }}
-              />
-            </foreignObject>
-          )}
-          {assetTypes[1] === "video" && videoUrls[1] && (
-            <foreignObject x="119.5" y="0" width="119.5" height="95">
-              <video
-                src={videoUrls[1]}
-                className="w-full h-full object-cover"
-                preload="metadata"
-                muted
-                playsInline
-                style={{ pointerEvents: 'none' }}
-              />
-            </foreignObject>
-          )}
-          {assetTypes[2] === "video" && videoUrls[2] && (
-            <foreignObject x="0" y="95" width="119.5" height="105">
-              <video
-                src={videoUrls[2]}
-                className="w-full h-full object-cover"
-                preload="metadata"
-                muted
-                playsInline
-                style={{ pointerEvents: 'none' }}
-              />
-            </foreignObject>
-          )}
-          {assetTypes[3] === "video" && videoUrls[3] && (
-            <foreignObject x="119.5" y="95" width="119.5" height="105">
-              <video
-                src={videoUrls[3]}
-                className="w-full h-full object-cover"
-                preload="metadata"
-                muted
-                playsInline
-                style={{ pointerEvents: 'none' }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                  <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center">
-                    <div className="w-0 h-0 border-l-2 border-l-gray-700 border-t-1 border-t-transparent border-b-1 border-b-transparent ml-0.5"></div>
-                  </div>
-                </div>
-              </div>
-            </foreignObject>
-          )}
 
           {/* HTML content inside SVG using foreignObject - automatically clipped by mask */}
           <foreignObject x="0" y="0" width="239" height="200" mask={`url(#cardMask-${id})`}>
