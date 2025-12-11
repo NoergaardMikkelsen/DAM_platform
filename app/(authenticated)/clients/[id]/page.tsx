@@ -186,7 +186,7 @@ export default function ClientDetailPage() {
       <div className="p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
             <p className="text-gray-600">Loading client details...</p>
           </div>
         </div>
@@ -415,7 +415,7 @@ export default function ClientDetailPage() {
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
                 <div
-                  className="h-full bg-[#dc3545] transition-all"
+                  className="h-full bg-[#DF475C] transition-all"
                   style={{ width: `${storagePercentage}%` }}
                 />
               </div>

@@ -706,7 +706,7 @@ export default function AssetDetailPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
         <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 shadow-sm">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
           <p className="text-sm text-gray-600">Loading asset…</p>
         </div>
       </div>
@@ -753,7 +753,7 @@ export default function AssetDetailPage() {
             <button
               aria-label="Toggle favorite"
               onClick={handleFavorite}
-              className={`flex h-10 w-10 items-center justify-center rounded-full border ${isFavorited ? "border-rose-200 bg-rose-50 text-rose-500" : "border-gray-200 bg-white text-gray-500"} shadow-sm transition hover:border-rose-200 hover:text-rose-200`}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border cursor-pointer ${isFavorited ? "border-rose-200 bg-rose-50 text-rose-500" : "border-gray-200 bg-white text-gray-500"} shadow-sm transition hover:border-rose-200 hover:text-rose-200`}
             >
               <Heart className={`h-5 w-5 ${isFavorited ? "fill-rose-500" : ""}`} />
             </button>

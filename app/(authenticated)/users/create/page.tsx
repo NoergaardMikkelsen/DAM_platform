@@ -169,7 +169,7 @@ export default function CreateUserPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" className="bg-[#dc3545] hover:bg-[#c82333]" disabled={isLoading}>
+              <Button type="submit" className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]" disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create user"}
               </Button>
             </div>

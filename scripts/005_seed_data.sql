@@ -8,7 +8,7 @@ VALUES (
   'nmic-demo',
   'nmic-demo.damsystem.com',
   'active',
-  '#dc3545',
+  '#DF475C',
   '#6c757d',
   10000
 )

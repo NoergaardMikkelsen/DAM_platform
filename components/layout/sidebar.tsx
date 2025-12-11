@@ -103,7 +103,7 @@ export function Sidebar({ user, role }: SidebarProps) {
       {/* Upload Button */}
       <div className="border-t p-4">
         <Link href="/assets/upload">
-          <Button className="w-full bg-[#dc3545] hover:bg-[#c82333]">
+          <Button className="w-full bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
             <Upload className="mr-2 h-4 w-4" />
             Upload
           </Button>
@@ -113,7 +113,7 @@ export function Sidebar({ user, role }: SidebarProps) {
       {/* User Profile */}
       <div className="border-t p-4">
         <Link href="/profile" className="flex items-center gap-3 rounded-lg p-2 hover:bg-gray-50">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#dc3545] text-sm font-semibold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DF475C] text-sm font-semibold text-white">
             {(user.full_name || user.email)
               .split(" ")
               .map((n) => n[0])

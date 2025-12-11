@@ -177,7 +177,7 @@ export default function TagDetailPage() {
       <div className="p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
             <p className="text-gray-600">Loading tag details...</p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export default function TagDetailPage() {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#dc3545] text-white">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#DF475C] text-white">
               <Tag className="h-6 w-6" />
             </div>
             <div>

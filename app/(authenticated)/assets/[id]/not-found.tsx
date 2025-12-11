@@ -9,7 +9,7 @@ export default function AssetNotFound() {
       <h2 className="mb-2 text-2xl font-bold text-gray-900">Asset Not Found</h2>
       <p className="mb-6 text-gray-600">The asset you're looking for doesn't exist or has been removed.</p>
       <Link href="/assets">
-        <Button className="bg-[#dc3545] hover:bg-[#c82333]">Back to Assets</Button>
+        <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Back to Assets</Button>
       </Link>
     </div>
   )
