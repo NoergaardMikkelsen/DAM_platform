@@ -167,13 +167,6 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone</Label>
                     <Input id="phone" defaultValue={userData?.phone || ""} autoComplete="off" />
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                   </div>
                 </div>
               </div>
