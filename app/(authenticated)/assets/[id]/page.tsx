@@ -829,7 +829,7 @@ export default function AssetDetailPage() {
                   {isPdf && (
                     <iframe
                       key={asset.id}
-                      src={previewUrl}
+                      src={`${previewUrl}#view=Fit`}
                       className="h-[72vh] w-full rounded-2xl border-0"
                       title={asset.title}
                     />
