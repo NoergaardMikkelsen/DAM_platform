@@ -107,27 +107,6 @@ export default function ProfilePage() {
       .join("")
       .toUpperCase() || ""
 
-  const initials =
-    userData?.full_name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase() || ""
-
-  const initials =
-    userData?.full_name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase() || ""
-
-  const initials =
-    userData?.full_name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase() || ""
-
   return (
     <div className="p-8">
       <h1 className="mb-8 text-3xl font-bold text-gray-900">Profile</h1>
