@@ -402,17 +402,17 @@ export default function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {stats.recentUploads.map((asset) => (
-              <Link key={asset.id} href={`/assets/${asset.id}?context=all`}>
-                <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
-                  <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
+              <Link key={asset.id} href={`/assets/${asset.id}?context=all`} className="block mb-6 break-inside-avoid">
+                <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
+                  <div className="relative bg-gradient-to-br from-gray-100 to-gray-200">
                     {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                       <AssetPreview
                         storagePath={asset.storage_path}
                         mimeType={asset.mime_type}
                         alt={asset.title}
-                        className="h-full w-full object-cover"
+                        className="w-full h-full object-cover"
                       />
                     )}
                     <Button
