@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import type { ChangeEvent } from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
@@ -130,8 +130,7 @@ const formatOptions = [
 export default function AssetDetailPage() {
   const params = useParams()
   const id = useMemo(() => (params.id as string) || "", [params.id])
-  const rawSearchParams = useSearchParams()
-  const searchParams = useMemo(() => rawSearchParams, [rawSearchParams])
+  const searchParams = useSearchParams()
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
