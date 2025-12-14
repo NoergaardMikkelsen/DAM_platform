@@ -59,7 +59,16 @@ export default function DashboardPage() {
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
-    setIsInitialLoading(true)
+    // Show initial loading screen only on first login in this session
+    const hasSeenInitialLoading = sessionStorage.getItem('hasSeenInitialLoading')
+
+    if (!hasSeenInitialLoading) {
+      setIsInitialLoading(true)
+      sessionStorage.setItem('hasSeenInitialLoading', 'true')
+    } else {
+      // If already seen, just load data directly
+      loadDashboardData()
+    }
   }, [])
 
   useEffect(() => {
