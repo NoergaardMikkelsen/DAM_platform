@@ -9,7 +9,7 @@ import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 
 interface Asset {

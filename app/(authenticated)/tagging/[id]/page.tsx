@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Tag, Settings, Trash2, Database } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 
 interface Tag {
