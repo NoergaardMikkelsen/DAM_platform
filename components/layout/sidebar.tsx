@@ -44,18 +44,19 @@ export function Sidebar({ user, role }: SidebarProps) {
 
   return (
     <div
-      className={`relative h-screen overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-72'}`}
+      className={`relative overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}
       style={{
-        filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.08))',
+        filter: 'drop-shadow(rgba(0, 0, 0, 0.08) 0px 4px 12px)',
         marginTop: '16px',
         marginLeft: '16px',
-        marginBottom: '16px',
+        marginBottom: '30px',
+        height: '-webkit-fill-available',
       }}
     >
       {/* Main sidebar SVG shape with organic curve - same style as collection cards */}
       <svg
         className="absolute inset-0 w-full h-full"
-        viewBox="0 0 288 939"
+        viewBox={isCollapsed ? "0 0 64 939" : "0 0 288 939"}
         preserveAspectRatio="none"
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -63,9 +64,12 @@ export function Sidebar({ user, role }: SidebarProps) {
           {/* Sidebar mask with organic shape matching collection cards */}
           {/* 32px border radius in corners, indentation for Upload button */}
           {/* Exact path from design - indentation starts at V845.79, log out is above it */}
-          <mask id="sidebarMask" maskUnits="userSpaceOnUse" x="0" y="0" width="288" height="939">
+          <mask id="sidebarMask" maskUnits="userSpaceOnUse" x="0" y="0" width={isCollapsed ? "64" : "288"} height="939">
             <path
-              d="M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+              d={isCollapsed
+                ? "M0 32C0 14.3269 14.3269 0 32 0H32C49.6731 0 64 14.3269 64 32V845.79C64 859.437 52.9373 870.5 39.29 870.5H33.29C15.617 870.5 1.29 884.827 1.29 902.5V909.5C1.29 925.792 -11.918 939 1.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+                : "M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+              }
               fill="white"
             />
           </mask>
@@ -89,7 +93,10 @@ export function Sidebar({ user, role }: SidebarProps) {
 
         {/* Border with organic curve matching collection cards */}
         <path
-          d="M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+          d={isCollapsed
+            ? "M0 32C0 14.3269 14.3269 0 32 0H32C49.6731 0 64 14.3269 64 32V845.79C64 859.437 52.9373 870.5 39.29 870.5H33.29C15.617 870.5 1.29 884.827 1.29 902.5V909.5C1.29 925.792 -11.918 939 1.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+            : "M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+          }
           fill="none"
           stroke="rgba(0, 0, 0, 0.05)"
           strokeWidth="1"
@@ -97,20 +104,20 @@ export function Sidebar({ user, role }: SidebarProps) {
       </svg>
 
       {/* Content container */}
-      <div className={`relative z-10 flex h-full flex-col transition-opacity duration-300 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className="relative z-10 flex h-full flex-col">
         {/* Logo */}
-        <div className="flex h-20 items-center border-b px-6">
+        <div className={`flex items-center border-b transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
           <img
-            src="/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"
+            src={isCollapsed ? "/logo/logo_collapsed.png" : "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"}
             alt="Nørgård Mikkelsen Logo"
-            className="h-12 w-auto"
+            className={`transition-all duration-300 ${isCollapsed ? 'w-8 h-auto' : 'h-12 w-auto'}`}
           />
         </div>
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4">
-          <div className="space-y-2 px-3">
-            <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>
+          <div className={`space-y-2 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-3'}`}>
+            {!isCollapsed && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
             {mainNavItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
@@ -119,7 +126,8 @@ export function Sidebar({ user, role }: SidebarProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="relative block w-full mb-2"
+                  className="relative block w-full mb-2 group"
+                  title={isCollapsed ? item.label : undefined}
                 >
                   <div
                     className="relative overflow-hidden transition-all duration-300"
@@ -130,15 +138,18 @@ export function Sidebar({ user, role }: SidebarProps) {
                     }}
                   >
                     <svg
-                      viewBox="0 0 220 48"
+                      viewBox={isCollapsed ? "0 0 56 48" : "0 0 220 48"}
                       className="w-full h-full absolute inset-0"
                       xmlns="http://www.w3.org/2000/svg"
                       preserveAspectRatio="xMidYMid meet"
                     >
                       <defs>
-                        <mask id={`navMask-${item.href.replace('/', '')}`} maskUnits="userSpaceOnUse" x="0" y="0" width="220" height="48">
+                        <mask id={`navMask-${item.href.replace('/', '')}`} maskUnits="userSpaceOnUse" x="0" y="0" width={isCollapsed ? "56" : "220"} height="48">
                           <path
-                            d="M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                            d={isCollapsed
+                              ? "M0 36V12C0 5.37258 5.37258 0 12 0H44C50.6274 0 56 5.37258 56 12V36C56 42.6274 50.6274 48 44 48H12C5.37258 48 0 42.6274 0 36Z"
+                              : "M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                            }
                             fill="white"
                           />
                         </mask>
@@ -152,14 +163,17 @@ export function Sidebar({ user, role }: SidebarProps) {
                       <rect
                         x="0"
                         y="0"
-                        width="220"
+                        width={isCollapsed ? "56" : "220"}
                         height="48"
                         fill={`url(#navGradient-${item.href.replace('/', '')})`}
                         mask={`url(#navMask-${item.href.replace('/', '')})`}
                       />
 
                       <path
-                        d="M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                        d={isCollapsed
+                          ? "M0 36V12C0 5.37258 5.37258 0 12 0H44C50.6274 0 56 5.37258 56 12V36C56 42.6274 50.6274 48 44 48H12C5.37258 48 0 42.6274 0 36Z"
+                          : "M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                        }
                         fill="none"
                         stroke="rgba(255, 255, 255, 0.3)"
                         strokeWidth="1"
@@ -167,7 +181,7 @@ export function Sidebar({ user, role }: SidebarProps) {
                     </svg>
 
                     <div
-                      className="absolute inset-0 flex items-center gap-3 px-4 py-3"
+                      className={`absolute inset-0 flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'}`}
                       style={{
                         color: isActive ? '#1f2937' : '#6b7280',
                         fontWeight: '500',
@@ -175,7 +189,7 @@ export function Sidebar({ user, role }: SidebarProps) {
                       }}
                     >
                       <Icon className="h-5 w-5 flex-shrink-0" />
-                      <span>{item.label}</span>
+                      {!isCollapsed && <span>{item.label}</span>}
                     </div>
                   </div>
                 </Link>
@@ -184,7 +198,7 @@ export function Sidebar({ user, role }: SidebarProps) {
 
             {isAdmin && (
               <>
-                <div className="mb-4 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin</div>
+                {!isCollapsed && <div className="mb-4 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin</div>}
                 {adminNavItems.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
@@ -193,7 +207,8 @@ export function Sidebar({ user, role }: SidebarProps) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="relative block w-full mb-2"
+                      className="relative block w-full mb-2 group"
+                      title={isCollapsed ? item.label : undefined}
                     >
                       <div
                         className="relative overflow-hidden transition-all duration-300"
@@ -204,15 +219,18 @@ export function Sidebar({ user, role }: SidebarProps) {
                         }}
                       >
                         <svg
-                          viewBox="0 0 220 48"
+                          viewBox={isCollapsed ? "0 0 56 48" : "0 0 220 48"}
                           className="w-full h-full absolute inset-0"
                           xmlns="http://www.w3.org/2000/svg"
                           preserveAspectRatio="xMidYMid meet"
                         >
                           <defs>
-                            <mask id={`adminNavMask-${item.href.replace('/', '')}`} maskUnits="userSpaceOnUse" x="0" y="0" width="220" height="48">
+                            <mask id={`adminNavMask-${item.href.replace('/', '')}`} maskUnits="userSpaceOnUse" x="0" y="0" width={isCollapsed ? "56" : "220"} height="48">
                               <path
-                                d="M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                                d={isCollapsed
+                                  ? "M0 36V12C0 5.37258 5.37258 0 12 0H44C50.6274 0 56 5.37258 56 12V36C56 42.6274 50.6274 48 44 48H12C5.37258 48 0 42.6274 0 36Z"
+                                  : "M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                                }
                                 fill="white"
                               />
                             </mask>
@@ -226,14 +244,17 @@ export function Sidebar({ user, role }: SidebarProps) {
                           <rect
                             x="0"
                             y="0"
-                            width="220"
+                            width={isCollapsed ? "56" : "220"}
                             height="48"
                             fill={`url(#adminNavGradient-${item.href.replace('/', '')})`}
                             mask={`url(#adminNavMask-${item.href.replace('/', '')})`}
                           />
 
                           <path
-                            d="M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                            d={isCollapsed
+                              ? "M0 36V12C0 5.37258 5.37258 0 12 0H44C50.6274 0 56 5.37258 56 12V36C56 42.6274 50.6274 48 44 48H12C5.37258 48 0 42.6274 0 36Z"
+                              : "M0 36V12C0 5.37258 5.37258 0 12 0H196.195C202.67 0 207.02 5.17764 207.181 11.652C207.598 33.258 208.304 48 208.304 48H12C5.37258 48 0 42.6274 0 36Z"
+                            }
                             fill="none"
                             stroke="rgba(255, 255, 255, 0.3)"
                             strokeWidth="1"
@@ -241,7 +262,7 @@ export function Sidebar({ user, role }: SidebarProps) {
                         </svg>
 
                         <div
-                          className="absolute inset-0 flex items-center gap-3 px-4 py-3"
+                          className={`absolute inset-0 flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'}`}
                           style={{
                             color: isActive ? '#1f2937' : '#6b7280',
                             fontWeight: '500',
@@ -249,7 +270,7 @@ export function Sidebar({ user, role }: SidebarProps) {
                           }}
                         >
                           <Icon className="h-5 w-5 flex-shrink-0" />
-                          <span>{item.label}</span>
+                          {!isCollapsed && <span>{item.label}</span>}
                         </div>
                       </div>
                     </Link>
@@ -261,50 +282,55 @@ export function Sidebar({ user, role }: SidebarProps) {
         </div>
 
         {/* Upload Button */}
-        <div className="border-t px-3 py-2">
-          <Link href="/assets/upload" className="block">
+        <div className={`border-t transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
+          <Link href="/assets/upload" className="block" title={isCollapsed ? "Upload" : undefined}>
             <Button
-              className="w-full"
+              className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
               style={{
                 background: '#DF475C',
-                borderRadius: '25px',
-                padding: '24px 16px',
+                borderRadius: isCollapsed ? '50%' : '25px',
+                padding: isCollapsed ? '0' : '24px 16px',
                 fontSize: '14px',
                 fontWeight: '500',
               }}
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload
+              <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
+              {!isCollapsed && 'Upload'}
             </Button>
           </Link>
         </div>
 
         {/* User Profile - positioned ABOVE indentation */}
-        <div className="border-t px-4 pb-6 pt-2 relative z-10">
-          <Link href="/profile" className="flex items-center gap-3 rounded-lg p-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DF475C] text-sm font-semibold text-white">
-              {(user.full_name || user.email)
-                .split(" ")
-                .map((n) => n[0])
-                .join("")
-                .toUpperCase()}
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <div className="truncate text-sm font-medium text-gray-900">{user.full_name || user.email}</div>
-              <div className="truncate text-xs text-gray-500">{user.email}</div>
-            </div>
-          </Link>
+        <div className={`border-t pb-6 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
+          <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
+            <Link href="/profile" className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DF475C] text-sm font-semibold text-white">
+                {(user.full_name || user.email)
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()}
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 overflow-hidden">
+                  <div className="truncate text-sm font-medium text-gray-900">{user.full_name || user.email}</div>
+                  <div className="truncate text-xs text-gray-500">{user.email}</div>
+                </div>
+              )}
+            </Link>
+          </div>
           <Button
-            className="mt-2 w-full justify-start text-gray-600"
+            className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 justify-center' : 'w-full justify-start'} text-gray-600`}
             style={{
               backgroundColor: 'transparent',
               border: 'none',
               boxShadow: 'none',
             }}
             onClick={handleLogout}
+            title={isCollapsed ? "Log out" : undefined}
           >
-            <LogOut className="mr-2 h-4 w-4" />
-            Log out
+            <LogOut className="h-4 w-4" />
+            {!isCollapsed && <span className="ml-2">Log out</span>}
           </Button>
         </div>
 
