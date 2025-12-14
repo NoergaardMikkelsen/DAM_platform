@@ -43,16 +43,19 @@ export function Sidebar({ user, role }: SidebarProps) {
   const isAdmin = role === "admin" || role === "superadmin"
 
   return (
-    <div 
-      className={`relative h-screen overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-64'}`}
+    <div
+      className={`relative h-screen overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-72'}`}
       style={{
         filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.08))',
+        marginTop: '16px',
+        marginLeft: '16px',
+        marginBottom: '16px',
       }}
     >
       {/* Main sidebar SVG shape with organic curve - same style as collection cards */}
       <svg
         className="absolute inset-0 w-full h-full"
-        viewBox="0 0 256 939"
+        viewBox="0 0 288 939"
         preserveAspectRatio="none"
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -60,9 +63,9 @@ export function Sidebar({ user, role }: SidebarProps) {
           {/* Sidebar mask with organic shape matching collection cards */}
           {/* 32px border radius in corners, indentation for Upload button */}
           {/* Exact path from design - indentation starts at V845.79, log out is above it */}
-          <mask id="sidebarMask" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="939">
+          <mask id="sidebarMask" maskUnits="userSpaceOnUse" x="0" y="0" width="288" height="939">
             <path
-              d="M0 32C0 14.3269 14.3269 0 32 0H224C241.673 0 256 14.3269 256 32V845.79C256 859.437 244.937 870.5 231.29 870.5H225.29C207.617 870.5 193.29 884.827 193.29 902.5V909.5C193.29 925.792 180.082 939 163.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+              d="M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
               fill="white"
             />
           </mask>
@@ -78,7 +81,7 @@ export function Sidebar({ user, role }: SidebarProps) {
         <rect
           x="0"
           y="0"
-          width="256"
+          width="288"
           height="939"
           fill="url(#sidebarGradient)"
           mask="url(#sidebarMask)"
@@ -86,7 +89,7 @@ export function Sidebar({ user, role }: SidebarProps) {
 
         {/* Border with organic curve matching collection cards */}
         <path
-          d="M0 32C0 14.3269 14.3269 0 32 0H224C241.673 0 256 14.3269 256 32V845.79C256 859.437 244.937 870.5 231.29 870.5H225.29C207.617 870.5 193.29 884.827 193.29 902.5V909.5C193.29 925.792 180.082 939 163.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+          d="M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
           fill="none"
           stroke="rgba(0, 0, 0, 0.05)"
           strokeWidth="1"
@@ -105,8 +108,8 @@ export function Sidebar({ user, role }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-6">
-          <div className="space-y-3 px-3">
+        <div className="flex-1 overflow-y-auto py-4">
+          <div className="space-y-2 px-3">
             <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>
             {mainNavItems.map((item) => {
               const Icon = item.icon
@@ -258,9 +261,18 @@ export function Sidebar({ user, role }: SidebarProps) {
         </div>
 
         {/* Upload Button */}
-        <div className="border-t px-4 py-4">
+        <div className="border-t px-3 py-2">
           <Link href="/assets/upload" className="block">
-            <Button className="w-full bg-[#DF475C] hover:bg-[#C82333] rounded-lg">
+            <Button
+              className="w-full"
+              style={{
+                background: '#DF475C',
+                borderRadius: '25px',
+                padding: '24px 16px',
+                fontSize: '14px',
+                fontWeight: '500',
+              }}
+            >
               <Upload className="mr-2 h-4 w-4" />
               Upload
             </Button>
@@ -268,8 +280,8 @@ export function Sidebar({ user, role }: SidebarProps) {
         </div>
 
         {/* User Profile - positioned ABOVE indentation */}
-        <div className="border-t p-4 relative z-10">
-          <Link href="/profile" className="flex items-center gap-3 rounded-lg p-2 hover:bg-gray-50">
+        <div className="border-t px-4 pb-6 pt-2 relative z-10">
+          <Link href="/profile" className="flex items-center gap-3 rounded-lg p-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DF475C] text-sm font-semibold text-white">
               {(user.full_name || user.email)
                 .split(" ")
@@ -282,34 +294,55 @@ export function Sidebar({ user, role }: SidebarProps) {
               <div className="truncate text-xs text-gray-500">{user.email}</div>
             </div>
           </Link>
-          <Button variant="ghost" className="mt-2 w-full justify-start text-gray-600" onClick={handleLogout}>
+          <Button
+            className="mt-2 w-full justify-start text-gray-600"
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+            }}
+            onClick={handleLogout}
+          >
             <LogOut className="mr-2 h-4 w-4" />
             Log out
           </Button>
         </div>
 
-        {/* Toggle Button - positioned OUTSIDE the indentation, to the right of SVG path */}
-        {/* Same style as collection card buttons - positioned outside SVG curve */}
-        <div className="absolute bottom-4 right-0" style={{ zIndex: 30 }}>
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="relative overflow-visible transition-all duration-300 hover:scale-105 cursor-pointer pointer-events-auto z-20 rounded-full flex items-center justify-center"
+        {/* Toggle Button - positioned outside SVG like collection card arrow button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-gray-200 pointer-events-auto z-20"
+          style={{
+            bottom: 'clamp(2px, 0.5cqw, 8px)',
+            right: 'clamp(2px, 0.5cqw, 8px)',
+            width: 'clamp(32px, 12cqw, 48px)',
+            height: 'clamp(32px, 12cqw, 48px)',
+            backgroundColor: '#E5E5E5',
+            cursor: 'pointer',
+          }}
+          aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
+        >
+          <svg
+            viewBox="0 8 25 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            preserveAspectRatio="xMidYMid"
             style={{
-              width: '48px',
-              height: '48px',
-              marginRight: isCollapsed ? '8px' : 'clamp(32px, 5cqw, 64px)', // Position much further right of SVG indentation
-              backgroundColor: '#E5E5E5',
-              filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12))',
+              width: 'clamp(16px, 5cqw, 24px)',
+              height: 'clamp(14px, 4cqw, 20px)',
+              transform: isCollapsed ? 'scaleX(-1)' : 'none',
+              transition: 'transform 0.3s ease',
             }}
-            aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
           >
-            {isCollapsed ? (
-              <ChevronRight className="h-6 w-6 text-gray-700" />
-            ) : (
-              <ChevronLeft className="h-6 w-6 text-gray-700" />
-            )}
-          </button>
-        </div>
+            <path
+              d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+              stroke="black"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </button>
       </div>
     </div>
   )
