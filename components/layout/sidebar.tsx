@@ -297,7 +297,7 @@ export function Sidebar({ user, role }: SidebarProps) {
             style={{
               width: '48px',
               height: '48px',
-              marginRight: isCollapsed ? '8px' : 'clamp(8px, 2cqw, 16px)', // Position outside SVG indentation, matching collection card style
+              marginRight: isCollapsed ? '8px' : 'clamp(32px, 5cqw, 64px)', // Position much further right of SVG indentation
               backgroundColor: '#E5E5E5',
               filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12))',
             }}
