@@ -135,7 +135,7 @@ export default function CollectionsPage() {
             label: tag.label,
             slug: tag.slug,
             assetCount: tagAssets.length,
-            previewAssets: tagAssets.slice(0, 4).map(asset => ({
+            previewAssets: tagAssets.slice(0, 4).map((asset: any) => ({
               ...asset,
               thumbnail_path: asset.current_version?.thumbnail_path || null
             })),
@@ -147,7 +147,8 @@ export default function CollectionsPage() {
       setFilteredCollections(collectionsWithCounts)
     }
 
-    setIsLoading(false)
+    // Add small delay to ensure collection images have time to load
+    setTimeout(() => setIsLoading(false), 1000)
   }
 
   const applySearchAndSort = () => {
@@ -171,6 +172,43 @@ export default function CollectionsPage() {
     })
 
     setFilteredCollections(filtered)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        {/* Header skeleton */}
+        <div className="mb-8">
+          <div className="mb-4 h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-9 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+            <div className="h-10 w-64 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Collections grid skeleton */}
+        <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="relative w-full min-w-[200px] aspect-[239/200] overflow-hidden">
+              <svg viewBox="0 0 239 200" className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <mask id={`skeletonMask-loading-collections-${i}`} maskUnits="userSpaceOnUse" x="0" y="0" width="239" height="200">
+                    <path
+                      d="M0 179V21C0 9.40202 9.40202 0 21 0H216.195C227.67 0 237.02 9.17764 237.181 20.652C237.598 50.258 238.304 103.407 238.304 123.5C238.304 152 206.152 133 188.658 156C171.163 179 193.386 200 144.499 200H20.9761C9.37811 200 0 190.598 0 179Z"
+                      fill="white"
+                    />
+                  </mask>
+                </defs>
+                <rect x="0" y="0" width="239" height="200" fill="#e5e7eb" mask={`url(#skeletonMask-loading-collections-${i})`} className="animate-pulse" />
+              </svg>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -218,13 +256,7 @@ export default function CollectionsPage() {
       </div>
 
       {/* Collections Grid */}
-      {isLoading ? (
-        <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="relative w-full min-w-[200px] aspect-[239/200] animate-pulse bg-gray-200 rounded-lg" />
-          ))}
-        </div>
-      ) : filteredCollections.length === 0 ? (
+      {filteredCollections.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No collections found</p>
           <Link href="/assets/upload">

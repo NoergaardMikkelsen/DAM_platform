@@ -20,9 +20,9 @@ interface CollectionCardProps {
 
 export function CollectionCard({ id, label, assetCount, previewAssets }: CollectionCardProps) {
   const [isLiked, setIsLiked] = useState(false)
-  const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [assetTypes, setAssetTypes] = useState<string[]>([])
-  const [videoUrls, setVideoUrls] = useState<string[]>([])
+  const [imageUrls, setImageUrls] = useState<string[]>(["/placeholder.jpg", "/placeholder.jpg", "/placeholder.jpg", "/placeholder.jpg"])
+  const [assetTypes, setAssetTypes] = useState<string[]>(["unknown", "unknown", "unknown", "unknown"])
+  const [videoUrls, setVideoUrls] = useState<string[]>(["", "", "", ""])
 
   useEffect(() => {
     const fetchImageUrls = async () => {
@@ -110,6 +110,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
       fetchImageUrls()
     }
   }, [previewAssets])
+
 
   return (
     <Link href={`/assets/collections/${id}`}>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
+import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
@@ -42,7 +43,8 @@ export default function DashboardPage() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isInitialLoading, setIsInitialLoading] = useState(false)
   const [maxCollections, setMaxCollections] = useState(3)
   const [stats, setStats] = useState({
     totalAssets: 0,
@@ -56,7 +58,7 @@ export default function DashboardPage() {
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
-    loadDashboardData()
+    setIsInitialLoading(true)
   }, [])
 
   useEffect(() => {
@@ -79,6 +81,7 @@ export default function DashboardPage() {
   }, [])
 
   const loadDashboardData = async () => {
+    setIsLoading(true)
     const supabase = supabaseRef.current
     const {
       data: { user },
@@ -194,7 +197,7 @@ export default function DashboardPage() {
           label: tag.label,
           slug: tag.slug,
           assetCount: tagAssets.length,
-          previewAssets: tagAssets.slice(0, 4).map(asset => ({
+          previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
             ...asset,
             thumbnail_path: asset.current_version?.thumbnail_path || null
           })),
@@ -271,6 +274,13 @@ export default function DashboardPage() {
     setFilteredAssets(filteredAssetsResult)
     setFilteredCollections(filteredCollectionsResult)
     setIsFilterOpen(false)
+  }
+
+  if (isInitialLoading) {
+    return <InitialLoadingScreen onComplete={() => {
+      setIsInitialLoading(false)
+      loadDashboardData()
+    }} />
   }
 
   if (isLoading) {
