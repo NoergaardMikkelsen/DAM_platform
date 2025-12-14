@@ -92,10 +92,10 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
     return (
       <div className={`${className} bg-white border border-gray-200 overflow-hidden relative`}>
         <iframe
-          src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+          src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
           className="w-full h-full"
           title={`PDF Preview: ${alt}`}
-          style={{ border: 'none' }}
+          style={{ border: 'none', minHeight: '300px' }}
         />
         {/* PDF overlay */}
         <div className="absolute top-2 right-2 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded font-medium backdrop-blur-sm border border-gray-200">
