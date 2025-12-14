@@ -9,7 +9,6 @@ import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
-import { DashboardLoading } from "@/components/ui/dashboard-loading"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
@@ -294,7 +293,16 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
-    return <DashboardLoading />
+    return (
+      <div className="p-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const sortedCollections = [...filteredCollections].sort((a, b) => b.assetCount - a.assetCount)
