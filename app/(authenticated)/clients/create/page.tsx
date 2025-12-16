@@ -15,32 +15,145 @@ import { useState } from "react"
 
 export default function CreateClientPage() {
   const [name, setName] = useState("")
-  const [domain, setDomain] = useState("")
+  const [slug, setSlug] = useState("")
   const [primaryColor, setPrimaryColor] = useState("#DF475C")
   const [secondaryColor, setSecondaryColor] = useState("#6c757d")
   const [storageLimit, setStorageLimit] = useState("10000")
   const [status, setStatus] = useState("active")
+  const [generatedDomain, setGeneratedDomain] = useState("")
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [slugError, setSlugError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  // Generate slug and domain preview when name changes
+  const handleNameChange = (value: string) => {
+    setName(value)
+    if (value.trim()) {
+      const generatedSlug = value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+      setSlug(generatedSlug)
+      setGeneratedDomain(`${generatedSlug}.brandassets.space`)
+    } else {
+      setSlug("")
+      setGeneratedDomain("")
+    }
+  }
+
+  // Handle logo file selection
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError("Please select an image file")
+        return
+      }
+
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Logo file size must be less than 5MB")
+        return
+      }
+
+      setLogoFile(file)
+
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setLogoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+      setError(null)
+    }
+  }
+
+  // Remove logo
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+  }
+
+  // Update domain when slug changes
+  const handleSlugChange = async (value: string) => {
+    const cleanSlug = value.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-|-$/g, "")
+    setSlug(cleanSlug)
+
+    if (cleanSlug) {
+      setGeneratedDomain(`${cleanSlug}.brandassets.space`)
+
+      // Check if slug is available
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("slug", cleanSlug)
+          .limit(1)
+
+        if (data && data.length > 0) {
+          setSlugError("This subdomain is already taken")
+        } else {
+          setSlugError(null)
+        }
+      } catch (error) {
+        setSlugError("Unable to check subdomain availability")
+      }
+    } else {
+      setGeneratedDomain("")
+      setSlugError(null)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validate slug
+    if (!slug.trim()) {
+      setError("Subdomain is required")
+      return
+    }
+
+    if (slugError) {
+      setError("Please choose a different subdomain")
+      return
+    }
+
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      // Create slug from name
-      const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
+      let logoUrl = null
+
+      // Upload logo if selected
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop()
+        const fileName = `${slug}-logo-${Date.now()}.${fileExt}`
+        const filePath = `client-logos/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(filePath, logoFile)
+
+        if (uploadError) throw uploadError
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('logos')
+          .getPublicUrl(filePath)
+
+        logoUrl = publicUrl
+      }
 
       const { error: insertError } = await supabase.from("clients").insert({
         name,
         slug,
-        domain: domain || null,
+        logo_url: logoUrl,
         status,
         primary_color: primaryColor,
         secondary_color: secondaryColor,
@@ -79,21 +192,65 @@ export default function CreateClientPage() {
                 id="name"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g., NMIC, Company Name"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="domain">Domain</Label>
+              <Label htmlFor="logo">Client Logo</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="logo"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                  className="flex-1"
+                />
+                {logoPreview && (
+                  <div className="relative">
+                    <img
+                      src={logoPreview}
+                      alt="Logo preview"
+                      className="w-16 h-16 object-contain border rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeLogo}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">Upload a logo for this client (max 5MB, image files only)</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="slug">Subdomain *</Label>
+              <Input
+                id="slug"
+                required
+                value={slug}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="e.g., nmic, my-company"
+                className={slugError ? "border-red-500" : ""}
+              />
+              {slugError && <p className="text-xs text-red-500">{slugError}</p>}
+              <p className="text-xs text-gray-500">Choose your preferred subdomain (letters, numbers, and hyphens only)</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="domain">Full Domain</Label>
               <Input
                 id="domain"
-                type="url"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="e.g., nmic.damsystem.com"
+                value={generatedDomain}
+                readOnly
+                className="bg-gray-50"
+                placeholder="Choose a subdomain above"
               />
-              <p className="text-xs text-gray-500">The subdomain or custom domain for this client</p>
+              <p className="text-xs text-gray-500">Your subdomain will be created on brandassets.space</p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">

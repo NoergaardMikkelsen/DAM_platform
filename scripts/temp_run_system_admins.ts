@@ -23,28 +23,28 @@ if (!DATABASE_URL) {
   process.exit(1)
 }
 
-async function runMigration(filename: string) {
-  // Parse connection string to handle SSL properly
+async function runMigration() {
   const connectionConfig: any = {
     connectionString: DATABASE_URL as string,
   }
 
-  // Add SSL configuration for Supabase
-  if (DATABASE_URL?.includes("supabase") || DATABASE_URL?.includes("pooler")) {
-    connectionConfig.ssl = {
-      rejectUnauthorized: false, // Supabase uses self-signed certificates
-    }
+  // Add SSL configuration
+  connectionConfig.ssl = {
+    rejectUnauthorized: false, // Disable SSL verification for development
   }
 
   const client = new Client(connectionConfig)
 
   try {
     await client.connect()
-    console.log(`\n▶ Executing: ${filename}`)
+    console.log("Connected to database")
 
+    const filename = "023_create_system_admins.sql"
     const filePath = join(process.cwd(), "scripts", filename)
     const content = await readFile(filePath, "utf-8")
     const checksum = createHash("sha256").update(content).digest("hex")
+
+    console.log(`\n▶ Executing: ${filename}`)
 
     // Execute the SQL
     await client.query(content)
@@ -52,43 +52,21 @@ async function runMigration(filename: string) {
     // Record migration execution
     await client.query(
       "INSERT INTO schema_migrations (filename, checksum, executed_by) VALUES ($1, $2, $3) ON CONFLICT (filename) DO NOTHING",
-      [filename, checksum, "migration_execute"],
+      [filename, checksum, "temp-migration-runner"],
     )
 
     console.log(`✓ Completed: ${filename}`)
+    console.log("\n✓ System admins table migration completed successfully!")
+
   } catch (error: any) {
-    console.error(`✗ Failed: ${filename}`)
-    console.error(`  Error: ${error.message}`)
+    console.error(`✗ Migration failed: ${error.message}`)
     throw error
   } finally {
     await client.end()
   }
 }
 
-async function main() {
-  const migrations = [
-    "013_create_migrations_table.sql",
-    "014_add_file_type_tags.sql",
-    "015_auto_assign_file_type_trigger.sql",
-    "016_backfill_file_type_tags.sql",
-    "023_create_system_admins.sql",
-    "024_create_system_settings.sql",
-    "025_update_client_domains.sql",
-    "026_add_auto_subdomain_function.sql",
-    "027_add_client_logos.sql",
-  ]
-
-  console.log("Running new migrations...\n")
-
-  for (const migration of migrations) {
-    await runMigration(migration)
-  }
-
-  console.log("\n✓ All new migrations completed!")
-}
-
-main().catch((error) => {
-  console.error("\n✗ Migration failed:", error)
+runMigration().catch((error) => {
+  console.error("\n✗ Migration script failed:", error)
   process.exit(1)
 })
-

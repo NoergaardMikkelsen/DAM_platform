@@ -25,6 +25,15 @@ VALUES
   ('009_storage_buckets_setup.sql', now(), 'manual'),
   ('010_enhance_system.sql', now(), 'manual'),
   ('011_make_category_mandatory.sql', now(), 'manual'),
-  ('012_create_asset_versions.sql', now(), 'manual')
+  ('012_create_asset_versions.sql', now(), 'manual'),
+  ('013_create_migrations_table.sql', now(), 'manual'),
+  ('014_add_file_type_tags.sql', now(), 'manual'),
+  ('015_auto_assign_file_type_trigger.sql', now(), 'manual'),
+  ('016_backfill_file_type_tags.sql', now(), 'manual'),
+  ('023_create_system_admins.sql', now(), 'manual'),
+  ('024_create_system_settings.sql', now(), 'manual'),
+  ('025_update_client_domains.sql', now(), 'manual'),
+  ('026_add_auto_subdomain_function.sql', now(), 'manual'),
+  ('027_add_client_logos.sql', now(), 'manual')
 ON CONFLICT (filename) DO NOTHING;
 

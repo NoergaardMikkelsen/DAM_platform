@@ -12,6 +12,7 @@ export type Client = {
   name: string
   slug: string
   domain: string | null
+  logo_url: string | null
   status: string
   primary_color: string
   secondary_color: string
@@ -91,6 +92,15 @@ export type Favorite = {
   user_id: string
   asset_id: string
   created_at: string
+}
+
+export type SystemSetting = {
+  id: string
+  key: string
+  value: string
+  description: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type UserWithRole = User & {

@@ -18,6 +18,7 @@ interface Client {
   name: string
   slug: string
   domain: string | null
+  logo_url: string | null
   status: string
   primary_color: string
   secondary_color: string
@@ -39,6 +40,7 @@ export default function ClientDetailPage() {
     name: "",
     slug: "",
     domain: "",
+    logo_url: "",
     primary_color: "",
     secondary_color: "",
     storage_limit_mb: 0
@@ -240,9 +242,18 @@ export default function ClientDetailPage() {
             >
               <Building className="h-6 w-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
-              <p className="text-gray-500">{client.slug}</p>
+            <div className="flex items-center gap-4">
+              {client.logo_url && (
+                <img
+                  src={client.logo_url}
+                  alt={`${client.name} logo`}
+                  className="w-12 h-12 object-contain rounded-lg border"
+                />
+              )}
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
+                <p className="text-gray-500">{client.slug}</p>
+              </div>
             </div>
           </div>
 
