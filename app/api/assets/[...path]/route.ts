@@ -102,24 +102,43 @@ export async function GET(
 
     // Check if user has access to this client
     debugLog.push(`[ASSETS-API] Checking user access to client ${clientId}...`)
-    const { data: accessCheck, error: accessError } = await supabase
-      .from('client_users')
+
+    // First check if user is a system admin (they have access to all clients)
+    const { data: systemAdminCheck, error: systemAdminError } = await supabase
+      .from('system_admins')
       .select('id')
-      .eq('user_id', user.id)
-      .eq('client_id', clientId)
-      .eq('status', 'active')
+      .eq('id', user.id)
       .maybeSingle()
 
-    if (accessError) {
-      debugLog.push(`[ASSETS-API] Access check error: ${accessError.message}`)
+    if (systemAdminError) {
+      debugLog.push(`[ASSETS-API] System admin check error: ${systemAdminError.message}`)
     }
 
-    debugLog.push(`[ASSETS-API] Access check result: ${accessCheck ? 'granted' : 'denied'}`)
+    debugLog.push(`[ASSETS-API] System admin check: ${systemAdminCheck ? 'is system admin' : 'not system admin'}`)
 
-    if (accessError || !accessCheck) {
-      debugLog.push(`[ASSETS-API] Access denied`)
-      console.error('[ASSETS-API DEBUG]', debugLog.join('\n'))
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    if (systemAdminCheck) {
+      debugLog.push(`[ASSETS-API] Access granted - user is system admin`)
+    } else {
+      // Not a system admin, check regular client access
+      const { data: accessCheck, error: accessError } = await supabase
+        .from('client_users')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('client_id', clientId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (accessError) {
+        debugLog.push(`[ASSETS-API] Access check error: ${accessError.message}`)
+      }
+
+      debugLog.push(`[ASSETS-API] Client access check result: ${accessCheck ? 'granted' : 'denied'}`)
+
+      if (accessError || !accessCheck) {
+        debugLog.push(`[ASSETS-API] Access denied - no client access`)
+        console.error('[ASSETS-API DEBUG]', debugLog.join('\n'))
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     // Use 'assets' bucket with the full storage_path
