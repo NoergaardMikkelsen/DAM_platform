@@ -112,7 +112,7 @@ export default function ClientsPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
-        <Link href="/clients/create">
+        <Link href="/system-admin/clients/create">
           <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
             <Plus className="mr-2 h-4 w-4" />
             Create new client
@@ -127,7 +127,7 @@ export default function ClientsPage() {
           <Input
             type="search"
             placeholder="Search client"
-            className="pl-10"
+            className="pl-10 bg-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -248,7 +248,7 @@ export default function ClientsPage() {
         <div className="flex flex-col items-center justify-center py-12">
           <Building className="mb-4 h-12 w-12 text-gray-400" />
           <p className="text-gray-600">No clients found</p>
-          <Link href="/clients/create">
+          <Link href="/system-admin/clients/create">
             <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Create your first client</Button>
           </Link>
         </div>

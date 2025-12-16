@@ -28,6 +28,17 @@ export default function CreateClientPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  // Determine the base domain for tenant URLs
+  const getTenantBaseDomain = () => {
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname.endsWith('.localhost')
+      if (isLocalhost) {
+        return 'localhost'
+      }
+    }
+    return 'brandassets.space'
+  }
+
   // Generate slug and domain preview when name changes
   const handleNameChange = (value: string) => {
     setName(value)
@@ -37,7 +48,7 @@ export default function CreateClientPage() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
       setSlug(generatedSlug)
-      setGeneratedDomain(`${generatedSlug}.brandassets.space`)
+      setGeneratedDomain(`${generatedSlug}.${getTenantBaseDomain()}`)
     } else {
       setSlug("")
       setGeneratedDomain("")
@@ -84,7 +95,7 @@ export default function CreateClientPage() {
     setSlug(cleanSlug)
 
     if (cleanSlug) {
-      setGeneratedDomain(`${cleanSlug}.brandassets.space`)
+      setGeneratedDomain(`${cleanSlug}.${getTenantBaseDomain()}`)
 
       // Check if slug is available
       try {
@@ -162,7 +173,7 @@ export default function CreateClientPage() {
 
       if (insertError) throw insertError
 
-      router.push("/clients")
+      router.push("/system-admin/clients")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
@@ -173,16 +184,21 @@ export default function CreateClientPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <Link href="/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+        <Link href="/system-admin/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to clients
         </Link>
       </div>
 
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Create New Client</h1>
+        <p className="text-gray-600 mt-1">Add a new client to the platform</p>
+      </div>
+
       <Card className="mx-auto max-w-2xl">
         <CardHeader>
-          <CardTitle className="text-2xl">Create new client</CardTitle>
-          <CardDescription>Add a new client to your organization</CardDescription>
+          <CardTitle className="text-xl">Client Information</CardTitle>
+          <CardDescription>Configure the basic settings for this client</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -250,7 +266,7 @@ export default function CreateClientPage() {
                 className="bg-gray-50"
                 placeholder="Choose a subdomain above"
               />
-              <p className="text-xs text-gray-500">Your subdomain will be created on brandassets.space</p>
+              <p className="text-xs text-gray-500">Your subdomain will be created on the platform domain</p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -321,7 +337,7 @@ export default function CreateClientPage() {
             {error && <p className="text-sm text-red-500">{error}</p>}
 
             <div className="flex justify-end gap-4">
-              <Link href="/clients">
+              <Link href="/system-admin/clients">
                 <Button type="button" variant="outline" disabled={isLoading}>
                   Cancel
                 </Button>

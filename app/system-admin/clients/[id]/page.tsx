@@ -87,7 +87,7 @@ export default function ClientDetailPage() {
       .single()
 
     if (!clientData) {
-      router.push("/clients")
+      router.push("/system-admin/clients")
       return
     }
 
@@ -180,7 +180,7 @@ export default function ClientDetailPage() {
       console.error("Error deleting client:", error)
       // TODO: Show error toast
     } else {
-      router.push("/clients")
+      router.push("/system-admin/clients")
     }
 
     setIsLoading(false)
@@ -215,7 +215,7 @@ export default function ClientDetailPage() {
       <div className="p-8">
         <div className="text-center">
           <p className="text-gray-600">Client not found</p>
-          <Link href="/clients">
+          <Link href="/system-admin/clients">
             <Button className="mt-4">Back to Clients</Button>
           </Link>
         </div>
@@ -231,7 +231,7 @@ export default function ClientDetailPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+        <Link href="/system-admin/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Clients
         </Link>

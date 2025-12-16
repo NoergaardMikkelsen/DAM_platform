@@ -28,6 +28,18 @@ export default function SystemAdminDashboard() {
   const [isLoadingTenants, setIsLoadingTenants] = useState(true)
   const supabase = createClient()
 
+  // Determine the base domain for tenant URLs
+  const getTenantBaseUrl = (slug: string) => {
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname.endsWith('.localhost')
+      const protocol = window.location.protocol
+      if (isLocalhost) {
+        return `${protocol}//${slug}.localhost`
+      }
+    }
+    return `https://${slug}.brandassets.space`
+  }
+
   useEffect(() => {
     loadSystemStats()
     loadTenants()
@@ -118,14 +130,14 @@ export default function SystemAdminDashboard() {
                 {tenants.map((tenant) => (
                   <a
                     key={tenant.id}
-                    href={`https://${tenant.slug}.brandassets.space/dashboard`}
+                    href={`${getTenantBaseUrl(tenant.slug)}/dashboard`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors group"
                   >
                     <div>
                       <h3 className="font-medium text-gray-900">{tenant.name}</h3>
-                      <p className="text-sm text-gray-500">{tenant.slug}.brandassets.space</p>
+                      <p className="text-sm text-gray-500">{getTenantBaseUrl(tenant.slug).replace('https://', '').replace('http://', '')}</p>
                     </div>
                     <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
                   </a>
