@@ -29,10 +29,21 @@ export function Sidebar({ user, role }: SidebarProps) {
     router.push("/login")
   }
 
-  const mainNavItems = [
-    { href: "/dashboard", label: "Dashboard", icon: Home },
-    { href: "/assets", label: "Asset Library", icon: BookOpen },
-  ]
+  // Different main navigation based on role type
+  const getMainNavItems = () => {
+    const baseItems = [
+      { href: "/dashboard", label: "Dashboard", icon: Home },
+    ]
+
+    // Only show Asset Library for non-superadmin users
+    if (role !== "superadmin") {
+      baseItems.push({ href: "/assets", label: "Asset Library", icon: BookOpen })
+    }
+
+    return baseItems
+  }
+
+  const mainNavItems = getMainNavItems()
 
   // Different admin items based on role type
   const getAdminNavItems = () => {
@@ -296,24 +307,26 @@ export function Sidebar({ user, role }: SidebarProps) {
           </div>
         </div>
 
-        {/* Upload Button */}
-        <div className={`border-t transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
-          <Link href="/assets/upload" className="block" title={isCollapsed ? "Upload" : undefined}>
-            <Button
-              className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
-              style={{
-                background: '#DF475C',
-                borderRadius: isCollapsed ? '50%' : '25px',
-                padding: isCollapsed ? '0' : '24px 16px',
-                fontSize: '14px',
-                fontWeight: '500',
-              }}
-            >
-              <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
-              {!isCollapsed && 'Upload'}
-            </Button>
-          </Link>
-        </div>
+        {/* Upload Button - Only show for non-superadmin users */}
+        {role !== "superadmin" && (
+          <div className={`border-t transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
+            <Link href="/assets/upload" className="block" title={isCollapsed ? "Upload" : undefined}>
+              <Button
+                className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
+                style={{
+                  background: '#DF475C',
+                  borderRadius: isCollapsed ? '50%' : '25px',
+                  padding: isCollapsed ? '0' : '24px 16px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                }}
+              >
+                <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
+                {!isCollapsed && 'Upload'}
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {/* User Profile - positioned ABOVE indentation */}
         <div className={`border-t pb-6 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
