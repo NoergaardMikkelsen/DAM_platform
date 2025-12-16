@@ -21,9 +21,13 @@ export async function updateSession(request: NextRequest) {
           })
           cookiesToSet.forEach(({ name, value, options }) => {
             // Set cookies to be shareable across subdomains
+            // Note: In development, browsers don't allow .localhost domain,
+            // so cookies are host-specific. Users must log in on the correct subdomain.
+            // In production, set domain to allow sharing across *.brandassets.space
+            const cookieDomain = process.env.NODE_ENV === 'production' ? '.brandassets.space' : undefined
             const updatedOptions = {
               ...options,
-              domain: '.brandassets.space', // Allow sharing across *.brandassets.space
+              ...(cookieDomain && { domain: cookieDomain }),
               path: '/',
               httpOnly: true,
               secure: process.env.NODE_ENV === 'production',
@@ -56,9 +60,17 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Redirect to dashboard if already logged in and accessing auth pages
+  // But only if we're not on a system-admin subdomain (they should go to system-admin/dashboard)
   if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/sign-up")) {
+    const host = request.headers.get('host') || ''
+    const isSystemAdminHost = host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')
+    
     const url = request.nextUrl.clone()
-    url.pathname = "/dashboard"
+    if (isSystemAdminHost) {
+      url.pathname = "/system-admin/dashboard"
+    } else {
+      url.pathname = "/dashboard"
+    }
     return NextResponse.redirect(url)
   }
 

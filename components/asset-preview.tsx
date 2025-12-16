@@ -18,15 +18,28 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
 
   useEffect(() => {
     async function fetchPreview() {
+      const debugLog: string[] = []
+      debugLog.push(`[ASSET-PREVIEW] Starting fetchPreview`)
+      debugLog.push(`[ASSET-PREVIEW] Storage path: ${storagePath}`)
+      debugLog.push(`[ASSET-PREVIEW] MIME type: ${mimeType}`)
+      
       try {
         // Clean path - remove leading/trailing slashes
         const cleanPath = storagePath.replace(/^\/+|\/+$/g, "")
+        debugLog.push(`[ASSET-PREVIEW] Cleaned path: ${cleanPath}`)
 
         // Use the proxy endpoint instead of direct signed URLs
         const proxyUrl = `/api/assets/${cleanPath}`
+        debugLog.push(`[ASSET-PREVIEW] Proxy URL: ${proxyUrl}`)
+        
         setPreviewUrl(proxyUrl)
         setLoading(false)
+        
+        debugLog.push(`[ASSET-PREVIEW] Preview URL set successfully`)
+        console.log('[ASSET-PREVIEW DEBUG]', debugLog.join('\n'))
       } catch (err) {
+        debugLog.push(`[ASSET-PREVIEW] Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        console.error('[ASSET-PREVIEW DEBUG]', debugLog.join('\n'))
         console.error("Failed to fetch preview:", err)
         setError(true)
         setLoading(false)
@@ -34,7 +47,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
     }
 
     fetchPreview()
-  }, [storagePath])
+  }, [storagePath, mimeType])
 
   if (loading) {
     return (

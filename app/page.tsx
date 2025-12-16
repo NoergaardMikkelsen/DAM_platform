@@ -1,9 +1,28 @@
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRight, Shield, Zap, Users } from "lucide-react"
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const headersList = await headers()
+  const host = headersList.get('host') || ''
+  
+  // Remove port if present
+  const [hostWithoutPort] = host.split(':')
+  
+  // If on tenant subdomain, redirect to dashboard
+  // Tenant layout will handle authentication and tenant validation
+  if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'admin.localhost') {
+    redirect("/dashboard")
+  }
+  
+  if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'admin.brandassets.space') {
+    redirect("/dashboard")
+  }
+
+  // Landing page - only shown on main domain
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}

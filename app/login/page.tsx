@@ -18,6 +18,13 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Check if we're on the wrong subdomain in development
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  const currentHost = typeof window !== 'undefined' ? window.location.host : ''
+  const isWrongSubdomain = isDevelopment && 
+    currentHost === 'localhost' && 
+    !currentHost.includes('.localhost')
+
   // Handle URL error parameters
   useEffect(() => {
     const errorParam = searchParams.get('error')
@@ -32,28 +39,146 @@ function LoginForm() {
     setIsLoading(true)
     setError(null)
 
+    const debugLog: string[] = []
+    debugLog.push(`[DEBUG] Starting login process`)
+    debugLog.push(`[DEBUG] Host: ${window.location.host}`)
+    debugLog.push(`[DEBUG] Email: ${email}`)
+    
+    // Debug Supabase configuration
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const hasAnonKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    debugLog.push(`[DEBUG] Supabase URL: ${supabaseUrl ? 'configured' : 'MISSING'}`)
+    debugLog.push(`[DEBUG] Supabase Anon Key: ${hasAnonKey ? 'configured' : 'MISSING'}`)
+    
+    if (!supabaseUrl || !hasAnonKey) {
+      const errorMsg = 'Supabase configuration missing. Please check your .env.local file.'
+      debugLog.push(`[DEBUG] ERROR: ${errorMsg}`)
+      console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+      setError(errorMsg)
+      setIsLoading(false)
+      return
+    }
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      debugLog.push(`[DEBUG] Attempting to sign in with password...`)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      if (error) throw error
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Authentication failed")
-
-      // Determine user context and redirect appropriately
-      const redirectUrl = await determineUserRedirect(user.id, supabase, window.location.host)
-
-      if (!redirectUrl) {
-        setError("No access found. Please contact your administrator.")
+      
+      if (signInError) {
+        debugLog.push(`[DEBUG] Sign in error: ${signInError.message}`)
+        debugLog.push(`[DEBUG] Error code: ${signInError.status || 'unknown'}`)
+        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+        
+        // Provide more helpful error messages
+        if (signInError.message.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please check your credentials and try again.')
+        } else {
+          setError(`${signInError.message}\n\nDebug info:\n${debugLog.join('\n')}`)
+        }
+        setIsLoading(false)
         return
       }
 
-      router.push(redirectUrl)
+      debugLog.push(`[DEBUG] Sign in successful`)
+      debugLog.push(`[DEBUG] Sign in data user ID: ${signInData?.user?.id || 'none'}`)
+      debugLog.push(`[DEBUG] Sign in data session: ${signInData?.session ? 'present' : 'missing'}`)
+
+      if (!signInData?.session) {
+        debugLog.push(`[DEBUG] No session in sign in data`)
+        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+        throw new Error("Authentication failed - no session returned")
+      }
+
+      debugLog.push(`[DEBUG] Getting user...`)
+      const { data: { user }, error: getUserError } = await supabase.auth.getUser()
+      
+      if (getUserError) {
+        debugLog.push(`[DEBUG] Get user error: ${getUserError.message}`)
+        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+        throw getUserError
+      }
+
+      if (!user) {
+        debugLog.push(`[DEBUG] No user returned from getUser()`)
+        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+        throw new Error("Authentication failed - no user returned")
+      }
+
+      debugLog.push(`[DEBUG] User ID: ${user.id}`)
+      debugLog.push(`[DEBUG] User email: ${user.email}`)
+
+      // Sync session to server-side cookies via API route
+      debugLog.push(`[DEBUG] Syncing session to server-side cookies...`)
+      try {
+        const syncResponse = await fetch('/api/auth/sync-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            access_token: signInData.session.access_token,
+            refresh_token: signInData.session.refresh_token,
+          }),
+        })
+
+        if (!syncResponse.ok) {
+          const errorData = await syncResponse.json()
+          debugLog.push(`[DEBUG] Sync session error: ${errorData.error}`)
+          console.warn('[LOGIN DEBUG]', debugLog.join('\n'))
+          // Don't throw, continue anyway - cookies might still work
+        } else {
+          const syncData = await syncResponse.json()
+          debugLog.push(`[DEBUG] Session synced successfully, ${syncData.cookiesSet} cookies set`)
+        }
+      } catch (syncError) {
+        debugLog.push(`[DEBUG] Sync session exception: ${syncError instanceof Error ? syncError.message : 'Unknown'}`)
+        console.warn('[LOGIN DEBUG]', debugLog.join('\n'))
+        // Don't throw, continue anyway
+      }
+
+      // Determine user context and redirect appropriately
+      debugLog.push(`[DEBUG] Determining redirect URL...`)
+      const redirectUrl = await determineUserRedirect(user.id, supabase, window.location.host, debugLog)
+
+      debugLog.push(`[DEBUG] Redirect URL: ${redirectUrl || 'null'}`)
+
+      if (!redirectUrl) {
+        debugLog.push(`[DEBUG] No redirect URL found - user has no access`)
+        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+        setError(`No access found. Please contact your administrator.\n\nDebug info:\n${debugLog.join('\n')}`)
+        return
+      }
+
+      // Check if we need to redirect to a different host
+      const currentHost = window.location.host
+      const redirectHost = redirectUrl.startsWith('http') 
+        ? new URL(redirectUrl).host 
+        : currentHost
+      
+      debugLog.push(`[DEBUG] Current host: ${currentHost}`)
+      debugLog.push(`[DEBUG] Redirect host: ${redirectHost}`)
+      
+      // Always use window.location.href after login to ensure cookies are sent
+      // router.push() doesn't send cookies to server-side rendering in Next.js App Router
+      const fullRedirectUrl = redirectUrl.startsWith('http') 
+        ? redirectUrl 
+        : `${window.location.protocol}//${currentHost}${redirectUrl}`
+      
+      debugLog.push(`[DEBUG] Full redirect URL: ${fullRedirectUrl}`)
+      console.log('[LOGIN DEBUG]', debugLog.join('\n'))
+      
+      // Use full page navigation to ensure cookies are sent with the request
+      // Small delay to ensure cookies are set before redirect
+      setTimeout(() => {
+        window.location.href = fullRedirectUrl
+      }, 100)
 
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+      debugLog.push(`[DEBUG] Error caught: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('[LOGIN DEBUG]', debugLog.join('\n'))
+      setError(`${error instanceof Error ? error.message : "An error occurred"}\n\nDebug info:\n${debugLog.join('\n')}`)
     } finally {
       setIsLoading(false)
     }
@@ -72,6 +197,12 @@ function LoginForm() {
             <CardDescription>Enter your email below to login to your account</CardDescription>
           </CardHeader>
           <CardContent>
+            {isWrongSubdomain && (
+              <div className="mb-4 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+                <p className="font-medium">Note for local development:</p>
+                <p>Please log in directly on the correct subdomain (e.g., admin.localhost:3000 or tenant.localhost:3000). Cookies don't share across localhost subdomains.</p>
+              </div>
+            )}
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
@@ -80,6 +211,7 @@ function LoginForm() {
                     id="email"
                     type="email"
                     placeholder="m@example.com"
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -90,12 +222,23 @@ function LoginForm() {
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
+                {error && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-red-500 font-medium">{error.split('\n')[0]}</p>
+                    {error.includes('[DEBUG]') && (
+                      <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto">
+                        <summary className="cursor-pointer font-medium">Debug Details</summary>
+                        <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
+                      </details>
+                    )}
+                  </div>
+                )}
                 <Button type="submit" className="w-full bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]" disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Login"}
                 </Button>
@@ -135,51 +278,92 @@ export default function LoginPage() {
  * Determine correct redirect URL based on user context
  * Returns null if user has no valid access
  */
-async function determineUserRedirect(userId: string, supabase: any, host: string): Promise<string | null> {
+async function determineUserRedirect(userId: string, supabase: any, host: string, debugLog: string[] = []): Promise<string | null> {
 
   // CONTEXT-BASED REDIRECT LOGIC
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  const isLocalhost = host.includes('localhost')
+  const port = host.includes(':') ? host.split(':')[1] : '3000'
 
-  // 1. System Admin Context (admin.brandassets.space)
-  if (host === 'admin.brandassets.space' || host === (process.env.SYSTEM_ADMIN_HOST || 'localhost:3000')) {
-    const { data: systemAdmin } = await supabase
+  debugLog.push(`[REDIRECT] Host: ${host}`)
+  debugLog.push(`[REDIRECT] Is development: ${isDevelopment}`)
+  debugLog.push(`[REDIRECT] Is localhost: ${isLocalhost}`)
+  debugLog.push(`[REDIRECT] Port: ${port}`)
+
+  // 1. System Admin Context (admin.brandassets.space or admin.localhost)
+  if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host === (process.env.SYSTEM_ADMIN_HOST || `admin.localhost:${port}`)) {
+    debugLog.push(`[REDIRECT] Checking system admin context...`)
+    const { data: systemAdmin, error: systemAdminError } = await supabase
       .from("system_admins")
       .select("id")
       .eq("id", userId)
       .single()
 
+    if (systemAdminError) {
+      debugLog.push(`[REDIRECT] System admin query error: ${systemAdminError.message}`)
+    }
+
+    debugLog.push(`[REDIRECT] System admin result: ${systemAdmin ? 'found' : 'not found'}`)
+
     if (systemAdmin) {
+      debugLog.push(`[REDIRECT] User is system admin, redirecting to /system-admin/dashboard`)
       return "/system-admin/dashboard"
     } else {
       // Not a system admin on admin subdomain - no access
+      debugLog.push(`[REDIRECT] User is not a system admin on admin subdomain`)
       return null
     }
   }
 
-  // 2. Tenant Context (*.brandassets.space excluding admin)
-  if (host.endsWith('.brandassets.space') && host !== 'admin.brandassets.space') {
-    const subdomain = host.replace('.brandassets.space', '')
+  // 2. Tenant Context (*.brandassets.space or *.localhost excluding admin)
+  if ((host.endsWith('.brandassets.space') && host !== 'admin.brandassets.space') || 
+      (host.endsWith('.localhost') && host !== 'admin.localhost')) {
+    const subdomain = host.endsWith('.brandassets.space') 
+      ? host.replace('.brandassets.space', '')
+      : host.replace('.localhost', '').split(':')[0] // Remove port if present
+
+    debugLog.push(`[REDIRECT] Checking tenant context...`)
+    debugLog.push(`[REDIRECT] Extracted subdomain: ${subdomain}`)
 
     // Find the tenant
-    const { data: tenant } = await supabase
+    const { data: tenant, error: tenantError } = await supabase
       .from("clients")
-      .select("id")
+      .select("id, slug, name")
       .eq("slug", subdomain)
       .eq("status", "active")
       .single()
 
+    if (tenantError) {
+      debugLog.push(`[REDIRECT] Tenant query error: ${tenantError.message}`)
+    }
+
+    debugLog.push(`[REDIRECT] Tenant result: ${tenant ? `found (id: ${tenant.id}, name: ${tenant.name})` : 'not found'}`)
+
     if (tenant) {
       // Check if user has access to this specific tenant
-      const { data: accessCheck } = await supabase
+      debugLog.push(`[REDIRECT] Checking client_users access for tenant ${tenant.id}...`)
+      const { data: accessCheck, error: accessError } = await supabase
         .from("client_users")
-        .select("id")
+        .select("id, role_id")
         .eq("user_id", userId)
         .eq("client_id", tenant.id)
         .eq("status", "active")
         .single()
 
-      if (accessCheck) {
-        return "/dashboard"
+      if (accessError) {
+        debugLog.push(`[REDIRECT] Client users query error: ${accessError.message}`)
       }
+
+      debugLog.push(`[REDIRECT] Client users access result: ${accessCheck ? `found (id: ${accessCheck.id})` : 'not found'}`)
+
+      if (accessCheck) {
+        debugLog.push(`[REDIRECT] User has access to tenant, redirecting to /dashboard`)
+        return "/dashboard"
+      } else {
+        debugLog.push(`[REDIRECT] User does not have access to this tenant`)
+      }
+    } else {
+      debugLog.push(`[REDIRECT] Tenant not found with slug: ${subdomain}`)
     }
     // No access to this tenant
     return null
@@ -188,34 +372,60 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   // 3. Public Context (brandassets.space) or other domains
   // Check what access the user has and redirect accordingly
 
+  debugLog.push(`[REDIRECT] Checking public context...`)
+
   // Priority: System Admin > Any Tenant Access
-  const { data: systemAdmin } = await supabase
+  debugLog.push(`[REDIRECT] Checking if user is system admin...`)
+  const { data: systemAdmin, error: systemAdminError } = await supabase
     .from("system_admins")
     .select("id")
     .eq("id", userId)
     .single()
 
+  if (systemAdminError) {
+    debugLog.push(`[REDIRECT] System admin query error: ${systemAdminError.message}`)
+  }
+
+  debugLog.push(`[REDIRECT] System admin result: ${systemAdmin ? 'found' : 'not found'}`)
+
   if (systemAdmin) {
     // System admin - redirect to system admin context
+    debugLog.push(`[REDIRECT] User is system admin, redirecting to admin subdomain`)
+    if (isDevelopment && isLocalhost) {
+      return `http://admin.localhost:${port}/system-admin/dashboard`
+    }
     return "https://admin.brandassets.space/system-admin/dashboard"
   }
 
   // Check for tenant access
-  const { data: clientUsers } = await supabase
+  debugLog.push(`[REDIRECT] Checking for tenant access...`)
+  const { data: clientUsers, error: clientUsersError } = await supabase
     .from("client_users")
     .select(`
-      clients!inner(slug, domain)
+      id,
+      clients!inner(slug, domain, name)
     `)
     .eq("user_id", userId)
     .eq("status", "active")
     .limit(1)
 
+  if (clientUsersError) {
+    debugLog.push(`[REDIRECT] Client users query error: ${clientUsersError.message}`)
+  }
+
+  debugLog.push(`[REDIRECT] Client users result: ${clientUsers && clientUsers.length > 0 ? `found ${clientUsers.length} access(es)` : 'not found'}`)
+
   if (clientUsers && clientUsers.length > 0) {
     const client = clientUsers[0].clients
+    debugLog.push(`[REDIRECT] User has access to tenant: ${client.slug} (${client.name})`)
     // Redirect to tenant subdomain
+    if (isDevelopment && isLocalhost) {
+      return `http://${client.slug}.localhost:${port}/dashboard`
+    }
     return `https://${client.slug}.brandassets.space/dashboard`
   }
 
   // No valid access found
+  debugLog.push(`[REDIRECT] No valid access found for user`)
   return null
 }

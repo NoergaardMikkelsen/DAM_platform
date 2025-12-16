@@ -77,46 +77,83 @@ export default function AssetsPage() {
   }, [])
 
   const loadData = async () => {
+    const debugLog: string[] = []
+    debugLog.push(`[ASSETS-PAGE] Starting loadData`)
+    
     const supabase = supabaseRef.current
     const {
       data: { user },
+      error: userError
     } = await supabase.auth.getUser()
 
+    if (userError) {
+      debugLog.push(`[ASSETS-PAGE] Get user error: ${userError.message}`)
+      console.error('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
+    }
+
+    debugLog.push(`[ASSETS-PAGE] User: ${user ? `found (id: ${user.id}, email: ${user.email})` : 'not found'}`)
+
     if (!user) {
+      debugLog.push(`[ASSETS-PAGE] No user, redirecting to login`)
+      console.error('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
       router.push("/login")
       return
     }
 
     // Check if user is superadmin
-    const { data: clientUsers } = await supabase
+    debugLog.push(`[ASSETS-PAGE] Checking user role...`)
+    const { data: clientUsers, error: clientUsersError } = await supabase
       .from("client_users")
       .select(`roles!inner(key)`)
       .eq("user_id", user.id)
       .eq("status", "active")
 
+    if (clientUsersError) {
+      debugLog.push(`[ASSETS-PAGE] Client users query error: ${clientUsersError.message}`)
+    }
+
     const isSuperAdmin =
       clientUsers?.some((cu: { roles?: { key?: string } }) => cu.roles?.key === "superadmin") || false
+
+    debugLog.push(`[ASSETS-PAGE] Is superadmin: ${isSuperAdmin}`)
 
     let clientIds: string[] = []
 
     if (isSuperAdmin) {
       // Superadmin can see all clients
-      const { data: allClients } = await supabase
+      debugLog.push(`[ASSETS-PAGE] Fetching all clients for superadmin...`)
+      const { data: allClients, error: allClientsError } = await supabase
         .from("clients")
         .select("id")
         .eq("status", "active")
+      
+      if (allClientsError) {
+        debugLog.push(`[ASSETS-PAGE] All clients query error: ${allClientsError.message}`)
+      }
+      
       clientIds = allClients?.map((c: { id: string }) => c.id) || []
+      debugLog.push(`[ASSETS-PAGE] Found ${clientIds.length} clients for superadmin`)
     } else {
       // Regular users see only their clients
-      const { data: clientUsers } = await supabase
+      debugLog.push(`[ASSETS-PAGE] Fetching user's clients...`)
+      const { data: clientUsers, error: clientUsersError2 } = await supabase
         .from("client_users")
         .select("client_id")
         .eq("user_id", user.id)
         .eq("status", "active")
+      
+      if (clientUsersError2) {
+        debugLog.push(`[ASSETS-PAGE] Client users query error: ${clientUsersError2.message}`)
+      }
+      
       clientIds = clientUsers?.map((cu: { client_id: string }) => cu.client_id) || []
+      debugLog.push(`[ASSETS-PAGE] Found ${clientIds.length} clients for user`)
     }
 
-    const { data: assetsData } = await supabase
+    debugLog.push(`[ASSETS-PAGE] Client IDs: ${clientIds.join(', ')}`)
+
+    debugLog.push(`[ASSETS-PAGE] Fetching assets...`)
+    const { data: assetsData, error: assetsError } = await supabase
       .from("assets")
       .select(`
         id,
@@ -134,17 +171,38 @@ export default function AssetsPage() {
       .eq("status", "active")
       .order("created_at", { ascending: false })
 
+    if (assetsError) {
+      debugLog.push(`[ASSETS-PAGE] Assets query error: ${assetsError.message}`)
+      console.error('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
+    }
+
+    debugLog.push(`[ASSETS-PAGE] Found ${assetsData?.length || 0} assets`)
+    
+    if (assetsData && assetsData.length > 0) {
+      debugLog.push(`[ASSETS-PAGE] Sample assets:`)
+      assetsData.slice(0, 3).forEach((asset: Asset, index: number) => {
+        debugLog.push(`[ASSETS-PAGE]   Asset ${index + 1}: id=${asset.id}, title=${asset.title}, storage_path=${asset.storage_path}, mime_type=${asset.mime_type}`)
+      })
+    }
+
     if (assetsData) {
       setAssets(assetsData)
       setFilteredAssets(assetsData)
     }
 
-    const { data: categoryTags } = await supabase
+    debugLog.push(`[ASSETS-PAGE] Fetching category tags...`)
+    const { data: categoryTags, error: categoryTagsError } = await supabase
       .from("tags")
       .select("id, label, slug")
       .eq("tag_type", "category")
       .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
       .order("sort_order", { ascending: true })
+
+    if (categoryTagsError) {
+      debugLog.push(`[ASSETS-PAGE] Category tags query error: ${categoryTagsError.message}`)
+    }
+
+    debugLog.push(`[ASSETS-PAGE] Found ${categoryTags?.length || 0} category tags`)
 
     if (categoryTags && assetsData) {
       // Build collections from category tags
@@ -164,9 +222,13 @@ export default function AssetsPage() {
         })
         .filter((c: Collection) => c.assetCount > 0) // Only show collections with assets
 
+      debugLog.push(`[ASSETS-PAGE] Created ${collectionsWithCounts.length} collections`)
       setCollections(collectionsWithCounts)
       setFilteredCollections(collectionsWithCounts)
     }
+
+    debugLog.push(`[ASSETS-PAGE] LoadData completed`)
+    console.log('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
 
     // Add small delay to ensure collection images have time to load
     setTimeout(() => setIsLoading(false), 1000)
