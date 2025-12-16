@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Building, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { Settings, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
@@ -223,8 +223,8 @@ export default function ClientsPage() {
 
       {clients?.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12">
-          <Building className="mb-4 h-12 w-12 text-gray-400" />
-          <p className="text-gray-600">No clients found</p>
+          <Settings className="mb-4 h-8 w-8 text-gray-400" />
+          <p className="text-gray-600">Ready to set up your first client</p>
           <Link href="/system-admin/clients/create">
             <Button className="mt-4 bg-black hover:bg-gray-800 text-white rounded-[25px]">Create your first client</Button>
           </Link>
