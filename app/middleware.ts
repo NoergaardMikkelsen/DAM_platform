@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const url = request.nextUrl
 
@@ -25,6 +26,7 @@ export function middleware(request: NextRequest) {
 
     if (subdomain && subdomain !== 'admin') {
       // This is a tenant subdomain - allow tenant routes
+      // Cross-tenant access for superadmins is handled in the layout
       return NextResponse.next()
     }
   }

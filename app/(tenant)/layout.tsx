@@ -58,7 +58,9 @@ export default async function AuthenticatedLayout({
     redirect("https://brandassets.space/")
   }
 
-  // Verify user has access to this tenant
+  // TENANT ACCESS VALIDATION: Always check client_users table
+  // System admins do NOT get automatic tenant access
+  // Tenant access must be explicitly granted via client_users membership
   const { data: accessCheck } = await supabase
     .from("client_users")
     .select("id, role_id")
@@ -84,6 +86,8 @@ export default async function AuthenticatedLayout({
   }
 
   // Get user role within this tenant
+  // System admin status does not affect tenant roles
+  // Roles are always determined by explicit client_users membership
   const { data: clientUsers } = await supabase
     .from("client_users")
     .select(`

@@ -70,3 +70,4 @@ runMigration().catch((error) => {
   console.error("\n✗ Migration script failed:", error)
   process.exit(1)
 })
+

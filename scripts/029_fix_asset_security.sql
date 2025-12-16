@@ -20,3 +20,4 @@ USING (
       AND cu.status = 'active'
   )
 );
+

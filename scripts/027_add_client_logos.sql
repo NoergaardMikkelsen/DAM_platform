@@ -58,3 +58,4 @@ USING (
     WHERE id = auth.uid()
   )
 );
+

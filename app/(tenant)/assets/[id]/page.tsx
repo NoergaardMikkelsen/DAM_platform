@@ -1,5 +1,25 @@
 "use client"
 
+// #region agent log - hypothesis A: Test if imports work at runtime
+try {
+  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: 'debug-typescript-errors',
+      runId: 'initial-test',
+      hypothesisId: 'A',
+      location: 'app/(tenant)/assets/[id]/page.tsx:3',
+      message: 'Testing if imports load successfully',
+      data: { importAttempt: true },
+      timestamp: Date.now()
+    })
+  }).catch(() => {});
+} catch (e) {
+  // Silent fail for debugging
+}
+// #endregion
+
 import React, { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import type { ChangeEvent } from "react"
 import Link from "next/link"

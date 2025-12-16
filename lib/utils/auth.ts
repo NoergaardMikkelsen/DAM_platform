@@ -42,6 +42,8 @@ export async function getUserRole(clientId: string) {
 
   if (!user) return null
 
+  // TENANT ROLE ONLY: Always check client_users table
+  // System admin status does not affect tenant roles
   const { data } = await supabase
     .from("client_users")
     .select(`
@@ -53,4 +55,41 @@ export async function getUserRole(clientId: string) {
     .single()
 
   return data?.roles?.[0]?.key || null
+}
+
+export async function isUserSystemAdmin(): Promise<boolean> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return false
+
+  const { data: systemAdmin } = await supabase
+    .from("system_admins")
+    .select("id")
+    .eq("id", user.id)
+    .single()
+
+  return !!systemAdmin
+}
+
+export async function getAllTenantsForSuperAdmin() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return []
+
+  const isSystemAdmin = await isUserSystemAdmin()
+  if (!isSystemAdmin) return []
+
+  const { data: tenants } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("status", "active")
+    .order("name")
+
+  return tenants || []
 }

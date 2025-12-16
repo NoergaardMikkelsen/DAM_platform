@@ -53,3 +53,4 @@ CREATE TRIGGER system_settings_updated_at_trigger
   BEFORE UPDATE ON system_settings
   FOR EACH ROW
   EXECUTE FUNCTION update_system_settings_updated_at();
+

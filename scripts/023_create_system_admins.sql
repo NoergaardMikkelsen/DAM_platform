@@ -33,3 +33,4 @@ CREATE POLICY "system_admins_delete" ON system_admins
       WHERE id = auth.uid()
     )
   );
+

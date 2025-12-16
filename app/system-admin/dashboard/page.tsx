@@ -1,7 +1,8 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import { Building, Users, Database, Settings, TrendingUp, ArrowRight } from "lucide-react"
+import { getAllTenantsForSuperAdmin } from "./actions"
+import { Building, Users, Database, Settings, TrendingUp, ArrowRight, ExternalLink } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -22,12 +23,27 @@ interface SystemStats {
 
 export default function SystemAdminDashboard() {
   const [stats, setStats] = useState<SystemStats | null>(null)
+  const [tenants, setTenants] = useState<Array<{id: string, name: string, slug: string}> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingTenants, setIsLoadingTenants] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
     loadSystemStats()
+    loadTenants()
   }, [])
+
+  const loadTenants = async () => {
+    setIsLoadingTenants(true)
+    try {
+      const tenantData = await getAllTenantsForSuperAdmin()
+      setTenants(tenantData)
+    } catch (error) {
+      console.error("Error loading tenants:", error)
+    } finally {
+      setIsLoadingTenants(false)
+    }
+  }
 
   const loadSystemStats = async () => {
     setIsLoading(true)
@@ -77,6 +93,48 @@ export default function SystemAdminDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Tenant Access for SuperAdmin */}
+      {tenants && tenants.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ExternalLink className="h-5 w-5" />
+              Client Navigation
+            </CardTitle>
+            <p className="text-sm text-gray-600">
+              Navigate to client tenant interfaces. Access within each tenant is still controlled by tenant membership and authorization rules.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {isLoadingTenants ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-16 bg-gray-100 animate-pulse rounded-lg"></div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tenants.map((tenant) => (
+                  <a
+                    key={tenant.id}
+                    href={`https://${tenant.slug}.brandassets.space/dashboard`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors group"
+                  >
+                    <div>
+                      <h3 className="font-medium text-gray-900">{tenant.name}</h3>
+                      <p className="text-sm text-gray-500">{tenant.slug}.brandassets.space</p>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* System stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
