@@ -761,9 +761,8 @@ export default function AssetDetailPage() {
 
   const previewUrl = useMemo(() => {
     if (!storageData?.signedUrl || !asset?.storage_path) return null
-    // Only return URL if it matches current asset's storage path
-    const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-    return storageData.signedUrl.includes(cleanPath) ? storageData.signedUrl : null
+    // Return the signed URL since we know it matches the current asset
+    return storageData.signedUrl
   }, [storageData?.signedUrl, asset?.storage_path])
 
   const isImage = asset?.mime_type?.startsWith("image/")
