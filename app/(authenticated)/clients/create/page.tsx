@@ -22,8 +22,6 @@ export default function CreateClientPage() {
   const [status, setStatus] = useState("active")
   const [generatedDomain, setGeneratedDomain] = useState("")
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [slugError, setSlugError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -53,59 +51,13 @@ export default function CreateClientPage() {
         setError("Please select an image file")
         return
       }
-
       // Validate file size (5MB limit)
       if (file.size > 5 * 1024 * 1024) {
         setError("Logo file size must be less than 5MB")
         return
       }
-
       setLogoFile(file)
-
-      // Create preview
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setLogoPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
       setError(null)
-    }
-  }
-
-  // Remove logo
-  const removeLogo = () => {
-    setLogoFile(null)
-    setLogoPreview(null)
-  }
-
-  // Update domain when slug changes
-  const handleSlugChange = async (value: string) => {
-    const cleanSlug = value.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-|-$/g, "")
-    setSlug(cleanSlug)
-
-    if (cleanSlug) {
-      setGeneratedDomain(`${cleanSlug}.brandassets.space`)
-
-      // Check if slug is available
-      try {
-        const supabase = createClient()
-        const { data } = await supabase
-          .from("clients")
-          .select("id")
-          .eq("slug", cleanSlug)
-          .limit(1)
-
-        if (data && data.length > 0) {
-          setSlugError("This subdomain is already taken")
-        } else {
-          setSlugError(null)
-        }
-      } catch (error) {
-        setSlugError("Unable to check subdomain availability")
-      }
-    } else {
-      setGeneratedDomain("")
-      setSlugError(null)
     }
   }
 
@@ -115,11 +67,6 @@ export default function CreateClientPage() {
     // Validate slug
     if (!slug.trim()) {
       setError("Subdomain is required")
-      return
-    }
-
-    if (slugError) {
-      setError("Please choose a different subdomain")
       return
     }
 
@@ -198,59 +145,37 @@ export default function CreateClientPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="logo">Client Logo</Label>
-              <div className="flex items-center gap-4">
-                <Input
-                  id="logo"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoChange}
-                  className="flex-1"
-                />
-                {logoPreview && (
-                  <div className="relative">
-                    <img
-                      src={logoPreview}
-                      alt="Logo preview"
-                      className="w-16 h-16 object-contain border rounded"
-                    />
-                    <button
-                      type="button"
-                      onClick={removeLogo}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-gray-500">Upload a logo for this client (max 5MB, image files only)</p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="slug">Subdomain *</Label>
               <Input
                 id="slug"
                 required
                 value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
+                onChange={(e) => setSlug(e.target.value)}
                 placeholder="e.g., nmic, my-company"
-                className={slugError ? "border-red-500" : ""}
               />
-              {slugError && <p className="text-xs text-red-500">{slugError}</p>}
               <p className="text-xs text-gray-500">Choose your preferred subdomain (letters, numbers, and hyphens only)</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="domain">Full Domain</Label>
+              <Label>Generated Domain</Label>
               <Input
-                id="domain"
                 value={generatedDomain}
                 readOnly
                 className="bg-gray-50"
-                placeholder="Choose a subdomain above"
+                placeholder="Domain will be generated automatically"
               />
               <p className="text-xs text-gray-500">Your subdomain will be created on brandassets.space</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="logo">Client Logo</Label>
+              <Input
+                id="logo"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoChange}
+              />
+              <p className="text-xs text-gray-500">Upload a logo for this client (max 5MB, image files only)</p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">

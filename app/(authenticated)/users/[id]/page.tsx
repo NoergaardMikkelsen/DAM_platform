@@ -11,7 +11,6 @@ import { ArrowLeft, User, Mail, Phone, Building, Settings, Trash2 } from "lucide
 import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
 
 interface UserProfile {
   id: string
@@ -29,8 +28,8 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
-  const params = useParams() as { id: string }
-  const id = params.id
+  const params = useParams()
+  const id = params.id as string
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -192,22 +191,11 @@ export default function UserDetailPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <DetailPageHeaderSkeleton showActions={true} />
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* User Information Skeleton */}
-          <Card>
-            <CardHeader>
-              <CardTitle><Skeleton className="h-6 w-32" /></CardTitle>
-              <CardDescription><Skeleton className="h-4 w-48" /></CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FormSkeleton fields={5} />
-            </CardContent>
-          </Card>
-
-          {/* Stats Cards Skeleton */}
-          <StatsCardsSkeleton count={3} />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
+            <p className="text-gray-600">Loading user details...</p>
+          </div>
         </div>
       </div>
     )

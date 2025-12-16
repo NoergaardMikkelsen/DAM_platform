@@ -29,20 +29,7 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Authentication failed")
-
-      // Determine user context and redirect appropriately
-      const redirectUrl = await determineUserRedirect(user.id, supabase)
-
-      if (!redirectUrl) {
-        setError("No access found. Please contact your administrator.")
-        return
-      }
-
-      router.push(redirectUrl)
-
+      router.push("/dashboard")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
@@ -97,45 +84,4 @@ export default function LoginPage() {
       </div>
     </div>
   )
-}
-
-/**
- * Determine correct redirect URL based on user context
- * Returns null if user has no valid access
- */
-async function determineUserRedirect(userId: string, supabase: any): Promise<string | null> {
-  // Check system admin access first (highest priority)
-  const { data: systemAdmin } = await supabase
-    .from("system_admins")
-    .select("id")
-    .eq("id", userId)
-    .single()
-
-  if (systemAdmin) {
-    return "/system-admin/dashboard"
-  }
-
-  // Check client access (tenant user)
-  const { data: clientUsers } = await supabase
-    .from("client_users")
-    .select(`
-      client_id,
-      clients!inner(slug, domain)
-    `)
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .limit(1)
-
-  if (clientUsers && clientUsers.length > 0) {
-    const client = clientUsers[0].clients
-
-    // TODO: Implement tenant-aware redirects
-    // Currently redirects to /dashboard regardless of current hostname
-    // Future: Check current hostname and redirect to appropriate tenant subdomain
-    // e.g., if on wrong subdomain, redirect to client.slug.domain.com/dashboard
-    return "/dashboard"
-  }
-
-  // No valid access found
-  return null
 }
