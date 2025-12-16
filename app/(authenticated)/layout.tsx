@@ -178,13 +178,18 @@ function parseTenantSubdomain(hostname: string): string | null {
 
   // Handle brandassets.space domains
   if (host === 'brandassets.space') {
-    // Main domain goes to nmic client (primary/default client)
-    return 'nmic'
+    // Main domain - no tenant (public landing page)
+    return null
   }
 
   if (host.endsWith('.brandassets.space')) {
     // Extract subdomain part (everything before .brandassets.space)
     const subdomain = host.replace('.brandassets.space', '')
+
+    // Skip admin subdomain - goes to system admin, not tenant
+    if (subdomain === 'admin') {
+      return null
+    }
 
     // Make sure it's not empty and doesn't contain dots (no nested subdomains for now)
     if (subdomain && !subdomain.includes('.')) {

@@ -5,33 +5,43 @@ export function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const url = request.nextUrl
 
-  // Environment-driven system admin host
-  const systemAdminHost = process.env.SYSTEM_ADMIN_HOST || 'localhost:3000'
-  const systemAdminProtocol = process.env.SYSTEM_ADMIN_PROTOCOL || 'http'
+  // Remove port if present
+  const [host] = hostname.split(':')
 
-  // If on system admin host, allow all routes
+  // Handle brandassets.space routing
+  if (host === 'brandassets.space') {
+    // Main domain - redirect to landing page if not already there
+    if (!url.pathname.startsWith('/landing') && !url.pathname.startsWith('/api') && !url.pathname.startsWith('/_next')) {
+      return NextResponse.redirect(new URL('/landing', request.url))
+    }
+    return NextResponse.next()
+  }
+
+  if (host === 'admin.brandassets.space') {
+    // Admin subdomain - redirect to system admin
+    if (!url.pathname.startsWith('/system-admin')) {
+      return NextResponse.redirect(new URL('/system-admin/dashboard', request.url))
+    }
+    return NextResponse.next()
+  }
+
+  // Handle other brandassets.space subdomains (tenants)
+  if (host.endsWith('.brandassets.space')) {
+    const subdomain = host.replace('.brandassets.space', '')
+
+    if (subdomain && subdomain !== 'admin') {
+      // This is a tenant subdomain - allow tenant routes
+      return NextResponse.next()
+    }
+  }
+
+  // Environment-driven system admin host (for localhost development)
+  const systemAdminHost = process.env.SYSTEM_ADMIN_HOST || 'localhost:3000'
   if (hostname === systemAdminHost) {
     return NextResponse.next()
   }
 
-  // Parse subdomain from tenant hosts
-  const subdomain = parseTenantSubdomain(hostname)
-
-  if (subdomain) {
-    // On tenant subdomain - allow tenant routes, redirect system routes
-    if (url.pathname.startsWith('/system-admin')) {
-      // TODO: Implement tenant-aware system admin redirects
-      // Currently redirects all system-admin routes to system admin host
-      // Future: Check user permissions and redirect to appropriate tenant context
-      const redirectUrl = `${systemAdminProtocol}://${systemAdminHost}${url.pathname}${url.search}`
-      return NextResponse.redirect(redirectUrl)
-    }
-
-    // Allow tenant routes on subdomain
-    return NextResponse.next()
-  }
-
-  // Default: treat as system admin host
+  // Default: allow all other routes
   return NextResponse.next()
 }
 
