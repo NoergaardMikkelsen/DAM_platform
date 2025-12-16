@@ -133,11 +133,25 @@ export function Sidebar({ user, role }: SidebarProps) {
       <div className="relative z-10 flex h-full flex-col">
         {/* Logo */}
         <div className={`flex items-center border-b transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
-          <img
-            src={isCollapsed ? "/logo/logo_collapsed.png" : "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"}
-            alt="Nørgård Mikkelsen Logo"
-            className={`transition-all duration-300 ${isCollapsed ? 'w-8 h-auto' : 'h-12 w-auto'}`}
-          />
+          {role === "superadmin" ? (
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-black text-white font-bold text-sm`}>
+                SA
+              </div>
+              {!isCollapsed && (
+                <div className="ml-3">
+                  <div className="text-sm font-semibold text-gray-900">System Admin</div>
+                  <div className="text-xs text-gray-500">Management</div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <img
+              src={isCollapsed ? "/logo/logo_collapsed.png" : "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"}
+              alt="Nørgård Mikkelsen Logo"
+              className={`transition-all duration-300 ${isCollapsed ? 'w-8 h-auto' : 'h-12 w-auto'}`}
+            />
+          )}
         </div>
 
         {/* Navigation */}
