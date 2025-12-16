@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-function LoginForm() {
+function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -24,11 +24,6 @@ function LoginForm() {
   const isWrongSubdomain = isDevelopment &&
     currentHost === 'localhost' &&
     !currentHost.includes('.localhost')
-
-  // Detect context: system admin vs tenant
-  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
-    currentHost === 'admin.localhost' ||
-    currentHost.startsWith('admin.localhost:')
 
   // Extract tenant slug from hostname for tenant context
   const getTenantSlug = () => {
@@ -268,12 +263,15 @@ function LoginForm() {
   )
 }
 
-export default function LoginPage() {
-  // Detect context for fallback as well
-  const currentHost = typeof window !== 'undefined' ? window.location.host : ''
-  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
-    currentHost === 'admin.localhost' ||
-    currentHost.startsWith('admin.localhost:')
+import { Suspense } from "react"
+
+export default async function LoginPage() {
+  // Detect context on server side to avoid hydration mismatch
+  const headersList = await headers()
+  const host = headersList.get('host') || ''
+  const isSystemAdmin = host === 'admin.brandassets.space' ||
+    host === 'admin.localhost' ||
+    host.startsWith('admin.localhost:')
 
   return (
     <Suspense fallback={
@@ -292,7 +290,7 @@ export default function LoginPage() {
         </div>
       </div>
     }>
-      <LoginForm />
+      <LoginForm isSystemAdmin={isSystemAdmin} />
     </Suspense>
   )
 }
