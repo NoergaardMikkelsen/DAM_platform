@@ -29,7 +29,12 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
         // User is already logged in, redirect based on context
         const redirectUrl = await determineUserRedirect(session.user.id, supabase, window.location.host)
         if (redirectUrl) {
-          router.push(redirectUrl)
+          // Use window.location for system admin redirects to ensure cookies are sent
+          if (redirectUrl.startsWith('/system-admin')) {
+            window.location.href = redirectUrl
+          } else {
+            router.push(redirectUrl)
+          }
         } else {
           router.push('/dashboard')
         }
@@ -97,7 +102,12 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
         console.log('[LOGIN DEBUG]', debugLog.join('\n'))
 
         if (redirectUrl) {
-          router.push(redirectUrl)
+          // Use window.location.href for system admin redirects to ensure cookies are sent
+          if (redirectUrl.startsWith('/system-admin')) {
+            window.location.href = redirectUrl
+          } else {
+            router.push(redirectUrl)
+          }
         } else {
           // No valid access found, stay on login page with error
           setError('You do not have access to any tenants. Please contact your administrator.')

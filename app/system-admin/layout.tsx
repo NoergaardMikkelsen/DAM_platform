@@ -28,7 +28,24 @@ export default async function SystemAdminLayout({
   if (!user) {
     debugLog.push(`[SYSTEM-ADMIN-LAYOUT] No user found, redirecting to login`)
     console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
-    redirect("/login")
+    // Don't redirect if this is a client-side navigation that might be syncing session
+    // Instead, show a loading state that will refresh when session is ready
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-white p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">Loading...</h1>
+            <p className="mt-2 text-sm text-gray-600">Setting up your session.</p>
+          </div>
+          <div className="flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-black border-t-transparent" />
+          </div>
+          <div className="text-center mt-4">
+            <p className="text-xs text-gray-500">If this takes too long, please try refreshing the page.</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // SYSTEM ADMIN CONTEXT ONLY: Check system admin table only (never use client_users)
