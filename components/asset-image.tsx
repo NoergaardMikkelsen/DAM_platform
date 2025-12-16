@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Loader2 } from "lucide-react"
 
 interface AssetImageProps {
@@ -18,13 +17,9 @@ export function AssetImage({ storagePath, alt, className }: AssetImageProps) {
   useEffect(() => {
     async function fetchImage() {
       try {
-        const supabase = createClient()
-
-        const { data, error } = await supabase.storage.from("assets").createSignedUrl(storagePath, 3600)
-
-        if (error) throw error
-
-        setImageUrl(data.signedUrl)
+        // Use the proxy endpoint instead of direct signed URLs
+        const proxyUrl = `/api/assets/${storagePath}`
+        setImageUrl(proxyUrl)
         setLoading(false)
       } catch (err) {
         console.error("Failed to fetch image:", err)

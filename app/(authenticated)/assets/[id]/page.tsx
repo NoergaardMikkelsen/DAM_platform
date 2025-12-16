@@ -237,16 +237,8 @@ export default function AssetDetailPage() {
       mimeType: assetData.mime_type
     })
 
-    const { data: storageUrl, error: storageError } = await supabase.storage
-      .from(assetData.storage_bucket)
-      .createSignedUrl(cleanPath, 3600)
-
-    if (storageError) {
-      console.error("Storage URL error:", storageError)
-      console.error("Failed path:", cleanPath)
-      setErrorMessage(`Failed to generate access URL: ${storageError.message}`)
-      return
-    }
+    // Use proxy endpoint instead of direct signed URL
+    const storageUrl = { signedUrl: `/api/assets/${cleanPath}` }
 
     console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
     setStorageData(storageUrl)
@@ -265,10 +257,8 @@ export default function AssetDetailPage() {
       if (prevVersion) {
         setPreviousVersion(prevVersion)
         const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
-        const { data: prevUrl } = await supabase.storage.from(prevVersion.storage_bucket).createSignedUrl(prevClean, 3600)
-        if (prevUrl?.signedUrl) {
-          setPreviousPreviewUrl(prevUrl.signedUrl)
-        }
+        // Use proxy endpoint instead of direct signed URL
+        setPreviousPreviewUrl(`/api/assets/${prevClean}`)
       }
     }
 
@@ -861,13 +851,10 @@ export default function AssetDetailPage() {
                           setVideoErrorCount((c) => c + 1)
                           const supabase = supabaseRef.current
                           const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-                          const { data: storageUrl, error: storageError } = await supabase.storage
-                            .from(asset.storage_bucket)
-                            .createSignedUrl(cleanPath, 3600)
-                          if (!storageError && storageUrl) {
-                            setStorageData(storageUrl)
-                            return
-                          }
+                          // Use proxy endpoint instead of direct signed URL
+                          const storageUrl = { signedUrl: `/api/assets/${cleanPath}` }
+                          setStorageData(storageUrl)
+                          return
                         }
 
                         setErrorMessage("Failed to load video. The file may not exist or be corrupted.")

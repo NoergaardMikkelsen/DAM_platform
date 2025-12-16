@@ -19,16 +19,12 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
   useEffect(() => {
     async function fetchPreview() {
       try {
-        const supabase = createClient()
-
         // Clean path - remove leading/trailing slashes
         const cleanPath = storagePath.replace(/^\/+|\/+$/g, "")
 
-        const { data, error } = await supabase.storage.from("assets").createSignedUrl(cleanPath, 3600)
-
-        if (error) throw error
-
-        setPreviewUrl(data.signedUrl)
+        // Use the proxy endpoint instead of direct signed URLs
+        const proxyUrl = `/api/assets/${cleanPath}`
+        setPreviewUrl(proxyUrl)
         setLoading(false)
       } catch (err) {
         console.error("Failed to fetch preview:", err)
