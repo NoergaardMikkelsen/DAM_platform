@@ -29,7 +29,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
         debugLog.push(`[ASSET-PREVIEW] Cleaned path: ${cleanPath}`)
 
         // Use the proxy endpoint instead of direct signed URLs
-        const proxyUrl = `/api/assets/${cleanPath}`
+        const proxyUrl = `/api/assets/${encodeURIComponent(cleanPath)}`
         debugLog.push(`[ASSET-PREVIEW] Proxy URL: ${proxyUrl}`)
         
         setPreviewUrl(proxyUrl)

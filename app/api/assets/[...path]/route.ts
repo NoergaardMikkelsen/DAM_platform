@@ -66,7 +66,7 @@ export async function GET(
 
     // Await params and reconstruct the storage path
     const resolvedParams = await params
-    const storagePath = resolvedParams.path.join('/')
+    const storagePath = decodeURIComponent(resolvedParams.path.join('/'))
     debugLog.push(`[ASSETS-API] Raw path array: ${JSON.stringify(resolvedParams.path)}`)
     debugLog.push(`[ASSETS-API] Storage path: ${storagePath}`)
 

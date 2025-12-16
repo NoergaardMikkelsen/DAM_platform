@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { Heart } from "lucide-react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
 
 interface CollectionCardProps {
   id: string
@@ -26,66 +25,43 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
   useEffect(() => {
     const fetchImageUrls = async () => {
-      const supabase = createClient()
       const urls: string[] = []
       const types: string[] = []
       const videoUrlsArr: string[] = []
 
       for (const asset of previewAssets.slice(0, 4)) {
         if (asset.storage_path) {
-          try {
-            // For video files, use thumbnail if available, otherwise use video itself
-            if (asset.mime_type.startsWith("video/")) {
-              types.push("video")
-              // Always create video URL for video assets
-              const cleanVideoPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-              const { data: videoData, error: videoError } = await supabase.storage
-                .from('assets')
-                .createSignedUrl(cleanVideoPath, 3600) // 1 hour expiry
+          // For video files, use thumbnail if available, otherwise use video itself
+          if (asset.mime_type.startsWith("video/")) {
+            types.push("video")
+            // Always create video URL for video assets using proxy API
+            const cleanVideoPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+            const videoUrl = `/api/assets/${encodeURIComponent(cleanVideoPath)}`
+            videoUrlsArr.push(videoUrl)
 
-              if (videoError) throw videoError
-              videoUrlsArr.push(videoData.signedUrl)
-
-              if (asset.thumbnail_path) {
-                // Use thumbnail for image pattern if available
-                const cleanThumbnailPath = asset.thumbnail_path.replace(/^\/+|\/+$/g, "")
-                const { data, error } = await supabase.storage
-                  .from('assets')
-                  .createSignedUrl(cleanThumbnailPath, 3600) // 1 hour expiry
-
-                if (error) throw error
-                urls.push(data.signedUrl)
-              } else {
-                // Use video URL as fallback for image pattern (won't work but at least consistent)
-                urls.push(videoData.signedUrl)
-              }
-            } else if (asset.mime_type === "application/pdf") {
-              types.push("pdf")
-              videoUrlsArr.push("") // Empty for non-video assets
-              // Create signed URL for PDF
-              const cleanPdfPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-              const { data, error } = await supabase.storage
-                .from('assets')
-                .createSignedUrl(cleanPdfPath, 3600) // 1 hour expiry
-
-              if (error) throw error
-              urls.push(data.signedUrl)
+            if (asset.thumbnail_path) {
+              // Use thumbnail for image pattern if available
+              const cleanThumbnailPath = asset.thumbnail_path.replace(/^\/+|\/+$/g, "")
+              const thumbnailUrl = `/api/assets/${encodeURIComponent(cleanThumbnailPath)}`
+              urls.push(thumbnailUrl)
             } else {
-              types.push("image")
-              videoUrlsArr.push("") // Empty for non-video assets
-              // Clean path - remove leading/trailing slashes
-              const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-              const { data, error } = await supabase.storage
-                .from('assets')
-                .createSignedUrl(cleanPath, 3600) // 1 hour expiry
-
-              if (error) throw error
-              urls.push(data.signedUrl)
+              // Use video URL as fallback for image pattern (won't work but at least consistent)
+              urls.push(videoUrl)
             }
-          } catch (error) {
-            urls.push("/placeholder.jpg")
-            types.push("unknown")
-            videoUrlsArr.push("")
+          } else if (asset.mime_type === "application/pdf") {
+            types.push("pdf")
+            videoUrlsArr.push("") // Empty for non-video assets
+            // Create proxy URL for PDF
+            const cleanPdfPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+            const pdfUrl = `/api/assets/${encodeURIComponent(cleanPdfPath)}`
+            urls.push(pdfUrl)
+          } else {
+            types.push("image")
+            videoUrlsArr.push("") // Empty for non-video assets
+            // Clean path - remove leading/trailing slashes
+            const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+            const imageUrl = `/api/assets/${encodeURIComponent(cleanPath)}`
+            urls.push(imageUrl)
           }
         } else {
           urls.push("/placeholder.jpg")

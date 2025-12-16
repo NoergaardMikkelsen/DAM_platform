@@ -258,7 +258,7 @@ export default function AssetDetailPage() {
     })
 
     // Use proxy endpoint instead of direct signed URL
-    const storageUrl = { signedUrl: `/api/assets/${cleanPath}` }
+    const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
 
     console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
     setStorageData(storageUrl)
@@ -278,7 +278,7 @@ export default function AssetDetailPage() {
         setPreviousVersion(prevVersion)
         const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
         // Use proxy endpoint instead of direct signed URL
-        setPreviousPreviewUrl(`/api/assets/${prevClean}`)
+        setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
       }
     }
 
@@ -872,7 +872,7 @@ export default function AssetDetailPage() {
                           const supabase = supabaseRef.current
                           const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
                           // Use proxy endpoint instead of direct signed URL
-                          const storageUrl = { signedUrl: `/api/assets/${cleanPath}` }
+                          const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
                           setStorageData(storageUrl)
                           return
                         }

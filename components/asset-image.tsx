@@ -18,7 +18,7 @@ export function AssetImage({ storagePath, alt, className }: AssetImageProps) {
     async function fetchImage() {
       try {
         // Use the proxy endpoint instead of direct signed URLs
-        const proxyUrl = `/api/assets/${storagePath}`
+        const proxyUrl = `/api/assets/${encodeURIComponent(storagePath)}`
         setImageUrl(proxyUrl)
         setLoading(false)
       } catch (err) {
