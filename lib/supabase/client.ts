@@ -10,6 +10,18 @@ export function createClient() {
   supabaseClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        storageKey: 'sb-auth-token',
+        // Allow cookies to be shared across subdomains
+        persistSession: true,
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'brandassets-platform',
+        },
+      },
+    }
   )
 
   return supabaseClient

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
     const supabase = await createClient()
@@ -15,8 +15,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Reconstruct the storage path
-    const storagePath = params.path.join('/')
+    // Await params and reconstruct the storage path
+    const resolvedParams = await params
+    const storagePath = resolvedParams.path.join('/')
 
     // Verify user has access to this asset's client
     const pathParts = storagePath.split('/')

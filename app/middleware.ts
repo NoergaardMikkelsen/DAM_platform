@@ -10,18 +10,12 @@ export function middleware(request: NextRequest) {
 
   // Handle brandassets.space routing
   if (host === 'brandassets.space') {
-    // Main domain - redirect to landing page if not already there
-    if (!url.pathname.startsWith('/landing') && !url.pathname.startsWith('/api') && !url.pathname.startsWith('/_next')) {
-      return NextResponse.redirect(new URL('/landing', request.url))
-    }
+    // Main domain - landing page is at root, allow all routes
     return NextResponse.next()
   }
 
   if (host === 'admin.brandassets.space') {
-    // Admin subdomain - redirect to system admin
-    if (!url.pathname.startsWith('/system-admin')) {
-      return NextResponse.redirect(new URL('/system-admin/dashboard', request.url))
-    }
+    // Admin subdomain - allow all routes, authentication handled by layout
     return NextResponse.next()
   }
 

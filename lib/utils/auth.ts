@@ -52,5 +52,5 @@ export async function getUserRole(clientId: string) {
     .eq("status", "active")
     .single()
 
-  return data?.roles?.key || null
+  return data?.roles?.[0]?.key || null
 }

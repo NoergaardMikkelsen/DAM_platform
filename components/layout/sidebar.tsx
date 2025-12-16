@@ -47,7 +47,6 @@ export function Sidebar({ user, role }: SidebarProps) {
     } else if (role === "admin") {
       // Client admin navigation
       return [
-        { href: "/clients", label: "Clients", icon: Building },
         { href: "/users", label: "Users", icon: Users },
         { href: "/tagging", label: "Tagging", icon: Tag },
       ]

@@ -19,7 +19,18 @@ export async function updateSession(request: NextRequest) {
           supabaseResponse = NextResponse.next({
             request,
           })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Set cookies to be shareable across subdomains
+            const updatedOptions = {
+              ...options,
+              domain: '.brandassets.space', // Allow sharing across *.brandassets.space
+              path: '/',
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax' as const,
+            }
+            supabaseResponse.cookies.set(name, value, updatedOptions)
+          })
         },
       },
     },

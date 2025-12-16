@@ -18,7 +18,7 @@ export default async function SystemAdminLayout({
     redirect("/login")
   }
 
-  // Check system admin table only (never use client_users)
+  // SYSTEM ADMIN CONTEXT ONLY: Check system admin table only (never use client_users)
   const { data: systemAdmin, error } = await supabase
     .from("system_admins")
     .select("id")
@@ -26,8 +26,28 @@ export default async function SystemAdminLayout({
     .single()
 
   if (error || !systemAdmin) {
-    // Not a system admin - redirect to login
-    redirect("/login")
+    // Not a system admin - show access denied page instead of redirecting to login
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">Access Denied</h1>
+            <p className="mt-2 text-sm text-gray-600">You don't have permission to access the system admin area.</p>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-gray-500 mb-4">
+              If you believe this is an error, please contact your system administrator.
+            </p>
+            <a
+              href="/login"
+              className="inline-block px-4 py-2 bg-[#DF475C] text-white rounded-[25px] hover:bg-[#C82333] transition-colors"
+            >
+              Go to Login
+            </a>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Get user data
@@ -37,7 +57,11 @@ export default async function SystemAdminLayout({
     .eq("id", user.id)
     .single()
 
-  // System admin confirmed - render with same components as client layout
+  if (!userData) {
+    redirect("/login")
+  }
+
+  // System admin confirmed - render system admin layout
   return (
     <BrandProvider>
       <div className="flex h-screen overflow-hidden bg-gray-50">

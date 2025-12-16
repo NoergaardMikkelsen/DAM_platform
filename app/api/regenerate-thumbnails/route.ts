@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Get all video assets without thumbnails
     const { data: videoAssets, error } = await supabase
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
       } catch (error) {
         console.error(`Error processing video ${asset.id}:`, error)
-        results.push({ id: asset.id, status: "error", error: error.message })
+        results.push({ id: asset.id, status: "error", error: (error as Error).message })
       }
     }
 

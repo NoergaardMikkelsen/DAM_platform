@@ -1,21 +1,30 @@
 "use client"
 
 import type React from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Handle URL error parameters
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam === 'access_denied') {
+      setError("You don't have permission to access this area. Please contact your administrator.")
+    }
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,7 +43,7 @@ export default function LoginPage() {
       if (!user) throw new Error("Authentication failed")
 
       // Determine user context and redirect appropriately
-      const redirectUrl = await determineUserRedirect(user.id, supabase)
+      const redirectUrl = await determineUserRedirect(user.id, supabase, window.location.host)
 
       if (!redirectUrl) {
         setError("No access found. Please contact your administrator.")
@@ -99,12 +108,87 @@ export default function LoginPage() {
   )
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen w-full items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">nørgård mikkelsen</h1>
+            <p className="mt-2 text-sm text-gray-600">Digital Asset Management</p>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">Login</CardTitle>
+              <CardDescription>Loading...</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
 /**
  * Determine correct redirect URL based on user context
  * Returns null if user has no valid access
  */
-async function determineUserRedirect(userId: string, supabase: any): Promise<string | null> {
-  // Check system admin access first (highest priority)
+async function determineUserRedirect(userId: string, supabase: any, host: string): Promise<string | null> {
+
+  // CONTEXT-BASED REDIRECT LOGIC
+
+  // 1. System Admin Context (admin.brandassets.space)
+  if (host === 'admin.brandassets.space' || host === (process.env.SYSTEM_ADMIN_HOST || 'localhost:3000')) {
+    const { data: systemAdmin } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("id", userId)
+      .single()
+
+    if (systemAdmin) {
+      return "/system-admin/dashboard"
+    } else {
+      // Not a system admin on admin subdomain - no access
+      return null
+    }
+  }
+
+  // 2. Tenant Context (*.brandassets.space excluding admin)
+  if (host.endsWith('.brandassets.space') && host !== 'admin.brandassets.space') {
+    const subdomain = host.replace('.brandassets.space', '')
+
+    // Find the tenant
+    const { data: tenant } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("slug", subdomain)
+      .eq("status", "active")
+      .single()
+
+    if (tenant) {
+      // Check if user has access to this specific tenant
+      const { data: accessCheck } = await supabase
+        .from("client_users")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("client_id", tenant.id)
+        .eq("status", "active")
+        .single()
+
+      if (accessCheck) {
+        return "/dashboard"
+      }
+    }
+    // No access to this tenant
+    return null
+  }
+
+  // 3. Public Context (brandassets.space) or other domains
+  // Check what access the user has and redirect accordingly
+
+  // Priority: System Admin > Any Tenant Access
   const { data: systemAdmin } = await supabase
     .from("system_admins")
     .select("id")
@@ -112,14 +196,14 @@ async function determineUserRedirect(userId: string, supabase: any): Promise<str
     .single()
 
   if (systemAdmin) {
-    return "/system-admin/dashboard"
+    // System admin - redirect to system admin context
+    return "https://admin.brandassets.space/system-admin/dashboard"
   }
 
-  // Check client access (tenant user)
+  // Check for tenant access
   const { data: clientUsers } = await supabase
     .from("client_users")
     .select(`
-      client_id,
       clients!inner(slug, domain)
     `)
     .eq("user_id", userId)
@@ -128,12 +212,8 @@ async function determineUserRedirect(userId: string, supabase: any): Promise<str
 
   if (clientUsers && clientUsers.length > 0) {
     const client = clientUsers[0].clients
-
-    // TODO: Implement tenant-aware redirects
-    // Currently redirects to /dashboard regardless of current hostname
-    // Future: Check current hostname and redirect to appropriate tenant subdomain
-    // e.g., if on wrong subdomain, redirect to client.slug.domain.com/dashboard
-    return "/dashboard"
+    // Redirect to tenant subdomain
+    return `https://${client.slug}.brandassets.space/dashboard`
   }
 
   // No valid access found
