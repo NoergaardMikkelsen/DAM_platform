@@ -31,23 +31,8 @@ export function Sidebar({ user, role }: SidebarProps) {
 
   // Different main navigation based on role type
   const getMainNavItems = () => {
-    // Build absolute URLs for system admin routes when on admin subdomain
-    // This prevents Next.js route group matching issues where (tenant) layout
-    // might intercept system-admin routes before they reach the correct layout
-    const getSystemAdminUrl = (path: string) => {
-      if (typeof window !== 'undefined' && role === "superadmin") {
-        const isAdminSubdomain = window.location.hostname === 'admin.brandassets.space' ||
-                                window.location.hostname === 'admin.localhost' ||
-                                window.location.hostname.startsWith('admin.localhost:')
-        if (isAdminSubdomain) {
-          return `${window.location.protocol}//${window.location.host}${path}`
-        }
-      }
-      return path
-    }
-
     const baseItems = [
-      { href: getSystemAdminUrl("/dashboard"), label: "Dashboard", icon: Home },
+      { href: "/dashboard", label: "Dashboard", icon: Home },
     ]
 
     // Only show Asset Library for non-superadmin users
@@ -346,7 +331,7 @@ export function Sidebar({ user, role }: SidebarProps) {
         {/* User Profile - positioned ABOVE indentation */}
         <div className={`border-t pb-6 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
-            <Link href="/profile" className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
+            <Link href={role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DF475C] text-sm font-semibold text-white">
                 {(user.full_name || user.email)
                   .split(" ")
