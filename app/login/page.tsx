@@ -21,9 +21,43 @@ function LoginForm() {
   // Check if we're on the wrong subdomain in development
   const isDevelopment = process.env.NODE_ENV === 'development'
   const currentHost = typeof window !== 'undefined' ? window.location.host : ''
-  const isWrongSubdomain = isDevelopment && 
-    currentHost === 'localhost' && 
+  const isWrongSubdomain = isDevelopment &&
+    currentHost === 'localhost' &&
     !currentHost.includes('.localhost')
+
+  // Detect context: system admin vs tenant
+  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
+    currentHost === 'admin.localhost' ||
+    currentHost.startsWith('admin.localhost:')
+
+  // Extract tenant slug from hostname for tenant context
+  const getTenantSlug = () => {
+    if (currentHost.endsWith('.brandassets.space')) {
+      return currentHost.replace('.brandassets.space', '')
+    }
+    if (currentHost.includes('.localhost')) {
+      return currentHost.split('.')[0]
+    }
+    return null
+  }
+  const tenantSlug = getTenantSlug()
+
+  // Detect context: system admin vs tenant
+  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
+    currentHost === 'admin.localhost' ||
+    currentHost.startsWith('admin.localhost:')
+
+  // Extract tenant slug from hostname for tenant context
+  const getTenantSlug = () => {
+    if (currentHost.endsWith('.brandassets.space')) {
+      return currentHost.replace('.brandassets.space', '')
+    }
+    if (currentHost.includes('.localhost')) {
+      return currentHost.split('.')[0]
+    }
+    return null
+  }
+  const tenantSlug = getTenantSlug()
 
   // Handle URL error parameters
   useEffect(() => {
@@ -185,16 +219,16 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gray-50 p-6">
+    <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">nørgård mikkelsen</h1>
-          <p className="mt-2 text-sm text-gray-600">Digital Asset Management</p>
+          <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
+          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
         </div>
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>Enter your email below to login to your account</CardDescription>
+            <CardDescription>Sign in to your account</CardDescription>
           </CardHeader>
           <CardContent>
             {isWrongSubdomain && (
@@ -239,7 +273,7 @@ function LoginForm() {
                     )}
                   </div>
                 )}
-                <Button type="submit" className="w-full bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]" disabled={isLoading}>
+                <Button type="submit" className={`w-full rounded-[25px] ${isSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Login"}
                 </Button>
               </div>
@@ -252,18 +286,24 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  // Detect context for fallback as well
+  const currentHost = typeof window !== 'undefined' ? window.location.host : ''
+  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
+    currentHost === 'admin.localhost' ||
+    currentHost.startsWith('admin.localhost:')
+
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen w-full items-center justify-center bg-gray-50 p-6">
+      <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-gray-900">nørgård mikkelsen</h1>
-            <p className="mt-2 text-sm text-gray-600">Digital Asset Management</p>
+            <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
+            <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
           </div>
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">Login</CardTitle>
-              <CardDescription>Loading...</CardDescription>
+              <CardDescription>Enter your email below to login to your account</CardDescription>
             </CardHeader>
           </Card>
         </div>
