@@ -31,8 +31,23 @@ export function Sidebar({ user, role }: SidebarProps) {
 
   // Different main navigation based on role type
   const getMainNavItems = () => {
+    // Build absolute URLs for system admin routes when on admin subdomain
+    // This prevents Next.js route group matching issues where (tenant) layout
+    // might intercept system-admin routes before they reach the correct layout
+    const getSystemAdminUrl = (path: string) => {
+      if (typeof window !== 'undefined' && role === "superadmin") {
+        const isAdminSubdomain = window.location.hostname === 'admin.brandassets.space' ||
+                                window.location.hostname === 'admin.localhost' ||
+                                window.location.hostname.startsWith('admin.localhost:')
+        if (isAdminSubdomain) {
+          return `${window.location.protocol}//${window.location.host}${path}`
+        }
+      }
+      return path
+    }
+
     const baseItems = [
-      { href: "/dashboard", label: "Dashboard", icon: Home },
+      { href: getSystemAdminUrl("/dashboard"), label: "Dashboard", icon: Home },
     ]
 
     // Only show Asset Library for non-superadmin users

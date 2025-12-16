@@ -1,7 +1,6 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -9,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { Building, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 
 interface Client {
@@ -34,7 +32,6 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -47,29 +44,9 @@ export default function ClientsPage() {
 
   const loadClients = async () => {
     const supabase = supabaseRef.current
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) {
-      router.push("/login")
-      return
-    }
-
-    // Check if user is superadmin
-    const { data: userRole } = await supabase
-      .from("client_users")
-      .select(`roles(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .maybeSingle()
-
-    const role = userRole?.roles?.key
-
-    if (role !== "superadmin") {
-      router.push("/dashboard")
-      return
-    }
+    // Authentication and authorization is already handled by system-admin layout
+    // No need to check user authentication or roles here
 
     const { data: clientsData } = await supabase.from("client_storage_stats").select("*").order("name", { ascending: true })
 
