@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight } from "lucide-react"
+import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -34,12 +34,28 @@ export function Sidebar({ user, role }: SidebarProps) {
     { href: "/assets", label: "Asset Library", icon: BookOpen },
   ]
 
-  const adminNavItems = [
-    { href: "/clients", label: "Clients", icon: Building },
-    { href: "/users", label: "Users", icon: Users },
-    { href: "/tagging", label: "Tagging", icon: Tag },
-  ]
+  // Different admin items based on role type
+  const getAdminNavItems = () => {
+    if (role === "superadmin") {
+      // System admin navigation
+      return [
+        { href: "/system-admin/dashboard", label: "System Overview", icon: Building },
+        { href: "/system-admin/clients", label: "Client Management", icon: Building },
+        { href: "/system-admin/users", label: "System Users", icon: Users },
+        { href: "/system-admin/settings", label: "System Settings", icon: Settings },
+      ]
+    } else if (role === "admin") {
+      // Client admin navigation
+      return [
+        { href: "/clients", label: "Clients", icon: Building },
+        { href: "/users", label: "Users", icon: Users },
+        { href: "/tagging", label: "Tagging", icon: Tag },
+      ]
+    }
+    return []
+  }
 
+  const adminNavItems = getAdminNavItems()
   const isAdmin = role === "admin" || role === "superadmin"
 
   return (

@@ -20,10 +20,11 @@ export function AssetImage({ storagePath, alt, className }: AssetImageProps) {
       try {
         const supabase = createClient()
 
-        // Since assets bucket is now public, use getPublicUrl instead of signed URL
-        const { data } = supabase.storage.from("assets").getPublicUrl(storagePath)
+        const { data, error } = await supabase.storage.from("assets").createSignedUrl(storagePath, 3600)
 
-        setImageUrl(data.publicUrl)
+        if (error) throw error
+
+        setImageUrl(data.signedUrl)
         setLoading(false)
       } catch (err) {
         console.error("Failed to fetch image:", err)

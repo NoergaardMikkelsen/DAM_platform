@@ -28,6 +28,21 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         } = await supabase.auth.getUser()
         if (!user) return
 
+        // Check if user is system admin first
+        const { data: systemAdmin } = await supabase
+          .from("system_admins")
+          .select("id")
+          .eq("id", user.id)
+          .single()
+
+        if (systemAdmin) {
+          // System admin - use default/system colors
+          document.documentElement.style.setProperty("--brand-primary", "#000000")
+          document.documentElement.style.setProperty("--brand-secondary", "#666666")
+          setLoading(false)
+          return
+        }
+
         // Get user's first client
         const { data: clientUsers } = await supabase
           .from("client_users")
@@ -43,9 +58,16 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
           const clientData = clientUsers[0].clients as Client
           document.documentElement.style.setProperty("--brand-primary", clientData.primary_color)
           document.documentElement.style.setProperty("--brand-secondary", clientData.secondary_color)
+        } else {
+          // No client found - use default colors
+          document.documentElement.style.setProperty("--brand-primary", "#000000")
+          document.documentElement.style.setProperty("--brand-secondary", "#666666")
         }
       } catch (error) {
         console.error("Error loading client:", error)
+        // Fallback to default colors on error
+        document.documentElement.style.setProperty("--brand-primary", "#000000")
+        document.documentElement.style.setProperty("--brand-secondary", "#666666")
       } finally {
         setLoading(false)
       }

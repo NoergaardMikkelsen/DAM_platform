@@ -1,50 +1,216 @@
+"use client"
+
+import { createClient } from "@/lib/supabase/client"
+import { Building, Users, Database, Settings, TrendingUp, ArrowRight } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
+import { DashboardHeaderSkeleton, StatsGridSkeleton } from "@/components/skeleton-loaders"
+
+interface SystemStats {
+  totalClients: number
+  activeClients: number
+  totalUsers: number
+  totalStorageGB: number
+  recentActivity: Array<{
+    id: string
+    action: string
+    timestamp: string
+  }>
+}
+
 export default function SystemAdminDashboard() {
+  const [stats, setStats] = useState<SystemStats | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    loadSystemStats()
+  }, [])
+
+  const loadSystemStats = async () => {
+    setIsLoading(true)
+    try {
+      // Get system statistics
+      const [clientsResult, usersResult, storageResult] = await Promise.all([
+        supabase.from("clients").select("id, status"),
+        supabase.from("users").select("id"),
+        supabase.from("assets").select("file_size")
+      ])
+
+      const totalClients = clientsResult.data?.length || 0
+      const activeClients = clientsResult.data?.filter(c => c.status === 'active').length || 0
+      const totalUsers = usersResult.data?.length || 0
+      const totalStorageBytes = storageResult.data?.reduce((sum, asset) => sum + (asset.file_size || 0), 0) || 0
+      const totalStorageGB = Math.round(totalStorageBytes / 1024 / 1024 / 1024 * 100) / 100
+
+      setStats({
+        totalClients,
+        activeClients,
+        totalUsers,
+        totalStorageGB,
+        recentActivity: [] // Could be populated with actual activity data
+      })
+    } catch (error) {
+      console.error("Error loading system stats:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-8 space-y-8">
+        <DashboardHeaderSkeleton />
+        <StatsGridSkeleton />
+      </div>
+    )
+  }
+
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">System Overview</h1>
-
-      {/* System stats - no client data */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Total Clients</h3>
-          <p className="text-3xl font-bold text-blue-600 mt-2">--</p>
+    <div className="p-8 space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">System Overview</h1>
+          <p className="text-gray-600 mt-1">Complete system administration and monitoring</p>
         </div>
-
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Active Clients</h3>
-          <p className="text-3xl font-bold text-green-600 mt-2">--</p>
+        <div className="flex items-center space-x-4">
+          <Button variant="outline">
+            <Settings className="h-4 w-4 mr-2" />
+            System Settings
+          </Button>
         </div>
+      </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">System Users</h3>
-          <p className="text-3xl font-bold text-purple-600 mt-2">--</p>
-        </div>
+      {/* System stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="relative overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Total Clients</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats?.totalClients || 0}</div>
+                <p className="text-xs text-gray-500 mt-1">Registered clients</p>
+              </div>
+              <Building className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Total Storage</h3>
-          <p className="text-3xl font-bold text-orange-600 mt-2">-- GB</p>
-        </div>
+        <Card className="relative overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Active Clients</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats?.activeClients || 0}</div>
+                <p className="text-xs text-gray-500 mt-1">Active subscriptions</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">System Users</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats?.totalUsers || 0}</div>
+                <p className="text-xs text-gray-500 mt-1">Total registered users</p>
+              </div>
+              <Users className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Total Storage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats?.totalStorageGB || 0}</div>
+                <p className="text-xs text-gray-500 mt-1">GB used across all clients</p>
+              </div>
+              <Database className="h-8 w-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick actions */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a href="/system-admin/clients/create">
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
-              Create Client
-            </button>
-          </a>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Link href="/system-admin/clients">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Client Management</CardTitle>
+                <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 text-sm">
+                Manage all client accounts, domains, and subscriptions
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-          <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium">
-            Add System User
-          </button>
+        <Link href="/system-admin/users">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">User Administration</CardTitle>
+                <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 text-sm">
+                Manage system users, permissions, and access levels
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-          <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium">
-            System Settings
-          </button>
-        </div>
+        <Link href="/system-admin/settings">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">System Settings</CardTitle>
+                <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 text-sm">
+                Configure system-wide settings and preferences
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>System Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-gray-500">
+            <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Activity monitoring coming soon...</p>
+            <p className="text-sm mt-2">Track client registrations, user activity, and system events</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

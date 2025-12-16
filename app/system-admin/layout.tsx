@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { SystemAdminSidebar } from "@/components/system-admin/sidebar"
+import { Sidebar } from "@/components/layout/sidebar"
+import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
+import { BrandProvider } from "@/lib/context/brand-context"
 
 export default async function SystemAdminLayout({
   children,
@@ -28,13 +30,22 @@ export default async function SystemAdminLayout({
     redirect("/login")
   }
 
-  // System admin confirmed - render isolated layout
+  // Get user data
+  const { data: userData } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", user.id)
+    .single()
+
+  // System admin confirmed - render with same components as client layout
   return (
-    <div className="flex h-screen bg-gray-50">
-      <SystemAdminSidebar />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
-    </div>
+    <BrandProvider>
+      <div className="flex h-screen overflow-hidden bg-gray-50">
+        <SidebarVisibility>
+          <Sidebar user={userData} role="superadmin" />
+        </SidebarVisibility>
+        <main className="flex-1 overflow-y-auto">{children}</main>
+      </div>
+    </BrandProvider>
   )
 }

@@ -24,10 +24,11 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
         // Clean path - remove leading/trailing slashes
         const cleanPath = storagePath.replace(/^\/+|\/+$/g, "")
 
-        // Since assets bucket is now public, use getPublicUrl
-        const { data } = supabase.storage.from("assets").getPublicUrl(cleanPath)
+        const { data, error } = await supabase.storage.from("assets").createSignedUrl(cleanPath, 3600)
 
-        setPreviewUrl(data.publicUrl)
+        if (error) throw error
+
+        setPreviewUrl(data.signedUrl)
         setLoading(false)
       } catch (err) {
         console.error("Failed to fetch preview:", err)
