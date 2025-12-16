@@ -140,8 +140,8 @@ export function Sidebar({ user, role }: SidebarProps) {
               </div>
               {!isCollapsed && (
                 <div className="ml-3">
-                  <div className="text-sm font-semibold text-gray-900">System Admin</div>
-                  <div className="text-xs text-gray-500">Management</div>
+                  <div className="text-sm font-semibold text-gray-900">Digital Asset Management</div>
+                  <div className="text-xs text-gray-500">System Admin</div>
                 </div>
               )}
             </div>
