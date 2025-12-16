@@ -2,7 +2,6 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { Sidebar } from "@/components/layout/sidebar"
 import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
-import { BrandProvider } from "@/lib/context/brand-context"
 
 export default async function SystemAdminLayout({
   children,
@@ -102,13 +101,11 @@ export default async function SystemAdminLayout({
 
   // System admin confirmed - render system admin layout
   return (
-    <BrandProvider>
-      <div className="flex h-screen overflow-hidden bg-gray-50">
-        <SidebarVisibility>
-          <Sidebar user={userData} role="superadmin" />
-        </SidebarVisibility>
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-    </BrandProvider>
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <SidebarVisibility>
+        <Sidebar user={userData} role="superadmin" />
+      </SidebarVisibility>
+      <main className="flex-1 overflow-y-auto">{children}</main>
+    </div>
   )
 }

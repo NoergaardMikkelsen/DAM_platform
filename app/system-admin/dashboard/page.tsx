@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client"
 import { getAllTenantsForSuperAdmin } from "./actions"
-import { Building, Users, Database, Settings, TrendingUp, ArrowRight, ExternalLink } from "lucide-react"
+import { Settings, ArrowRight, ExternalLink } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -143,13 +143,8 @@ export default function SystemAdminDashboard() {
             <CardTitle className="text-sm font-medium text-gray-600">Total Clients</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats?.totalClients || 0}</div>
-                <p className="text-xs text-gray-500 mt-1">Registered clients</p>
-              </div>
-              <Building className="h-8 w-8 text-blue-600" />
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats?.totalClients || 0}</div>
+            <p className="text-xs text-gray-500 mt-1">Registered clients</p>
           </CardContent>
         </Card>
 
@@ -158,13 +153,8 @@ export default function SystemAdminDashboard() {
             <CardTitle className="text-sm font-medium text-gray-600">Active Clients</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats?.activeClients || 0}</div>
-                <p className="text-xs text-gray-500 mt-1">Active subscriptions</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-600" />
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats?.activeClients || 0}</div>
+            <p className="text-xs text-gray-500 mt-1">Active subscriptions</p>
           </CardContent>
         </Card>
 
@@ -173,13 +163,8 @@ export default function SystemAdminDashboard() {
             <CardTitle className="text-sm font-medium text-gray-600">System Users</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats?.totalUsers || 0}</div>
-                <p className="text-xs text-gray-500 mt-1">Total registered users</p>
-              </div>
-              <Users className="h-8 w-8 text-purple-600" />
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats?.totalUsers || 0}</div>
+            <p className="text-xs text-gray-500 mt-1">Total registered users</p>
           </CardContent>
         </Card>
 
@@ -188,13 +173,8 @@ export default function SystemAdminDashboard() {
             <CardTitle className="text-sm font-medium text-gray-600">Total Storage</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats?.totalStorageGB || 0}</div>
-                <p className="text-xs text-gray-500 mt-1">GB used across all clients</p>
-              </div>
-              <Database className="h-8 w-8 text-orange-600" />
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats?.totalStorageGB || 0}</div>
+            <p className="text-xs text-gray-500 mt-1">GB used across all clients</p>
           </CardContent>
         </Card>
       </div>
@@ -257,7 +237,6 @@ export default function SystemAdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-gray-500">
-            <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Activity monitoring coming soon...</p>
             <p className="text-sm mt-2">Track client registrations, user activity, and system events</p>
           </div>

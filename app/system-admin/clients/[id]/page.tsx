@@ -239,8 +239,7 @@ export default function ClientDetailPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div
-              className="flex h-12 w-12 items-center justify-center rounded-lg"
-              style={{ backgroundColor: client.primary_color }}
+              className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-600"
             >
               <Building className="h-6 w-6 text-white" />
             </div>

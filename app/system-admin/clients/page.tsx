@@ -127,7 +127,7 @@ export default function ClientsPage() {
           <Input
             type="search"
             placeholder="Search client"
-            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
+            className="pl-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -167,8 +167,7 @@ export default function ClientsPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className="flex h-10 w-10 items-center justify-center rounded-lg"
-                        style={{ backgroundColor: client.primary_color || "#dc3545" }}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-600"
                       >
                         <Building className="h-5 w-5 text-white" />
                       </div>
