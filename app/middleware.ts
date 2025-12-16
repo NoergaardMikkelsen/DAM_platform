@@ -1,39 +1,26 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
-  const url = request.nextUrl
 
   // Remove port if present
   const [host] = hostname.split(':')
 
-  // Handle brandassets.space routing
-  if (host === 'brandassets.space') {
-    // Main domain - landing page is at root, allow all routes
+  // CONTEXT DETECTION ONLY - Strict hostname pattern matching
+
+  // Public context: main domain
+  if (host === 'brandassets.space' || host === 'localhost') {
     return NextResponse.next()
   }
 
+  // System admin context: admin subdomain
   if (host === 'admin.brandassets.space') {
-    // Admin subdomain - allow all routes, authentication handled by layout
     return NextResponse.next()
   }
 
-  // Handle other brandassets.space subdomains (tenants)
-  if (host.endsWith('.brandassets.space')) {
-    const subdomain = host.replace('.brandassets.space', '')
-
-    if (subdomain && subdomain !== 'admin') {
-      // This is a tenant subdomain - allow tenant routes
-      // Cross-tenant access for superadmins is handled in the layout
-      return NextResponse.next()
-    }
-  }
-
-  // Environment-driven system admin host (for localhost development)
-  const systemAdminHost = process.env.SYSTEM_ADMIN_HOST || 'localhost:3000'
-  if (hostname === systemAdminHost) {
+  // Tenant context: any subdomain of brandassets.space (excluding admin)
+  if (host.endsWith('.brandassets.space') && !host.startsWith('admin.')) {
     return NextResponse.next()
   }
 
@@ -41,50 +28,6 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-/**
- * Parse tenant subdomain from hostname
- * Returns null if not a tenant subdomain
- * Designed to work with staging/preview environments
- */
-function parseTenantSubdomain(hostname: string): string | null {
-  // Remove port if present
-  const [host] = hostname.split(':')
-
-  // Skip localhost/IP addresses during development
-  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
-    return null
-  }
-
-  // Skip system admin host - never treat as tenant
-  const systemAdminHost = process.env.SYSTEM_ADMIN_HOST || 'localhost:3000'
-  if (host === systemAdminHost) {
-    return null
-  }
-
-  // Skip common preview/deployment hosts that aren't tenants
-  const skipHosts = [
-    'vercel.app',
-    'netlify.app',
-    'githubpreview.dev',
-    'preview.app',
-  ]
-
-  if (skipHosts.some(skipHost => host.endsWith(skipHost))) {
-    return null
-  }
-
-  // For tenant subdomains, require at least 3 parts
-  // e.g., tenant.damsystem.com, tenant.staging.damsystem.com
-  const parts = host.split('.')
-
-  if (parts.length >= 3) {
-    // Assume first part is tenant subdomain
-    // This is temporary - will be validated against database later
-    return parts[0]
-  }
-
-  return null
-}
 
 export const config = {
   matcher: [

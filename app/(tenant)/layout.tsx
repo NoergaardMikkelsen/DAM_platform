@@ -36,25 +36,33 @@ export default async function AuthenticatedLayout({
     redirect("/login")
   }
 
-  // TENANT CONTEXT ONLY: Check if user has access to this tenant
-  const subdomain = host.replace('.brandassets.space', '')
+  // TENANT IDENTIFICATION: Parse hostname and lookup tenant in database
 
-  let tenant = null
-  if (subdomain) {
-    const { data: tenantData } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("slug", subdomain)
-      .eq("status", "active")
-      .single()
+  // Extract potential tenant subdomain from hostname
+  let potentialSubdomain = null
 
-    if (tenantData) {
-      tenant = tenantData
-    }
+  if (host.endsWith('.brandassets.space')) {
+    potentialSubdomain = host.replace('.brandassets.space', '')
+  } else if (host.endsWith('.localhost:3001')) {
+    // Development fallback for localhost subdomains
+    potentialSubdomain = host.replace('.localhost:3001', '')
   }
 
+  // Skip invalid subdomains (empty, admin, www, etc.)
+  if (!potentialSubdomain || potentialSubdomain === 'admin' || potentialSubdomain === 'www' || potentialSubdomain === '') {
+    redirect("https://brandassets.space/")
+  }
+
+  // Lookup tenant by slug in database
+  const { data: tenant } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("slug", potentialSubdomain)
+    .eq("status", "active")
+    .single()
+
   if (!tenant) {
-    // Invalid tenant - redirect to main site
+    // No tenant found with this slug - redirect to main site
     redirect("https://brandassets.space/")
   }
 
