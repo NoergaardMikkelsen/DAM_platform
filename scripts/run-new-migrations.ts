@@ -76,6 +76,7 @@ async function main() {
     "025_update_client_domains.sql",
     "026_add_auto_subdomain_function.sql",
     "027_add_client_logos.sql",
+    "029_fix_asset_security.sql",
   ]
 
   console.log("Running new migrations...\n")

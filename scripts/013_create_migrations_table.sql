@@ -34,6 +34,7 @@ VALUES
   ('024_create_system_settings.sql', now(), 'manual'),
   ('025_update_client_domains.sql', now(), 'manual'),
   ('026_add_auto_subdomain_function.sql', now(), 'manual'),
-  ('027_add_client_logos.sql', now(), 'manual')
+  ('027_add_client_logos.sql', now(), 'manual'),
+  ('029_fix_asset_security.sql', now(), 'manual')
 ON CONFLICT (filename) DO NOTHING;
 

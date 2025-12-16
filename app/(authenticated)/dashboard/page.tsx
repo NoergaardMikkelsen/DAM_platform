@@ -11,6 +11,8 @@ import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton } from "@/components/skeleton-loaders"
 
 interface Collection {
   id: string
@@ -295,11 +297,19 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-muted-foreground">Loading dashboard...</p>
+        <DashboardHeaderSkeleton />
+        <StatsGridSkeleton count={4} />
+
+        {/* Collections section skeleton */}
+        <div className="mb-8">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <Skeleton className="h-10 w-32" />
           </div>
+          <CollectionGridSkeleton count={6} />
         </div>
       </div>
     )

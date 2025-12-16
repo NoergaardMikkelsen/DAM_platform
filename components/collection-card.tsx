@@ -39,12 +39,11 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
               types.push("video")
               // Always create video URL for video assets
               const cleanVideoPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-              const { data: videoData, error: videoError } = await supabase.storage
+              const { data: videoData } = supabase.storage
                 .from('assets')
-                .createSignedUrl(cleanVideoPath, 3600) // 1 hour expiry
+                .getPublicUrl(cleanVideoPath)
 
-              if (videoError) throw videoError
-              videoUrlsArr.push(videoData.signedUrl)
+              videoUrlsArr.push(videoData.publicUrl)
 
               if (asset.thumbnail_path) {
                 // Use thumbnail for image pattern if available

@@ -128,9 +128,9 @@ const formatOptions = [
 ]
 
 export default function AssetDetailPage() {
-  const params = useParams()
+  const params = React.use(useParams())
   const id = useMemo(() => (params.id as string) || "", [params.id])
-  const searchParams = useSearchParams()
+  const searchParams = React.use(useSearchParams())
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())

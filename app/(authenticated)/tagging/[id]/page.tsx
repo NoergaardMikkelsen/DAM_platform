@@ -11,6 +11,7 @@ import { ArrowLeft, Tag, Settings, Trash2, Database } from "lucide-react"
 import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
 
 interface Tag {
   id: string
@@ -28,8 +29,8 @@ interface Tag {
 }
 
 export default function TagDetailPage() {
-  const params = useParams()
-  const id = params.id as string
+  const params = useParams() as { id: string }
+  const id = params.id
   const [tag, setTag] = useState<Tag | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -175,11 +176,22 @@ export default function TagDetailPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
-            <p className="text-gray-600">Loading tag details...</p>
-          </div>
+        <DetailPageHeaderSkeleton showActions={true} />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Tag Information Skeleton */}
+          <Card>
+            <CardHeader>
+              <CardTitle><Skeleton className="h-6 w-32" /></CardTitle>
+              <CardDescription><Skeleton className="h-4 w-48" /></CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FormSkeleton fields={4} />
+            </CardContent>
+          </Card>
+
+          {/* Stats Cards Skeleton */}
+          <StatsCardsSkeleton count={3} />
         </div>
       </div>
     )

@@ -11,12 +11,14 @@ import { ArrowLeft, Building, Users, Database, Settings, Trash2 } from "lucide-r
 import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
 
 interface Client {
   id: string
   name: string
   slug: string
   domain: string | null
+  logo_url: string | null
   status: string
   primary_color: string
   secondary_color: string
@@ -29,8 +31,8 @@ interface Client {
 }
 
 export default function ClientDetailPage() {
-  const params = useParams()
-  const id = params.id as string
+  const params = useParams() as { id: string }
+  const id = params.id
   const [client, setClient] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -38,6 +40,7 @@ export default function ClientDetailPage() {
     name: "",
     slug: "",
     domain: "",
+    logo_url: "",
     primary_color: "",
     secondary_color: "",
     storage_limit_mb: 0
@@ -184,11 +187,22 @@ export default function ClientDetailPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
-            <p className="text-gray-600">Loading client details...</p>
-          </div>
+        <DetailPageHeaderSkeleton showActions={true} />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Client Information Skeleton */}
+          <Card>
+            <CardHeader>
+              <CardTitle><Skeleton className="h-6 w-32" /></CardTitle>
+              <CardDescription><Skeleton className="h-4 w-48" /></CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FormSkeleton fields={6} />
+            </CardContent>
+          </Card>
+
+          {/* Stats Cards Skeleton */}
+          <StatsCardsSkeleton count={3} />
         </div>
       </div>
     )
@@ -228,9 +242,18 @@ export default function ClientDetailPage() {
             >
               <Building className="h-6 w-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
-              <p className="text-gray-500">{client.slug}</p>
+            <div className="flex items-center gap-4">
+              {client.logo_url && (
+                <img
+                  src={client.logo_url}
+                  alt={`${client.name} logo`}
+                  className="w-12 h-12 object-contain rounded-lg border"
+                />
+              )}
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
+                <p className="text-gray-500">{client.slug}</p>
+              </div>
             </div>
           </div>
 
