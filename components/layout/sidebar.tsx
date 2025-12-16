@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings } from "lucide-react"
+import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings, BarChart3, Shield, Briefcase } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -50,9 +50,9 @@ export function Sidebar({ user, role }: SidebarProps) {
     if (role === "superadmin") {
       // System admin navigation
       return [
-        { href: "/system-admin/dashboard", label: "System Overview", icon: Building },
-        { href: "/system-admin/clients", label: "Client Management", icon: Building },
-        { href: "/system-admin/users", label: "System Users", icon: Users },
+        { href: "/system-admin/dashboard", label: "System Overview", icon: BarChart3 },
+        { href: "/system-admin/clients", label: "Client Management", icon: Briefcase },
+        { href: "/system-admin/users", label: "System Users", icon: Shield },
         { href: "/system-admin/settings", label: "System Settings", icon: Settings },
       ]
     } else if (role === "admin") {
