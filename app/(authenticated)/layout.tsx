@@ -75,7 +75,9 @@ export default async function AuthenticatedLayout({
       .eq("status", "active")
       .limit(1)
 
-    role = clientUsers?.[0]?.roles?.key?.toLowerCase() || null
+    const roleEntry = clientUsers?.[0]?.roles as { key?: string } | { key?: string }[] | null | undefined
+    const roleKey = Array.isArray(roleEntry) ? roleEntry[0]?.key : roleEntry?.key
+    role = roleKey?.toLowerCase() || null
   } else {
     // For development, give admin role as fallback
     role = 'admin'
@@ -105,7 +107,7 @@ export default async function AuthenticatedLayout({
         </Head>
         <div className="flex h-screen overflow-hidden bg-gray-50">
           <SidebarVisibility>
-            <Sidebar user={userData} role={role} />
+            <Sidebar user={userData} role={role || undefined} />
           </SidebarVisibility>
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>

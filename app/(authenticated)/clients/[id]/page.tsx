@@ -12,6 +12,7 @@ import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Client {
   id: string
@@ -121,6 +122,7 @@ export default function ClientDetailPage() {
       name: clientData.name,
       slug: clientData.slug,
       domain: clientData.domain || "",
+      logo_url: clientData.logo_url || "",
       primary_color: clientData.primary_color,
       secondary_color: clientData.secondary_color,
       storage_limit_mb: clientData.storage_limit_mb

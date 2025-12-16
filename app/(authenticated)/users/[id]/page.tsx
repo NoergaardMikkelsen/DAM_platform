@@ -12,6 +12,7 @@ import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface UserProfile {
   id: string

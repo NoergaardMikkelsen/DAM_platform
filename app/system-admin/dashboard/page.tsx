@@ -39,17 +39,11 @@ export default function SystemAdminDashboard() {
         supabase.from("assets").select("file_size")
       ])
 
-      const totalClients = clientsResult.data?.length || 0
-      const activeClients = clientsResult.data?.filter(c => c.status === 'active').length || 0
-      const totalUsers = usersResult.data?.length || 0
-      const totalStorageBytes = storageResult.data?.reduce((sum, asset) => sum + (asset.file_size || 0), 0) || 0
-      const totalStorageGB = Math.round(totalStorageBytes / 1024 / 1024 / 1024 * 100) / 100
-
       setStats({
-        totalClients,
-        activeClients,
-        totalUsers,
-        totalStorageGB,
+        totalClients: clientsResult.data?.length || 0,
+        activeClients: clientsResult.data?.filter((c: { status: string }) => c.status === 'active').length || 0,
+        totalUsers: usersResult.data?.length || 0,
+        totalStorageGB: Math.round((storageResult.data?.reduce((sum: number, asset: { file_size: number | null }) => sum + (asset.file_size || 0), 0) || 0) / 1024 / 1024 / 1024 * 100) / 100,
         recentActivity: [] // Could be populated with actual activity data
       })
     } catch (error) {
