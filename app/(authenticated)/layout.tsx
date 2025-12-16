@@ -159,7 +159,7 @@ async function resolveTenant(hostname: string, userId: string, supabase: any): P
 
 /**
  * Parse tenant subdomain from hostname
- * Specifically looks for brandassets.space subdomains
+ * Handles brandassets.space main domain and subdomains
  */
 function parseTenantSubdomain(hostname: string): string | null {
   // Remove port if present
@@ -176,7 +176,12 @@ function parseTenantSubdomain(hostname: string): string | null {
     return null
   }
 
-  // Check if this is a brandassets.space subdomain
+  // Handle brandassets.space domains
+  if (host === 'brandassets.space') {
+    // Main domain goes to nmic client (primary/default client)
+    return 'nmic'
+  }
+
   if (host.endsWith('.brandassets.space')) {
     // Extract subdomain part (everything before .brandassets.space)
     const subdomain = host.replace('.brandassets.space', '')
