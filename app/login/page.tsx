@@ -42,23 +42,6 @@ function LoginForm() {
   }
   const tenantSlug = getTenantSlug()
 
-  // Detect context: system admin vs tenant
-  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
-    currentHost === 'admin.localhost' ||
-    currentHost.startsWith('admin.localhost:')
-
-  // Extract tenant slug from hostname for tenant context
-  const getTenantSlug = () => {
-    if (currentHost.endsWith('.brandassets.space')) {
-      return currentHost.replace('.brandassets.space', '')
-    }
-    if (currentHost.includes('.localhost')) {
-      return currentHost.split('.')[0]
-    }
-    return null
-  }
-  const tenantSlug = getTenantSlug()
-
   // Handle URL error parameters
   useEffect(() => {
     const errorParam = searchParams.get('error')
