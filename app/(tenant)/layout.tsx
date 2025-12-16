@@ -27,23 +27,22 @@ export default async function AuthenticatedLayout({
   // CONTEXT RESOLUTION: Only allow tenant subdomains in this layout
   const isDevelopment = process.env.NODE_ENV === 'development'
   const isLocalhost = host.includes('localhost')
-  
+
   debugLog.push(`[TENANT-LAYOUT] Is development: ${isDevelopment}`)
   debugLog.push(`[TENANT-LAYOUT] Is localhost: ${isLocalhost}`)
-  
+
+  // Admin subdomain should NEVER reach tenant layout - redirect immediately
+  if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')) {
+    debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - redirecting to system-admin`)
+    console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
+    redirect("/system-admin/dashboard")
+  }
+
   if (host === 'brandassets.space' || (isDevelopment && host === 'localhost')) {
     // Wrong context - redirect to public landing
     debugLog.push(`[TENANT-LAYOUT] Wrong context - redirecting to public landing`)
     console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/")
-  }
-
-  // Admin subdomain should not reach this layout - handled by file structure
-  if (host === 'admin.brandassets.space' || host === 'admin.localhost') {
-    // This shouldn't happen due to Next.js routing, but just in case
-    debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - redirecting to system-admin`)
-    console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
-    redirect("/system-admin/dashboard")
   }
 
   // Verify user authentication
@@ -83,6 +82,11 @@ export default async function AuthenticatedLayout({
   if (!potentialSubdomain || potentialSubdomain === 'admin' || potentialSubdomain === 'www' || potentialSubdomain === '') {
     debugLog.push(`[TENANT-LAYOUT] Invalid subdomain - redirecting`)
     console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
+    // Don't redirect admin subdomains - let them be handled by system-admin routing
+    if (hostWithoutPort === 'admin.brandassets.space' || hostWithoutPort === 'admin.localhost') {
+      debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - this should not happen, redirecting to system-admin`)
+      redirect("/system-admin/dashboard")
+    }
     if (isDevelopment && isLocalhost) {
       redirect("http://localhost/")
     }
@@ -108,6 +112,11 @@ export default async function AuthenticatedLayout({
     // No tenant found with this slug - redirect to main site
     debugLog.push(`[TENANT-LAYOUT] Tenant not found - redirecting`)
     console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
+    // Don't redirect admin subdomains - let them be handled by system-admin routing
+    if (hostWithoutPort === 'admin.brandassets.space' || hostWithoutPort === 'admin.localhost') {
+      debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - this should not happen, redirecting to system-admin`)
+      redirect("/system-admin/dashboard")
+    }
     if (isDevelopment && isLocalhost) {
       redirect("http://localhost/")
     }
