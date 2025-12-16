@@ -28,8 +28,8 @@ interface Tag {
 }
 
 export default function TagDetailPage() {
-  const params = useParams()
-  const id = params.id as string
+  const params = useParams() as { id: string }
+  const id = params.id
   const [tag, setTag] = useState<Tag | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)

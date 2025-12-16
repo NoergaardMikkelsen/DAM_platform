@@ -28,8 +28,8 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
-  const params = useParams()
-  const id = params.id as string
+  const params = useParams() as { id: string }
+  const id = params.id
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)

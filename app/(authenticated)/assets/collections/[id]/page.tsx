@@ -31,8 +31,8 @@ type ClientUserRow = { client_id: string }
 type AssetTagRow = { asset_id: string }
 
 export default function CollectionDetailPage() {
-  const params = useParams()
-  const id = params.id as string
+  const params = useParams() as { id: string }
+  const id = params.id
 
   const [assets, setAssets] = useState<Asset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
@@ -289,7 +289,7 @@ export default function CollectionDetailPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           {filteredAssets.map((asset) => (
-            <Link key={asset.id} href={`/assets/${asset.id}?context=collection&collectionId=${params.id}`}>
+            <Link key={asset.id} href={`/assets/${asset.id}?context=collection&collectionId=${id}`}>
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
                 <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
                   {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
