@@ -439,7 +439,7 @@ export default function ClientDetailPage() {
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
                 <div
-                  className="h-full bg-[#DF475C] transition-all"
+                  className="h-full bg-black transition-all"
                   style={{ width: `${storagePercentage}%` }}
                 />
               </div>

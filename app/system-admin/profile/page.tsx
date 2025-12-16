@@ -96,7 +96,7 @@ export default function SystemAdminProfilePage() {
       return (
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-black border-t-transparent" />
             <p className="text-gray-600">Loading profile...</p>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function SystemAdminProfilePage() {
     return (
       <div className="flex items-start gap-8">
         <div className="flex flex-col items-center gap-4">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-black text-2xl font-bold text-white">
             {initials}
           </div>
           <div className="text-center">
@@ -156,7 +156,7 @@ export default function SystemAdminProfilePage() {
               </div>
 
               <div className="flex justify-end">
-                <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={() => setIsEditing(true)}>
+                <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => setIsEditing(true)}>
                   Edit Profile
                 </Button>
               </div>
@@ -209,7 +209,7 @@ export default function SystemAdminProfilePage() {
                 <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
                   Cancel
                 </Button>
-                <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={handleEdit} disabled={isLoading}>
+                <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleEdit} disabled={isLoading}>
                   {isLoading ? "Saving..." : "Save Changes"}
                 </Button>
               </div>

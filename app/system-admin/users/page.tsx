@@ -166,7 +166,7 @@ export default function SystemUsersPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">System Users</h1>
-        <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
+        <Button className="bg-black hover:bg-gray-800 text-white rounded-[25px]">
           <Plus className="mr-2 h-4 w-4" />
           Invite new user
         </Button>

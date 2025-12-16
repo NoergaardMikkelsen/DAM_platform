@@ -50,7 +50,7 @@ export default async function SystemAdminLayout({
     debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User is not a system admin, showing access denied`)
     console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-gray-50 p-6">
+      <div className="flex min-h-screen w-full items-center justify-center bg-white p-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-gray-900">Access Denied</h1>
@@ -66,7 +66,7 @@ export default async function SystemAdminLayout({
             </details>
             <a
               href="/login"
-              className="inline-block px-4 py-2 bg-[#DF475C] text-white rounded-[25px] hover:bg-[#C82333] transition-colors"
+              className="inline-block px-4 py-2 bg-black text-white rounded-[25px] hover:bg-gray-800 transition-colors"
             >
               Go to Login
             </a>
@@ -101,7 +101,7 @@ export default async function SystemAdminLayout({
 
   // System admin confirmed - render system admin layout
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-white">
       <SidebarVisibility>
         <Sidebar user={userData} role="superadmin" />
       </SidebarVisibility>

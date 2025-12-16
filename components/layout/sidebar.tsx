@@ -332,7 +332,7 @@ export function Sidebar({ user, role }: SidebarProps) {
         <div className={`border-t pb-6 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
             <Link href={role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DF475C] text-sm font-semibold text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
                 {(user.full_name || user.email)
                   .split(" ")
                   .map((n) => n[0])

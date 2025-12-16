@@ -90,7 +90,7 @@ export default function ClientsPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
         <Link href="/system-admin/clients/create">
-          <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
+          <Button className="bg-black hover:bg-gray-800 text-white rounded-[25px]">
             <Plus className="mr-2 h-4 w-4" />
             Create new client
           </Button>
@@ -161,7 +161,7 @@ export default function ClientsPage() {
                     </div>
                     <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-200">
                       <div
-                        className="h-full rounded-full bg-[#DF475C] transition-all"
+                        className="h-full rounded-full bg-black transition-all"
                         style={{ width: `${Math.min(storagePercentage, 100)}%` }}
                       />
                     </div>
@@ -188,7 +188,7 @@ export default function ClientsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 rounded-[25px] bg-[#DF475C] text-white hover:bg-[#C82333]"
+                          className="h-8 w-8 rounded-[25px] bg-black text-white hover:bg-gray-800"
                         >
                           →
                         </Button>
@@ -226,7 +226,7 @@ export default function ClientsPage() {
           <Building className="mb-4 h-12 w-12 text-gray-400" />
           <p className="text-gray-600">No clients found</p>
           <Link href="/system-admin/clients/create">
-            <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Create your first client</Button>
+            <Button className="mt-4 bg-black hover:bg-gray-800 text-white rounded-[25px]">Create your first client</Button>
           </Link>
         </div>
       )}
