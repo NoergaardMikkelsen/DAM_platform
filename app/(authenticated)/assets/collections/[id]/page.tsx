@@ -9,6 +9,7 @@ import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
+import { AssetGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 
@@ -185,44 +186,10 @@ export default function CollectionDetailPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        {/* Header skeleton */}
-        <div className="mb-8">
-          <div className="mb-4 h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="h-9 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-10 w-20 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-10 w-64 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sorting skeleton */}
-        <div className="mb-6 flex items-center justify-end">
-          <div className="h-10 w-48 bg-gray-200 rounded animate-pulse"></div>
-        </div>
-
-        {/* Assets grid skeleton */}
-        <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
-          {[...Array(10)].map((_, i) => (
-            <Card key={i} className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6 break-inside-avoid">
-              <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse" style={{ aspectRatio: '4/5' }}>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} onApplyFilters={handleApplyFilters} />
+        <PageHeaderSkeleton showBackLink={true} showSearch={true} />
+        <SortingSkeleton />
+        <AssetGridSkeleton count={15} />
+        <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} onApplyFilters={handleApplyFilters} showCategoryFilter={false} />
       </div>
     )
   }

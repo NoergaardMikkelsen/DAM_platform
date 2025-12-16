@@ -11,6 +11,7 @@ import { ArrowLeft, Building, Users, Database, Settings, Trash2 } from "lucide-r
 import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
 
 interface Client {
   id: string
@@ -184,11 +185,22 @@ export default function ClientDetailPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
-            <p className="text-gray-600">Loading client details...</p>
-          </div>
+        <DetailPageHeaderSkeleton showActions={true} />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Client Information Skeleton */}
+          <Card>
+            <CardHeader>
+              <CardTitle><Skeleton className="h-6 w-32" /></CardTitle>
+              <CardDescription><Skeleton className="h-4 w-48" /></CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FormSkeleton fields={6} />
+            </CardContent>
+          </Card>
+
+          {/* Stats Cards Skeleton */}
+          <StatsCardsSkeleton count={3} />
         </div>
       </div>
     )
