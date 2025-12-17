@@ -22,10 +22,7 @@ export function Sidebar({ user, role }: SidebarProps) {
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  // Debug: Log role for troubleshooting (only in development)
-  // if (process.env.NODE_ENV === 'development') {
-  //   console.log("Sidebar role:", role)
-  // }
+  console.log("Sidebar role:", role)
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -34,17 +31,14 @@ export function Sidebar({ user, role }: SidebarProps) {
 
   // Different main navigation based on role type
   const getMainNavItems = () => {
-    // System admins don't get main navigation - they only get admin navigation
-    if (role === "superadmin") {
-      return []
-    }
-
     const baseItems = [
       { href: "/dashboard", label: "Dashboard", icon: Home },
     ]
 
     // Only show Asset Library for non-superadmin users
-    baseItems.push({ href: "/assets", label: "Asset Library", icon: BookOpen })
+    if (role !== "superadmin") {
+      baseItems.push({ href: "/assets", label: "Asset Library", icon: BookOpen })
+    }
 
     return baseItems
   }
@@ -56,7 +50,7 @@ export function Sidebar({ user, role }: SidebarProps) {
     if (role === "superadmin") {
       // System admin navigation
       return [
-        { href: "/system-admin/dashboard", label: "System Dashboard", icon: BarChart3 },
+        { href: "/system-admin/dashboard", label: "System Overview", icon: BarChart3 },
         { href: "/system-admin/clients", label: "Client Management", icon: Briefcase },
         { href: "/system-admin/users", label: "System Users", icon: Shield },
         { href: "/system-admin/settings", label: "System Settings", icon: Settings },
@@ -163,7 +157,7 @@ export function Sidebar({ user, role }: SidebarProps) {
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4">
           <div className={`space-y-2 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-3'}`}>
-            {!isCollapsed && mainNavItems.length > 0 && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
+            {!isCollapsed && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
             {mainNavItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")

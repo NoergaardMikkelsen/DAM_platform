@@ -96,7 +96,7 @@ export default function SystemAdminProfilePage() {
       return (
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-400 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-black border-t-transparent" />
             <p className="text-gray-600">Loading profile...</p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export default function SystemAdminProfilePage() {
             <div className="text-sm text-gray-500">
               System Administrator
             </div>
-            <div className="mt-2 inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-800">
+            <div className="mt-2 inline-block rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">
               <Shield className="w-3 h-3 inline mr-1" />
               System Admin
             </div>
