@@ -144,20 +144,20 @@ export const BatchAssetLoader = GlobalBatchManager
 
 export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl }: AssetPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(signedUrl || null)
-  const [loading, setLoading] = useState(!signedUrl) // Only show loading if we don't have a signedUrl
+  const [loading, setLoading] = useState(!signedUrl) // Show loading initially if no signedUrl
   const [error, setError] = useState(false)
-  const [imageLoaded, setImageLoaded] = useState(!!signedUrl) // Start as loaded if we have signedUrl
+  const [mediaLoaded, setMediaLoaded] = useState(!!signedUrl) // Start as loaded if we have signedUrl
 
   useEffect(() => {
     // Reset states when props change
     setError(false)
     setLoading(true)
-    setImageLoaded(!!signedUrl)
+    setMediaLoaded(!!signedUrl)
 
     if (signedUrl) {
       console.log('[AssetPreview] Using provided signedUrl for', storagePath)
       setPreviewUrl(signedUrl)
-      setLoading(false) // Show image immediately when we have signedUrl
+      // Don't set loading to false here - wait for media to actually load
       return
     }
 
@@ -169,11 +169,11 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
         console.log('[AssetPreview] Got URL for', storagePath, ':', url ? 'SUCCESS' : 'EMPTY')
         if (url && url !== '/placeholder.jpg') {
           setPreviewUrl(url)
-          setLoading(false) // Show image immediately when we get URL
+          // Don't set loading to false here - wait for media to actually load
         } else {
           console.warn('[AssetPreview] Got placeholder URL for', storagePath)
           setError(true)
-        setLoading(false)
+          setLoading(false)
         }
       } catch (err) {
         console.error("[AssetPreview] Failed to load preview for", storagePath, ":", err)
@@ -185,7 +185,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
     loadUrl()
   }, [storagePath, signedUrl])
 
-  if (loading) {
+  if (loading || !mediaLoaded) {
     return (
       <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -210,15 +210,17 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
       <img
         src={previewUrl}
         alt={alt}
-        className={`${className} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`${className} transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => {
           console.log('[AssetPreview] ✅ Image loaded successfully:', storagePath)
-          setImageLoaded(true)
+          setMediaLoaded(true)
+          setLoading(false)
         }}
         onError={(e) => {
           console.error('[AssetPreview] ❌ Image failed to load:', storagePath, e)
           setError(true)
-          setImageLoaded(true) // Still show the broken image
+          setMediaLoaded(true)
+          setLoading(false)
         }}
       />
     )
@@ -226,7 +228,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
 
   if (isVideo) {
     return (
-      <div className={`relative ${className} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`relative ${className} transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <video
           src={previewUrl}
           className="h-full w-full object-cover"
@@ -235,12 +237,14 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
           playsInline
           onLoadedData={() => {
             console.log('[AssetPreview] Video loaded:', storagePath)
-            setImageLoaded(true)
+            setMediaLoaded(true)
+            setLoading(false)
           }}
           onError={(e) => {
             console.error('[AssetPreview] Video failed to load:', storagePath, e)
             setError(true)
-            setImageLoaded(true)
+            setMediaLoaded(true)
+            setLoading(false)
           }}
         />
         {/* Video play indicator overlay */}
@@ -255,7 +259,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
 
   if (isPdf) {
     return (
-      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
           className="w-full h-full"
