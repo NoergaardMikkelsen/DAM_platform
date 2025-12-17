@@ -32,7 +32,7 @@ type ClientUserRow = { client_id: string }
 type AssetTagRow = { asset_id: string }
 
 export default function CollectionDetailPage() {
-  const params = use(useParams()) as { id: string }
+  const params = useParams() as { id: string }
   const id = params.id
 
   const [assets, setAssets] = useState<Asset[]>([])

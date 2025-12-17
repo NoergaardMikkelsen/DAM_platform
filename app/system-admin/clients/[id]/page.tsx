@@ -32,7 +32,7 @@ interface Client {
 }
 
 export default function ClientDetailPage() {
-  const params = use(useParams()) as { id: string }
+  const params = useParams() as { id: string }
   const id = params.id
   const [client, setClient] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)

@@ -20,7 +20,7 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const searchParams = use(useSearchParams())
+  const searchParams = useSearchParams()
 
   // Check if we're on the wrong subdomain in development
   const isDevelopment = process.env.NODE_ENV === 'development'

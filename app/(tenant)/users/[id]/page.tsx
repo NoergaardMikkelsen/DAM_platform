@@ -30,7 +30,7 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
-  const params = use(useParams()) as { id: string }
+  const params = useParams() as { id: string }
   const id = params.id
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
