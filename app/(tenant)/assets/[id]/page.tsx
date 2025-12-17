@@ -174,6 +174,7 @@ export default function AssetDetailPage() {
   const [isDownloadingPreset, setIsDownloadingPreset] = useState(false)
   const [isDownloadingCustom, setIsDownloadingCustom] = useState(false)
   const [isDownloadingVideoCustom, setIsDownloadingVideoCustom] = useState(false)
+  const [isMediaLoading, setIsMediaLoading] = useState(false)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [versions, setVersions] = useState<AssetVersion[]>([])
   const [selectedPresetId, setSelectedPresetId] = useState<string>("social")
@@ -204,6 +205,12 @@ export default function AssetDetailPage() {
       setVideoHeight(String(asset.height))
     }
   }, [asset?.width, asset?.height])
+
+  useEffect(() => {
+    if (storageData?.signedUrl && asset) {
+      setIsMediaLoading(true)
+    }
+  }, [storageData?.signedUrl, asset])
 
   useEffect(() => {
     if (!id || !isValidUUID(id)) {
@@ -777,7 +784,7 @@ export default function AssetDetailPage() {
   const isVideo = asset?.mime_type?.startsWith("video/")
   const isPdf = asset?.mime_type === "application/pdf"
 
-  if (isLoading) {
+  if (isLoading || isMediaLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
         <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 shadow-sm">
@@ -850,7 +857,14 @@ export default function AssetDetailPage() {
               {previewUrl ? (
                 <>
                   {isImage && (
-                    <img key={asset.id} src={previewUrl} alt={asset.title} className="max-h-[72vh] max-w-full object-contain" />
+                    <img
+                      key={asset.id}
+                      src={previewUrl}
+                      alt={asset.title}
+                      className="max-h-[72vh] max-w-full object-contain"
+                      onLoad={() => setIsMediaLoading(false)}
+                      onError={() => setIsMediaLoading(false)}
+                    />
                   )}
                   {isVideo && (
                     <video
@@ -860,11 +874,13 @@ export default function AssetDetailPage() {
                       className="max-h-[72vh] max-w-full object-contain rounded-2xl"
                       preload="metadata"
                       crossOrigin="anonymous"
+                      onLoad={() => setIsMediaLoading(false)}
                       onError={async (e) => {
+                        setIsMediaLoading(false)
                         const videoEl = e.target as HTMLVideoElement
                         const currentSrc = videoEl.src
                         const expectedPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-                        
+
                         // Only log if URL doesn't match current asset
                         if (!currentSrc.includes(expectedPath)) {
                           console.warn("Video URL mismatch - clearing and reloading")
