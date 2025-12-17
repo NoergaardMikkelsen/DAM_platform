@@ -30,8 +30,8 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
-  const params = useParams() as { id: string }
-  const id = params.id
+  const paramsPromise = useParams()
+  const [id, setId] = useState<string>("")
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -44,6 +44,15 @@ export default function UserDetailPage() {
   })
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  // Unwrap the params promise
+  useEffect(() => {
+    const unwrapParams = async () => {
+      const resolvedParams = await paramsPromise
+      setId(resolvedParams.id as string)
+    }
+    unwrapParams()
+  }, [paramsPromise])
 
   useEffect(() => {
     if (!id) return

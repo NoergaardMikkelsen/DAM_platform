@@ -20,7 +20,8 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const searchParamsPromise = useSearchParams()
+  const [resolvedSearchParams, setResolvedSearchParams] = useState<URLSearchParams | null>(null)
 
   // Check if we're on the wrong subdomain in development
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -45,9 +46,19 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   }
   const tenantSlug = getTenantSlug()
 
+  // Unwrap the searchParams promise
+  useEffect(() => {
+    const unwrapSearchParams = async () => {
+      const resolved = await searchParamsPromise
+      setResolvedSearchParams(resolved)
+    }
+    unwrapSearchParams()
+  }, [searchParamsPromise])
+
   // Handle URL error parameters
   useEffect(() => {
-    const errorParam = searchParams.get('error')
+    if (!resolvedSearchParams) return
+    const errorParam = resolvedSearchParams.get('error')
     if (errorParam === 'access_denied') {
       setError("You don't have permission to access this area. Please contact your administrator.")
     }

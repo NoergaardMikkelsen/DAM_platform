@@ -148,13 +148,25 @@ const formatOptions = [
 ]
 
 export default function AssetDetailPage() {
-  const params = useParams()
-  const id = useMemo(() => (params.id as string) || "", [params.id])
-  const searchParams = useSearchParams()
+  const paramsPromise = useParams()
+  const searchParamsPromise = useSearchParams()
+  const [id, setId] = useState<string>("")
+  const [resolvedSearchParams, setResolvedSearchParams] = useState<URLSearchParams | null>(null)
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
   const [isNavigating, startNavigation] = useTransition()
+
+  // Unwrap the promises in useEffect
+  useEffect(() => {
+    const unwrapParams = async () => {
+      const resolvedParams = await paramsPromise
+      const resolvedSearch = await searchParamsPromise
+      setId(resolvedParams.id as string)
+      setResolvedSearchParams(resolvedSearch)
+    }
+    unwrapParams()
+  }, [paramsPromise, searchParamsPromise])
 
   const [asset, setAsset] = useState<Asset | null>(null)
   const [uploader, setUploader] = useState<User | null>(null)
@@ -285,9 +297,9 @@ export default function AssetDetailPage() {
     await Promise.all([loadActivity(assetData.id), loadVersions(assetData.id)])
 
     // Load navigation assets based on context
-    const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
+    const context = resolvedSearchParams?.get("context") || (assetData.category_tag_id ? "collection" : "all")
     const collectionId =
-      searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
+      resolvedSearchParams?.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
     await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
 
     if (!soft) {
@@ -344,9 +356,9 @@ export default function AssetDetailPage() {
     const nextIndex = navIndex + direction
     if (nextIndex < 0 || nextIndex >= navAssets.length) return
     const nextAsset = navAssets[nextIndex]
-    const context = searchParams.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    const context = resolvedSearchParams?.get("context") || (asset?.category_tag_id ? "collection" : "all")
     const collectionId =
-      searchParams.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+      resolvedSearchParams?.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
     const query = new URLSearchParams()
     query.set("context", context)
     if (collectionId) query.set("collectionId", collectionId)
@@ -359,9 +371,9 @@ export default function AssetDetailPage() {
 
   // Prefetch neighbor routes for smoother navigation
   useEffect(() => {
-    const context = searchParams.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    const context = resolvedSearchParams?.get("context") || (asset?.category_tag_id ? "collection" : "all")
     const collectionId =
-      searchParams.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+      resolvedSearchParams?.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
     const buildUrl = (assetId: string) => {
       const q = new URLSearchParams()
       q.set("context", context)
