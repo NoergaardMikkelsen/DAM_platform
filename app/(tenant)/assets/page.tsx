@@ -11,7 +11,7 @@ import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { AssetGridSkeleton, CollectionGridSkeleton, PageHeaderSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 
 interface Asset {
@@ -46,8 +46,21 @@ export default function AssetsPage() {
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
   const [maxCollections, setMaxCollections] = useState(3)
+  const [loadedAssets, setLoadedAssets] = useState(0)
+  const [totalAssets, setTotalAssets] = useState(0)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  const handleAssetLoaded = useCallback(() => {
+    setLoadedAssets(prev => {
+      const newCount = prev + 1
+      // When all assets are loaded, hide the skeleton
+      if (newCount >= totalAssets && totalAssets > 0) {
+        setIsLoading(false)
+      }
+      return newCount
+    })
+  }, [totalAssets])
 
   useEffect(() => {
     loadData()
@@ -230,8 +243,22 @@ export default function AssetsPage() {
     debugLog.push(`[ASSETS-PAGE] LoadData completed`)
     console.log('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
 
-    // Add small delay to ensure collection images have time to load
-    setTimeout(() => setIsLoading(false), 1000)
+    // Count total assets that need to be loaded
+    const assetsWithMedia = (assetsData || []).filter(asset =>
+      asset.mime_type?.startsWith("image/") ||
+      asset.mime_type?.startsWith("video/") ||
+      asset.mime_type === "application/pdf"
+    )
+    const totalAssetsToLoad = assetsWithMedia.length
+
+    setTotalAssets(totalAssetsToLoad)
+    setLoadedAssets(0) // Reset counter
+
+    // If no assets need to be loaded, hide skeleton immediately
+    if (totalAssetsToLoad === 0) {
+      setIsLoading(false)
+    }
+    // Otherwise, wait for all assets to load
   }
 
   const applySearchAndSort = () => {
@@ -461,6 +488,7 @@ export default function AssetsPage() {
                         alt={asset.title}
                         className={asset.mime_type === "application/pdf" ? "w-full h-auto" : "w-full h-full object-cover"}
                         showLoading={false}
+                        onAssetLoaded={handleAssetLoaded}
                       />
                     )}
                     <Button
