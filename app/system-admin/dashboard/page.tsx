@@ -34,7 +34,8 @@ export default function SystemAdminDashboard() {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname.endsWith('.localhost')
       const protocol = window.location.protocol
       if (isLocalhost) {
-        return `${protocol}//${slug}.localhost`
+        const port = window.location.port || '3000'
+        return `${protocol}//${slug}.localhost:${port}`
       }
     }
     return `https://${slug}.brandassets.space`
