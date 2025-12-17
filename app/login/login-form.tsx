@@ -39,22 +39,13 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   // Extract tenant slug from hostname for tenant context
   const tenantSlug = extractTenantSubdomain(currentHost)
 
-  // Unwrap the searchParams promise
-  useEffect(() => {
-    const unwrapSearchParams = async () => {
-      const resolved = await searchParamsPromise
-      setResolvedSearchParams(resolved)
-    }
-    unwrapSearchParams()
-  }, [searchParamsPromise])
-
   // Handle URL error parameters
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam === 'access_denied') {
       setError("You don't have permission to access this area. Please contact your administrator.")
     }
-  }, [resolvedSearchParams])
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
