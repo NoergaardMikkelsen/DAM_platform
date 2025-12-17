@@ -31,6 +31,11 @@ export function Sidebar({ user, role }: SidebarProps) {
 
   // Different main navigation based on role type
   const getMainNavItems = () => {
+    // Don't show main navigation for superadmin
+    if (role === "superadmin") {
+      return []
+    }
+
     const baseItems = [
       { href: "/dashboard", label: "Dashboard", icon: Home },
     ]
@@ -157,7 +162,7 @@ export function Sidebar({ user, role }: SidebarProps) {
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4">
           <div className={`space-y-2 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-3'}`}>
-            {!isCollapsed && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
+            {mainNavItems.length > 0 && !isCollapsed && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
             {mainNavItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
