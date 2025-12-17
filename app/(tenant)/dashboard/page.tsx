@@ -236,13 +236,8 @@ export default function DashboardPage() {
     setAssets(allAssetsData || [])
     setFilteredAssets(allAssetsData || [])
 
-    // Count total assets that need to be loaded
-    const assetsWithMedia = (allAssetsData || []).filter(asset =>
-      asset.mime_type?.startsWith("image/") ||
-      asset.mime_type?.startsWith("video/") ||
-      asset.mime_type === "application/pdf"
-    )
-    const totalAssetsToLoad = assetsWithMedia.length + (recentUploadsData || []).filter(asset =>
+    // Count total assets that need to be loaded (only recent uploads shown on dashboard)
+    const totalAssetsToLoad = (recentUploadsData || []).filter(asset =>
       asset.mime_type?.startsWith("image/") ||
       asset.mime_type?.startsWith("video/") ||
       asset.mime_type === "application/pdf"

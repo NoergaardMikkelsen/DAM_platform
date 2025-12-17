@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { AssetGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
-import React, { useState, useEffect, useRef, use } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
 
 interface Asset {
@@ -42,8 +42,21 @@ export default function CollectionDetailPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
+  const [loadedAssets, setLoadedAssets] = useState(0)
+  const [totalAssets, setTotalAssets] = useState(0)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  const handleAssetLoaded = useCallback(() => {
+    setLoadedAssets(prev => {
+      const newCount = prev + 1
+      // When all assets are loaded, hide the skeleton
+      if (newCount >= totalAssets && totalAssets > 0) {
+        setIsLoading(false)
+      }
+      return newCount
+    })
+  }, [totalAssets])
 
   useEffect(() => {
     if (!id || id === "undefined") return
@@ -126,10 +139,24 @@ export default function CollectionDetailPage() {
     if (assetsData) {
       setAssets(assetsData)
       setFilteredAssets(assetsData)
-    }
 
-    // Add small delay to ensure collection images have time to load
-    setTimeout(() => setIsLoading(false), 1000)
+      // Count total assets that need to be loaded
+      const assetsWithMedia = (assetsData || []).filter((asset: Asset) =>
+        asset.mime_type?.startsWith("image/") ||
+        asset.mime_type?.startsWith("video/") ||
+        asset.mime_type === "application/pdf"
+      )
+      const totalAssetsToLoad = assetsWithMedia.length
+
+      setTotalAssets(totalAssetsToLoad)
+      setLoadedAssets(0) // Reset counter
+
+      // If no assets need to be loaded, hide skeleton immediately
+      if (totalAssetsToLoad === 0) {
+        setIsLoading(false)
+      }
+      // Otherwise, wait for all assets to load
+    }
   }
 
   const applySearchAndSort = () => {
@@ -266,6 +293,7 @@ export default function CollectionDetailPage() {
                       alt={asset.title}
                       className="h-full w-full object-cover"
                       showLoading={false}
+                      onAssetLoaded={handleAssetLoaded}
                     />
                   )}
                   <Button
