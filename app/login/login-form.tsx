@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
 
 import { createClient } from "@/lib/supabase/client"
+import { extractTenantSubdomain, isTenantSubdomain, isSystemAdminSubdomain } from "@/lib/utils/hostname"
+import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +21,7 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -34,16 +37,7 @@ export function LoginForm({ currentHost }: LoginFormProps) {
     currentHost.startsWith('admin.localhost:')
 
   // Extract tenant slug from hostname for tenant context
-  const getTenantSlug = () => {
-    if (currentHost.endsWith('.brandassets.space')) {
-      return currentHost.replace('.brandassets.space', '')
-    }
-    if (currentHost.includes('.localhost')) {
-      return currentHost.split('.')[0]
-    }
-    return null
-  }
-  const tenantSlug = getTenantSlug()
+  const tenantSlug = extractTenantSubdomain(currentHost)
 
   // Handle URL error parameters
   useEffect(() => {
@@ -168,6 +162,8 @@ export function LoginForm({ currentHost }: LoginFormProps) {
         debugLog.push(`[DEBUG] No redirect URL found - user has no access`)
         console.error('[LOGIN DEBUG]', debugLog.join('\n'))
         setError(`No access found. Please contact your administrator.\n\nDebug info:\n${debugLog.join('\n')}`)
+        setIsLoading(false) // Stop loading if error
+        setShowLoadingScreen(false) // Also stop loading screen
         return
       }
 
@@ -188,85 +184,95 @@ export function LoginForm({ currentHost }: LoginFormProps) {
       debugLog.push(`[DEBUG] Full redirect URL: ${fullRedirectUrl}`)
       console.log('[LOGIN DEBUG]', debugLog.join('\n'))
 
-      // Use full page navigation to ensure cookies are sent with the request
-      // Small delay to ensure cookies are set before redirect
-      setTimeout(() => {
-        window.location.href = fullRedirectUrl
-      }, 100)
+      // Show fancy loading screen and redirect immediately
+      // Loading screen will hide when dashboard loads
+      setShowLoadingScreen(true)
+
+      // Redirect immediately - loading screen covers the transition
+      window.location.href = fullRedirectUrl
 
     } catch (error: unknown) {
       debugLog.push(`[DEBUG] Error caught: ${error instanceof Error ? error.message : 'Unknown error'}`)
       console.error('[LOGIN DEBUG]', debugLog.join('\n'))
       setError(`${error instanceof Error ? error.message : "An error occurred"}\n\nDebug info:\n${debugLog.join('\n')}`)
+      setShowLoadingScreen(false) // Stop loading screen on error
     } finally {
       setIsLoading(false)
+      // Note: showLoadingScreen is not reset here as it should complete its animation
     }
   }
 
   return (
-    <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
-          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>Sign in to your account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isWrongSubdomain && (
-              <div className="mb-4 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
-                <p className="font-medium">Note for local development:</p>
-                <p>Please log in directly on the correct subdomain (e.g., admin.localhost:3000 or tenant.localhost:3000). Cookies don't share across localhost subdomains.</p>
-              </div>
-            )}
-            <form onSubmit={handleLogin}>
-              <div className="flex flex-col gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
+    <>
+      {/* Fancy Loading Screen - shown after successful login, covers redirect transition */}
+      {showLoadingScreen && (
+        <InitialLoadingScreen onComplete={() => setShowLoadingScreen(false)} />
+      )}
+
+      <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
+            <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">Login</CardTitle>
+              <CardDescription>Sign in to your account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isWrongSubdomain && (
+                <div className="mb-4 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+                  <p className="font-medium">Note for local development:</p>
+                  <p>Please log in directly on the correct subdomain (e.g., admin.localhost:3000 or tenant.localhost:3000). Cookies don't share across localhost subdomains.</p>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                {error && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-red-500 font-medium">{error.split('\n')[0]}</p>
-                    {error.includes('[DEBUG]') && (
-                      <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto">
-                        <summary className="cursor-pointer font-medium">Debug Details</summary>
-                        <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
-                      </details>
-                    )}
+              )}
+              <form onSubmit={handleLogin}>
+                <div className="flex flex-col gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="m@example.com"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
                   </div>
-                )}
-                <Button type="submit" className={`w-full rounded-[25px] ${isSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
-                  {isLoading ? "Logging in..." : "Login"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                  {error && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-red-500 font-medium">{error.split('\n')[0]}</p>
+                      {error.includes('[DEBUG]') && (
+                        <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto">
+                          <summary className="cursor-pointer font-medium">Debug Details</summary>
+                          <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                  <Button type="submit" className={`w-full rounded-[25px] ${isSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
+                    {isLoading ? "Logging in..." : "Login"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -275,6 +281,11 @@ export function LoginForm({ currentHost }: LoginFormProps) {
  * Returns null if user has no valid access
  */
 async function determineUserRedirect(userId: string, supabase: any, host: string, debugLog: string[] = []): Promise<string | null> {
+
+  // DEBUG: Log function call - only in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[REDIRECT] determineUserRedirect called with host:', host)
+  }
 
   // CONTEXT-BASED REDIRECT LOGIC
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -286,8 +297,8 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   debugLog.push(`[REDIRECT] Is localhost: ${isLocalhost}`)
   debugLog.push(`[REDIRECT] Port: ${port}`)
 
-  // 1. System Admin Context (admin.brandassets.space or admin.localhost)
-  if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host === (process.env.SYSTEM_ADMIN_HOST || `admin.localhost:${port}`)) {
+  // 1. System Admin Context
+  if (isSystemAdminSubdomain(host)) {
     debugLog.push(`[REDIRECT] Checking system admin context...`)
     const { data: systemAdmin, error: systemAdminError } = await supabase
       .from("system_admins")
@@ -311,15 +322,17 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     }
   }
 
-  // 2. Tenant Context (*.brandassets.space or *.localhost excluding admin)
-  if ((host.endsWith('.brandassets.space') && host !== 'admin.brandassets.space') ||
-      (host.endsWith('.localhost') && host !== 'admin.localhost')) {
-    const subdomain = host.endsWith('.brandassets.space')
-      ? host.replace('.brandassets.space', '')
-      : host.replace('.localhost', '').split(':')[0] // Remove port if present
+  // 2. Tenant Context
+  if (isTenantSubdomain(host)) {
+    const subdomain = extractTenantSubdomain(host)
 
     debugLog.push(`[REDIRECT] Checking tenant context...`)
     debugLog.push(`[REDIRECT] Extracted subdomain: ${subdomain}`)
+
+    // DEBUG: Log at tenant context check - only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[REDIRECT] Tenant context check - host:', host, 'subdomain:', subdomain)
+    }
 
     // Find the tenant
     const { data: tenant, error: tenantError } = await supabase
@@ -360,65 +373,66 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
       }
     } else {
       debugLog.push(`[REDIRECT] Tenant not found with slug: ${subdomain}`)
+      // DEBUG: Log when tenant not found - only in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[REDIRECT] Tenant not found, returning null for error on same page')
+      }
     }
-    // No access to this tenant
+    // No access to this tenant - show error on same page, don't redirect to other tenants
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[REDIRECT] No access to tenant, returning null for error on same page')
+    }
     return null
   }
 
   // 3. Public Context (brandassets.space) or other domains
-  // Check what access the user has and redirect accordingly
+  // When not on a specific tenant subdomain, redirect to first available tenant
 
-  debugLog.push(`[REDIRECT] Checking public context...`)
+  debugLog.push(`[REDIRECT] Checking public context - finding available tenant`)
 
-  // Priority: System Admin > Any Tenant Access
-  debugLog.push(`[REDIRECT] Checking if user is system admin...`)
-  const { data: systemAdmin, error: systemAdminError } = await supabase
-    .from("system_admins")
-    .select("id")
-    .eq("id", userId)
-    .single()
+  try {
+    // Single optimized query to get user access
+    const { data: userAccess, error: accessError } = await supabase
+      .from("client_users")
+      .select(`
+        id,
+        role_id,
+        clients!inner(slug, domain, name, status),
+        system_admin_check:system_admins!left(id)
+      `)
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .eq("clients.status", "active")
+      .order("updated_at", { ascending: false }) // Most recently used first
+      .limit(1)
+      .single()
 
-  if (systemAdminError) {
-    debugLog.push(`[REDIRECT] System admin query error: ${systemAdminError.message}`)
-  }
-
-  debugLog.push(`[REDIRECT] System admin result: ${systemAdmin ? 'found' : 'not found'}`)
-
-  if (systemAdmin) {
-    // System admin - redirect to system admin context
-    debugLog.push(`[REDIRECT] User is system admin, redirecting to admin subdomain`)
-    if (isDevelopment && isLocalhost) {
-      return `http://admin.localhost:${port}/system-admin/dashboard`
+    if (accessError && accessError.code !== 'PGRST116') { // PGRST116 = no rows
+      debugLog.push(`[REDIRECT] Access query error: ${accessError.message}`)
+      return null
     }
-    return "https://admin.brandassets.space/system-admin/dashboard"
-  }
 
-  // Check for tenant access
-  debugLog.push(`[REDIRECT] Checking for tenant access...`)
-  const { data: clientUsers, error: clientUsersError } = await supabase
-    .from("client_users")
-    .select(`
-      id,
-      clients!inner(slug, domain, name)
-    `)
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .limit(1)
-
-  if (clientUsersError) {
-    debugLog.push(`[REDIRECT] Client users query error: ${clientUsersError.message}`)
-  }
-
-  debugLog.push(`[REDIRECT] Client users result: ${clientUsers && clientUsers.length > 0 ? `found ${clientUsers.length} access(es)` : 'not found'}`)
-
-  if (clientUsers && clientUsers.length > 0) {
-    const client = clientUsers[0].clients
-    debugLog.push(`[REDIRECT] User has access to tenant: ${client.slug} (${client.name})`)
-    // Redirect to tenant subdomain
-    if (isDevelopment && isLocalhost) {
-      return `http://${client.slug}.localhost:${port}/dashboard`
+    // Check if user is system admin
+    if (userAccess?.system_admin_check?.[0]) {
+      debugLog.push(`[REDIRECT] User is system admin, redirecting to admin dashboard`)
+      if (isDevelopment && isLocalhost) {
+        return `http://admin.localhost:${port}/system-admin/dashboard`
+      }
+      return "https://admin.brandassets.space/system-admin/dashboard"
     }
-    return `https://${client.slug}.brandassets.space/dashboard`
+
+    // Redirect to most recent tenant
+    if (userAccess?.clients) {
+      const client = userAccess.clients
+      debugLog.push(`[REDIRECT] Redirecting to most recent tenant: ${client.slug}`)
+      if (isDevelopment && isLocalhost) {
+        return `http://${client.slug}.localhost:${port}/dashboard`
+      }
+      return `https://${client.slug}.brandassets.space/dashboard`
+    }
+
+  } catch (error) {
+    debugLog.push(`[REDIRECT] Public context error: ${error}`)
   }
 
   // No valid access found

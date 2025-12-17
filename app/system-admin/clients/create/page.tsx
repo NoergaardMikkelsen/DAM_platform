@@ -161,13 +161,17 @@ export default function CreateClientPage() {
         logoUrl = publicUrl
       }
 
+      // Ensure colors have # prefix
+      const finalPrimaryColor = primaryColor.startsWith('#') ? primaryColor : '#' + primaryColor
+      const finalSecondaryColor = secondaryColor.startsWith('#') ? secondaryColor : '#' + secondaryColor
+
       const { error: insertError } = await supabase.from("clients").insert({
         name,
         slug,
         logo_url: logoUrl,
         status,
-        primary_color: primaryColor,
-        secondary_color: secondaryColor,
+        primary_color: finalPrimaryColor,
+        secondary_color: finalSecondaryColor,
         storage_limit_mb: Number.parseInt(storageLimit),
       })
 
@@ -281,7 +285,18 @@ export default function CreateClientPage() {
                     onChange={(e) => setPrimaryColor(e.target.value)}
                     className="h-10 w-20"
                   />
-                  <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="flex-1" />
+                  <Input
+                    value={primaryColor}
+                    onChange={(e) => {
+                      let value = e.target.value
+                      // Auto-add # if not present and value looks like a color
+                      if (value && !value.startsWith('#') && /^[0-9A-Fa-f]{3,8}$/.test(value)) {
+                        value = '#' + value
+                      }
+                      setPrimaryColor(value)
+                    }}
+                    className="flex-1"
+                  />
                 </div>
               </div>
 
@@ -298,7 +313,14 @@ export default function CreateClientPage() {
                   />
                   <Input
                     value={secondaryColor}
-                    onChange={(e) => setSecondaryColor(e.target.value)}
+                    onChange={(e) => {
+                      let value = e.target.value
+                      // Auto-add # if not present and value looks like a color
+                      if (value && !value.startsWith('#') && /^[0-9A-Fa-f]{3,8}$/.test(value)) {
+                        value = '#' + value
+                      }
+                      setSecondaryColor(value)
+                    }}
                     className="flex-1"
                   />
                 </div>

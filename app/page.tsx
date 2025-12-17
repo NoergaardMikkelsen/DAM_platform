@@ -17,10 +17,12 @@ export default async function LandingPage() {
   if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'admin.localhost') {
     redirect("/dashboard")
   }
-  
+
   if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'admin.brandassets.space') {
     redirect("/dashboard")
   }
+
+  // Admin subdomain is handled by system-admin/page.tsx
 
   // Landing page - only shown on main domain
   return (

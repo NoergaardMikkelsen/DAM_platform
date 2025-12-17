@@ -149,6 +149,39 @@
   --shadow-x: var(--shadow-x);
 }
 
+/* Loading screen styles - hide content during initial load */
+body.loading-screen-active * {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+body.loading-screen-active {
+  background: white !important;
+}
+
+/* Ensure loading screen overlay works */
+.loading-screen-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 10000 !important;
+  background: white !important;
+}
+
+/* Hide tenant layout content by default */
+.tenant-layout-wrapper {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.tenant-layout-wrapper.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

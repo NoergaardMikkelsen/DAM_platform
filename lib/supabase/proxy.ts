@@ -1,7 +1,18 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { isSystemAdminSubdomain } from "@/lib/utils/hostname"
 
 export async function updateSession(request: NextRequest) {
+  // Only log in development and for auth-related paths to reduce noise
+  if (process.env.NODE_ENV === 'development' &&
+      (request.nextUrl.pathname.startsWith('/login') ||
+       request.nextUrl.pathname.startsWith('/api/auth'))) {
+    console.log('[PROXY] Processing request:', {
+      pathname: request.nextUrl.pathname,
+      host: request.headers.get('host')
+    })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -59,19 +70,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect to dashboard if already logged in and accessing auth pages
-  // But only if we're not on a system-admin subdomain (they should go to system-admin/dashboard)
+  // Allow authenticated users to access login pages for tenant switching
+  // Only redirect away from login if we're on the main domain (brandassets.space/localhost)
+  // This allows users to switch between tenants by visiting tenant login pages
   if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/sign-up")) {
     const host = request.headers.get('host') || ''
-    const isSystemAdminHost = host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')
-    
-    const url = request.nextUrl.clone()
-    if (isSystemAdminHost) {
-      url.pathname = "/system-admin/dashboard"
-    } else {
-      url.pathname = "/dashboard"
+    const isMainDomain = host === 'brandassets.space' || host === 'localhost' ||
+                        (host === 'localhost:3000') // Development
+
+    // Only redirect on main domain - allow tenant-specific login access for switching
+    if (isMainDomain) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/dashboard" // Redirect to public dashboard (will redirect to best tenant)
+      return NextResponse.redirect(url)
     }
-    return NextResponse.redirect(url)
+    // On tenant/system-admin subdomains, allow access to login page for tenant switching
   }
 
   return supabaseResponse

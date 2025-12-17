@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { isTenantSubdomain, isSystemAdminSubdomain } from '@/lib/utils/hostname'
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
@@ -8,15 +9,17 @@ export async function middleware(request: NextRequest) {
   // Remove port if present
   const [host] = hostname.split(':')
 
-  // Debug logging
-  console.log('[MIDDLEWARE] Request:', { hostname, host, pathname })
+  // Debug logging - only in development for important paths
+  if (process.env.NODE_ENV === 'development' &&
+      (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/dashboard'))) {
+    console.log('[MIDDLEWARE] Request:', { host, pathname })
+  }
 
   // CONTEXT DETECTION AND ROUTING
 
-  // Tenant context: localhost subdomains for development (e.g., tenant.localhost)
-  if (host.endsWith('.localhost') && !host.startsWith('admin.')) {
-    console.log('[MIDDLEWARE] Tenant localhost detected:', host)
-    // If root route on tenant subdomain, redirect to dashboard
+  // Tenant context: redirect root to dashboard
+  if (isTenantSubdomain(host)) {
+    console.log('[MIDDLEWARE] Tenant subdomain detected:', host)
     if (pathname === '/') {
       console.log('[MIDDLEWARE] Redirecting root route to /dashboard')
       const url = request.nextUrl.clone()
@@ -26,31 +29,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Tenant context: any subdomain of brandassets.space (excluding admin)
-  if (host.endsWith('.brandassets.space') && !host.startsWith('admin.')) {
-    // If root route on tenant subdomain, redirect to dashboard
-    if (pathname === '/') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
+  // System admin context
+  if (isSystemAdminSubdomain(host)) {
+    console.log('[MIDDLEWARE] System admin subdomain detected:', host)
     return NextResponse.next()
   }
 
   // Public context: main domain
-  if (host === 'brandassets.space' || host === 'localhost') {
-    return NextResponse.next()
-  }
-
-  // System admin context: admin subdomain (production)
-  if (host === 'admin.brandassets.space') {
-    return NextResponse.next()
-  }
-
-  // System admin context: localhost development (admin.localhost)
-  if (host === 'admin.localhost') {
-    return NextResponse.next()
-  }
+  console.log('[MIDDLEWARE] Public/main domain detected:', host)
+  return NextResponse.next()
 
   // Default: allow all other routes
   return NextResponse.next()

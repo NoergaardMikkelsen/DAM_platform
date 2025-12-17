@@ -25,8 +25,35 @@ export function Sidebar({ user, role }: SidebarProps) {
   console.log("Sidebar role:", role)
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
+    try {
+      // Clear all auth state
+      await supabase.auth.signOut()
+
+      // Clear local storage and session storage
+      if (typeof window !== 'undefined') {
+        // Clear Supabase auth tokens
+        localStorage.removeItem('sb-auth-token')
+        sessionStorage.clear()
+
+        // Clear any other auth-related localStorage
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || key.includes('auth')) {
+            localStorage.removeItem(key)
+          }
+        })
+      }
+
+      // Small delay to ensure cleanup is complete
+      setTimeout(() => {
+        // Force navigation to login page (same subdomain)
+        window.location.href = '/login'
+      }, 100)
+
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Fallback - still redirect to login
+      window.location.href = '/login'
+    }
   }
 
   // Different main navigation based on role type

@@ -7,6 +7,11 @@ export default async function LoginPage() {
   const headersList = await headers()
   const host = headersList.get('host') || ''
 
+  // Only log in development and when referrer is present (indicating redirect)
+  if (process.env.NODE_ENV === 'development' && headersList.get('referer')) {
+    console.log('[LOGIN PAGE] Server-side host:', host, 'Referrer:', headersList.get('referer'))
+  }
+
   // Detect context for fallback
   const isSystemAdmin = host === 'admin.brandassets.space' ||
     host === 'admin.localhost' ||

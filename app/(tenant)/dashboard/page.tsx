@@ -73,14 +73,16 @@ export default function DashboardPage() {
   }, [totalAssets])
 
   useEffect(() => {
-    // Show initial loading screen only on first login in this session
+    // Check if we should show initial loading screen as fallback
     const hasSeenInitialLoading = sessionStorage.getItem('hasSeenInitialLoading')
-
     if (!hasSeenInitialLoading) {
       setIsInitialLoading(true)
-      sessionStorage.setItem('hasSeenInitialLoading', 'true')
+      // Small delay to ensure layout loading screen has time to show
+      setTimeout(() => {
+        setIsInitialLoading(false)
+        loadDashboardData()
+      }, 100)
     } else {
-      // If already seen, just load data directly
       loadDashboardData()
     }
   }, [])
@@ -320,6 +322,7 @@ export default function DashboardPage() {
     setFilteredCollections(filteredCollectionsResult)
     setIsFilterOpen(false)
   }
+
 
   if (isInitialLoading) {
     return <InitialLoadingScreen onComplete={() => {

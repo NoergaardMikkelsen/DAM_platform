@@ -12,13 +12,20 @@ export function InitialLoadingScreen({
   const [showText, setShowText] = useState(false)
 
   useEffect(() => {
+    // Add loading class to body when component mounts
+    document.body.classList.add('loading-screen-active')
+
     // Animation sequence
     const timer1 = setTimeout(() => setPhase(1), 100)    // Start progress bar
     const timer2 = setTimeout(() => setPhase(2), 800)    // Show logo reveal
     const timer3 = setTimeout(() => setPhase(3), 1500)   // Show first text
     const timer4 = setTimeout(() => setPhase(4), 2200)   // Transition to second text
     const timer5 = setTimeout(() => setPhase(5), 2800)   // Hide everything
-    const timer6 = setTimeout(() => onComplete(), 3500)
+    const timer6 = setTimeout(() => {
+      // Remove loading class from body when animation completes
+      document.body.classList.remove('loading-screen-active')
+      onComplete()
+    }, 3500)
 
     return () => {
       clearTimeout(timer1)
@@ -27,6 +34,8 @@ export function InitialLoadingScreen({
       clearTimeout(timer4)
       clearTimeout(timer5)
       clearTimeout(timer6)
+      // Ensure loading class is removed if component unmounts
+      document.body.classList.remove('loading-screen-active')
     }
   }, [onComplete])
 
@@ -41,10 +50,10 @@ export function InitialLoadingScreen({
       initial={phase >= 5 ? { y: 0 } : { opacity: 0 }}
       animate={phase >= 5 ? { y: '-100%' } : { opacity: 1 }}
       transition={phase >= 5 ? { duration: 0.4, ease: 'easeInOut' } : { duration: 0.3 }}
-      className="fixed inset-0 z-50 text-foreground"
+      className="loading-screen-overlay text-foreground"
     >
         {/* Background - pure white */}
-        <div className="absolute inset-0 bg-white" />
+        <div className="absolute inset-0 bg-white" style={{ backgroundColor: 'white' }} />
 
         {/* Progress bar */}
         <motion.div

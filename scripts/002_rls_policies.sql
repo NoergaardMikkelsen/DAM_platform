@@ -48,11 +48,8 @@ RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1
-    FROM client_users cu
-    JOIN roles r ON cu.role_id = r.id
-    WHERE cu.user_id = p_user_id
-      AND r.key = 'superadmin'
-      AND cu.status = 'active'
+    FROM system_admins
+    WHERE id = p_user_id
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

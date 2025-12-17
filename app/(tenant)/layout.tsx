@@ -5,8 +5,10 @@ import Head from "next/head"
 import { Sidebar } from "@/components/layout/sidebar"
 import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
 import { createClient } from "@/lib/supabase/server"
+import { extractTenantSubdomain } from "@/lib/utils/hostname"
 import { BrandProvider } from "@/lib/context/brand-context"
 import { TenantProvider } from "@/lib/context/tenant-context"
+import { TenantLayoutClient } from "./layout-client"
 
 export default async function AuthenticatedLayout({
   children
@@ -64,18 +66,9 @@ export default async function AuthenticatedLayout({
   // TENANT IDENTIFICATION: Parse hostname and lookup tenant in database
 
   // Extract potential tenant subdomain from hostname
-  // First, remove port if present
-  const hostWithoutPort = host.split(':')[0]
-  let potentialSubdomain = null
+  const potentialSubdomain = extractTenantSubdomain(host)
 
-  if (hostWithoutPort.endsWith('.brandassets.space')) {
-    potentialSubdomain = hostWithoutPort.replace('.brandassets.space', '')
-  } else if (hostWithoutPort.endsWith('.localhost')) {
-    // Development fallback for localhost subdomains (handles any port)
-    potentialSubdomain = hostWithoutPort.replace('.localhost', '')
-  }
-
-  debugLog.push(`[TENANT-LAYOUT] Host without port: ${hostWithoutPort}`)
+  debugLog.push(`[TENANT-LAYOUT] Host: ${host}`)
   debugLog.push(`[TENANT-LAYOUT] Potential subdomain: ${potentialSubdomain || 'null'}`)
 
   // Skip invalid subdomains (empty, admin, www, etc.)
@@ -208,12 +201,9 @@ export default async function AuthenticatedLayout({
             </>
           )}
         </Head>
-        <div className="flex h-screen overflow-hidden bg-gray-50">
-          <SidebarVisibility>
-            <Sidebar user={userData} role={role || undefined} />
-          </SidebarVisibility>
-          <main className="flex-1 overflow-y-auto">{children}</main>
-        </div>
+        <TenantLayoutClient tenant={tenant} userData={userData} role={role}>
+          {children}
+        </TenantLayoutClient>
       </BrandProvider>
     </TenantProvider>
   )
