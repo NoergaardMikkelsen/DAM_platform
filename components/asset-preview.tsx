@@ -267,12 +267,14 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
           style={{ border: 'none', minHeight: '300px' }}
           onLoad={() => {
             console.log('[AssetPreview] PDF loaded:', storagePath)
-            setImageLoaded(true)
+            setMediaLoaded(true)
+            setLoading(false)
           }}
           onError={() => {
             console.error('[AssetPreview] PDF failed to load:', storagePath)
             setError(true)
-            setImageLoaded(true)
+            setMediaLoaded(true)
+            setLoading(false)
           }}
         />
         {/* PDF overlay */}
