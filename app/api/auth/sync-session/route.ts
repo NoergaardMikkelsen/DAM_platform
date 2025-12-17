@@ -4,8 +4,105 @@ import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
   try {
-    const { access_token, refresh_token } = await request.json()
+    const body = await request.json()
+    const { access_token, refresh_token, bridgeUserId } = body
 
+    console.log('[SYNC-API] Request received:', {
+      hasAccessToken: !!access_token,
+      hasRefreshToken: !!refresh_token,
+      bridgeUserId,
+      host: request.headers.get('host')
+    })
+
+    const supabase = await createClient()
+
+    // Handle bridge token scenario
+    if (bridgeUserId && !access_token && !refresh_token) {
+      console.log('[SYNC-API] Processing bridge token for user:', bridgeUserId)
+
+      // Verify the user exists and has access to this tenant
+      const host = request.headers.get('host') || ''
+      const subdomain = host.split('.')[0]
+
+      console.log('[SYNC-API] Checking tenant access:', { host, subdomain })
+
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('slug', subdomain)
+        .single()
+
+      console.log('[SYNC-API] Client lookup result:', {
+        client: client?.id,
+        error: clientError?.message
+      })
+
+      if (!client) {
+        console.log('[SYNC-API] Invalid tenant, returning 400')
+        return NextResponse.json(
+          { error: "Invalid tenant" },
+          { status: 400 }
+        )
+      }
+
+      const { data: userAccess, error: accessError } = await supabase
+        .from('client_users')
+        .select('id')
+        .eq('user_id', bridgeUserId)
+        .eq('client_id', client.id)
+        .eq('status', 'active')
+        .single()
+
+      console.log('[SYNC-API] User access check:', {
+        userId: bridgeUserId,
+        clientId: client.id,
+        hasAccess: !!userAccess,
+        error: accessError?.message
+      })
+
+      if (!userAccess) {
+        console.log('[SYNC-API] No access to tenant, returning 403')
+        return NextResponse.json(
+          { error: "No access to this tenant" },
+          { status: 403 }
+        )
+      }
+
+      // For bridge tokens, we'll create a temporary session
+      // In production, implement proper token generation
+      const tempSession = {
+        access_token: `bridge-${bridgeUserId}-${Date.now()}`,
+        refresh_token: `bridge-${bridgeUserId}-${Date.now()}`,
+      }
+
+      const { data, error } = await supabase.auth.setSession(tempSession)
+
+      if (error) {
+        console.error('[SYNC-SESSION] Bridge session error:', error)
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        )
+      }
+
+      const cookieStore = await cookies()
+      const authCookies = cookieStore.getAll().filter(c =>
+        c.name.includes('auth') ||
+        c.name.includes('supabase') ||
+        c.name.includes('sb-')
+      )
+
+      console.log('[SYNC-API] Bridge session created successfully for user:', bridgeUserId)
+
+      return NextResponse.json({
+        success: true,
+        user: data.user,
+        cookiesSet: authCookies.length,
+        isBridgeSession: true
+      })
+    }
+
+    // Normal token sync
     if (!access_token || !refresh_token) {
       return NextResponse.json(
         { error: "Missing tokens" },
@@ -13,8 +110,6 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = await createClient()
-    
     // Set the session using the tokens
     const { data, error } = await supabase.auth.setSession({
       access_token,

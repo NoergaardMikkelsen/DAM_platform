@@ -31,23 +31,23 @@ export default async function SystemAdminLayout({
     redirect("/login")
   }
 
-  // SYSTEM ADMIN CONTEXT ONLY: Check system admin table only (never use client_users)
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Checking system admin table for user ${user.id}...`)
-  const { data: systemAdmin, error } = await supabase
-    .from("system_admins")
-    .select("id")
-    .eq("id", user.id)
-    .single()
+  // SYSTEM ADMIN CONTEXT: Check if user has superadmin role on any client
+  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Checking superadmin role for user ${user.id}...`)
+
+  // Check if user has superadmin role using the is_superadmin function
+  const { data: isSuperAdmin, error } = await supabase.rpc('is_superadmin', {
+    p_user_id: user.id
+  })
 
   if (error) {
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] System admin query error: ${error.message}`)
+    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Superadmin check error: ${error.message}`)
   }
 
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] System admin result: ${systemAdmin ? 'found' : 'not found'}`)
+  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Superadmin result: ${isSuperAdmin ? 'true' : 'false'}`)
 
-  if (error || !systemAdmin) {
-    // Not a system admin - show access denied page instead of redirecting to login
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User is not a system admin, showing access denied`)
+  if (error || !isSuperAdmin) {
+    // Not a superadmin - show access denied page instead of redirecting to login
+    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User is not a superadmin, showing access denied`)
     console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-white p-6">

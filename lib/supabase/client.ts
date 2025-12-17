@@ -15,6 +15,14 @@ export function createClient() {
         storageKey: 'sb-auth-token',
         // Allow cookies to be shared across subdomains
         persistSession: true,
+        cookieOptions: {
+          ...(process.env.NODE_ENV === 'production' && {
+            domain: '.brandassets.space',
+          }),
+          path: '/',
+          sameSite: (process.env.NODE_ENV === 'production' ? 'lax' : 'none') as any,
+          secure: process.env.NODE_ENV === 'production',
+        },
       },
       global: {
         headers: {

@@ -77,6 +77,11 @@ async function main() {
     "026_add_auto_subdomain_function.sql",
     "027_add_client_logos.sql",
     "029_fix_asset_security.sql",
+    "031_fix_superadmin_function.sql",
+    "032_migrate_system_admins_to_roles.sql",
+    "034_update_policies_for_superadmin.sql",
+    "035_update_storage_policies.sql",
+    "036_drop_system_admins_table.sql",
   ]
 
   console.log("Running new migrations...\n")

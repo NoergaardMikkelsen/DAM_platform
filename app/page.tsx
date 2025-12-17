@@ -1,5 +1,6 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,6 +13,28 @@ export default async function LandingPage() {
   // Remove port if present
   const [hostWithoutPort] = host.split(':')
   
+  // Handle admin subdomain routing
+  if (hostWithoutPort === 'admin.brandassets.space' || hostWithoutPort === 'admin.localhost') {
+    // Check authentication and redirect appropriately
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (user) {
+      // Check if superadmin using the is_superadmin function
+      const { data: isSuperAdmin } = await supabase.rpc('is_superadmin', {
+        p_user_id: user.id
+      })
+
+      if (isSuperAdmin) {
+        redirect('/system-admin/dashboard')
+      } else {
+        redirect('/login') // Not a superadmin
+      }
+    } else {
+      redirect('/login') // Not authenticated
+    }
+  }
+
   // If on tenant subdomain, redirect to dashboard
   // Tenant layout will handle authentication and tenant validation
   if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'admin.localhost') {
@@ -21,8 +44,6 @@ export default async function LandingPage() {
   if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'admin.brandassets.space') {
     redirect("/dashboard")
   }
-
-  // Admin subdomain is handled by system-admin/page.tsx
 
   // Landing page - only shown on main domain
   return (

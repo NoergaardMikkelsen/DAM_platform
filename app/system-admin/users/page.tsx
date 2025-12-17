@@ -61,12 +61,17 @@ export default function SystemUsersPage() {
       return
     }
 
-    // Get system admin status for each user
-    const { data: systemAdmins } = await supabase
-      .from("system_admins")
-      .select("id")
+    // Get superadmin status for each user
+    const { data: superAdmins } = await supabase
+      .from("client_users")
+      .select(`
+        user_id,
+        roles!inner(key)
+      `)
+      .eq("roles.key", "superadmin")
+      .eq("status", "active")
 
-    const systemAdminIds = new Set(systemAdmins?.map(sa => sa.id) || [])
+    const superAdminIds = new Set(superAdmins?.map(sa => sa.user_id) || [])
 
     // Get client user counts for each user
     const { data: clientUsers } = await supabase

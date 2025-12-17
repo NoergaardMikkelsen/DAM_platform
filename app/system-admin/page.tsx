@@ -5,16 +5,15 @@ export default async function SystemAdminRootPage() {
   const supabase = await createClient()
   const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-  // If user is authenticated, check if they're a system admin
+  // If user is authenticated, check if they're a superadmin
   if (user && !userError) {
-    const { data: systemAdmin, error: adminError } = await supabase
-      .from("system_admins")
-      .select("id")
-      .eq("id", user.id)
-      .single()
+    // Check if user has superadmin role using the is_superadmin function
+    const { data: isSuperAdmin, error: superAdminError } = await supabase.rpc('is_superadmin', {
+      p_user_id: user.id
+    })
 
-    // If user is a valid system admin, redirect to dashboard
-    if (systemAdmin && !adminError) {
+    // If user is a valid superadmin, redirect to dashboard
+    if (isSuperAdmin && !superAdminError) {
       redirect('/system-admin/dashboard')
     }
   }

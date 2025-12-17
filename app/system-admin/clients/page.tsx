@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { Settings, Pencil, Plus, Search, Trash2, Building } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
@@ -72,6 +72,45 @@ export default function ClientsPage() {
     }
 
     setFilteredClients(filtered)
+  }
+
+  const handleNavigateToClient = async (clientSlug: string) => {
+    console.log('[ADMIN-NAV] Starting navigation to client:', clientSlug)
+
+    const supabase = createClient()
+    console.log('[ADMIN-NAV] Checking session...')
+
+    const { data: { session }, error } = await supabase.auth.getSession()
+    console.log('[ADMIN-NAV] Session result:', {
+      hasSession: !!session,
+      userId: session?.user?.id,
+      error: error?.message
+    })
+
+    if (!session) {
+      console.log('[ADMIN-NAV] No session, redirecting to login')
+      window.location.href = '/login'
+      return
+    }
+
+    // Byg URL med short-lived auth data (30 sekunder)
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    const port = window.location.port || '3000'
+
+    const targetUrl = isDevelopment
+      ? `http://${clientSlug}.localhost:${port}/dashboard`
+      : `https://${clientSlug}.brandassets.space/dashboard`
+
+    // Tilføj session data som URL params (30 sekunders levetid)
+    const params = new URLSearchParams({
+      uid: session.user.id,
+      exp: (Date.now() + 30000).toString() // 30 sekunder
+    })
+
+    const finalUrl = `${targetUrl}?${params}`
+    console.log('[ADMIN-NAV] Navigating to:', finalUrl)
+
+    window.location.href = finalUrl
   }
 
   if (isLoading) {
@@ -184,15 +223,14 @@ export default function ClientsPage() {
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
-                      <Link href={`/clients/${client.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-[25px] bg-black text-white hover:bg-gray-800"
-                        >
-                          →
-                        </Button>
-                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-[25px] bg-black text-white hover:bg-gray-800"
+                        onClick={() => handleNavigateToClient(client.slug)}
+                      >
+                        →
+                      </Button>
                     </div>
                   </td>
                 </tr>

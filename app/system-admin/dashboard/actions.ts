@@ -11,13 +11,12 @@ export async function getAllTenantsForSuperAdmin() {
 
   if (!user) return []
 
-  const { data: systemAdmin } = await supabase
-    .from("system_admins")
-    .select("id")
-    .eq("id", user.id)
-    .single()
+  // Check if user has superadmin role using the is_superadmin function
+  const { data: isSuperAdmin } = await supabase.rpc('is_superadmin', {
+    p_user_id: user.id
+  })
 
-  if (!systemAdmin) return []
+  if (!isSuperAdmin) return []
 
   const { data: tenants } = await supabase
     .from("clients")

@@ -299,25 +299,25 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
 
   // 1. System Admin Context
   if (isSystemAdminSubdomain(host)) {
-    debugLog.push(`[REDIRECT] Checking system admin context...`)
-    const { data: systemAdmin, error: systemAdminError } = await supabase
-      .from("system_admins")
-      .select("id")
-      .eq("id", userId)
-      .single()
+    debugLog.push(`[REDIRECT] Checking superadmin context...`)
 
-    if (systemAdminError) {
-      debugLog.push(`[REDIRECT] System admin query error: ${systemAdminError.message}`)
+    // Check if user has superadmin role using the is_superadmin function
+    const { data: isSuperAdmin, error: superAdminError } = await supabase.rpc('is_superadmin', {
+      p_user_id: userId
+    })
+
+    if (superAdminError) {
+      debugLog.push(`[REDIRECT] Superadmin check error: ${superAdminError.message}`)
     }
 
-    debugLog.push(`[REDIRECT] System admin result: ${systemAdmin ? 'found' : 'not found'}`)
+    debugLog.push(`[REDIRECT] Superadmin result: ${isSuperAdmin ? 'true' : 'false'}`)
 
-    if (systemAdmin) {
-      debugLog.push(`[REDIRECT] User is system admin, redirecting to /system-admin/dashboard`)
+    if (isSuperAdmin) {
+      debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
       return "/system-admin/dashboard"
     } else {
-      // Not a system admin on admin subdomain - no access
-      debugLog.push(`[REDIRECT] User is not a system admin on admin subdomain`)
+      // Not a superadmin on admin subdomain - no access
+      debugLog.push(`[REDIRECT] User is not a superadmin on admin subdomain`)
       return null
     }
   }
@@ -391,14 +391,33 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   debugLog.push(`[REDIRECT] Checking public context - finding available tenant`)
 
   try {
-    // Single optimized query to get user access
+    // Check if user is superadmin using the is_superadmin function
+    const { data: isSuperAdmin, error: superAdminError } = await supabase.rpc('is_superadmin', {
+      p_user_id: userId
+    })
+
+    if (superAdminError) {
+      debugLog.push(`[REDIRECT] Superadmin check error: ${superAdminError.message}`)
+    }
+
+    debugLog.push(`[REDIRECT] Superadmin result: ${isSuperAdmin ? 'true' : 'false'}`)
+
+    // Check if user is superadmin
+    if (isSuperAdmin) {
+      debugLog.push(`[REDIRECT] User is superadmin, redirecting to admin dashboard`)
+      if (isDevelopment && isLocalhost) {
+        return `http://admin.localhost:${port}/system-admin/dashboard`
+      }
+      return "https://admin.brandassets.space/system-admin/dashboard"
+    }
+
+    // Single optimized query to get user access (only for non-superadmins)
     const { data: userAccess, error: accessError } = await supabase
       .from("client_users")
       .select(`
         id,
         role_id,
-        clients!inner(slug, domain, name, status),
-        system_admin_check:system_admins!left(id)
+        clients!inner(slug, domain, name, status)
       `)
       .eq("user_id", userId)
       .eq("status", "active")
@@ -410,15 +429,6 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     if (accessError && accessError.code !== 'PGRST116') { // PGRST116 = no rows
       debugLog.push(`[REDIRECT] Access query error: ${accessError.message}`)
       return null
-    }
-
-    // Check if user is system admin
-    if (userAccess?.system_admin_check?.[0]) {
-      debugLog.push(`[REDIRECT] User is system admin, redirecting to admin dashboard`)
-      if (isDevelopment && isLocalhost) {
-        return `http://admin.localhost:${port}/system-admin/dashboard`
-      }
-      return "https://admin.brandassets.space/system-admin/dashboard"
     }
 
     // Redirect to most recent tenant

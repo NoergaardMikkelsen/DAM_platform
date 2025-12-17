@@ -9,6 +9,7 @@ import { extractTenantSubdomain } from "@/lib/utils/hostname"
 import { BrandProvider } from "@/lib/context/brand-context"
 import { TenantProvider } from "@/lib/context/tenant-context"
 import { TenantLayoutClient } from "./layout-client"
+import { AuthBridge } from "./auth-bridge"
 
 export default async function AuthenticatedLayout({
   children
@@ -22,6 +23,7 @@ export default async function AuthenticatedLayout({
   const headersList = await headers()
   const host = headersList.get('host') || ''
   const protocol = headersList.get('x-forwarded-proto') || 'http'
+  const hostWithoutPort = host.split(':')[0]
 
   debugLog.push(`[TENANT-LAYOUT] Host: ${host}`)
   debugLog.push(`[TENANT-LAYOUT] Protocol: ${protocol}`)
@@ -55,12 +57,18 @@ export default async function AuthenticatedLayout({
     debugLog.push(`[TENANT-LAYOUT] Get user error: ${userError.message}`)
   }
 
+  console.log('[TENANT-LAYOUT] Checking authentication...')
+  console.log('[TENANT-LAYOUT] User result:', { hasUser: !!user, userId: user?.id })
+
   debugLog.push(`[TENANT-LAYOUT] User: ${user ? `found (id: ${user.id})` : 'not found'}`)
 
   if (!user) {
+    console.log('[TENANT-LAYOUT] No authenticated user - should redirect to login')
     debugLog.push(`[TENANT-LAYOUT] No user - redirecting to login`)
     console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/login")
+  } else {
+    console.log('[TENANT-LAYOUT] User authenticated - proceeding with tenant layout')
   }
 
   // TENANT IDENTIFICATION: Parse hostname and lookup tenant in database
@@ -184,6 +192,7 @@ export default async function AuthenticatedLayout({
   return (
     <TenantProvider tenant={tenant}>
       <BrandProvider>
+        <AuthBridge />
         <Head>
           <title>{tenant.name} - Digital Asset Management</title>
           {tenant.logo_url ? (
