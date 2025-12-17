@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { Loader2, Video, FileText } from "lucide-react"
 
 interface AssetPreviewProps {
@@ -8,7 +8,9 @@ interface AssetPreviewProps {
   mimeType: string
   alt: string
   className?: string
-  signedUrl?: string // Add this prop
+  signedUrl?: string
+  showLoading?: boolean // Control whether to show loading spinner
+  onAssetLoaded?: () => void // Callback when asset is fully loaded
 }
 
 // Global batch manager to coordinate all asset loading requests
@@ -80,7 +82,7 @@ class GlobalBatchManager {
     const paths = [...this.batchQueue]
     this.batchQueue = []
 
-    console.log('[GlobalBatchManager] Processing batch with', paths.length, 'paths:', paths.slice(0, 3), '...')
+    // Processing batch
 
     try {
       const response = await fetch('/api/assets/batch', {
@@ -94,7 +96,7 @@ class GlobalBatchManager {
       }
 
       const { signedUrls } = await response.json()
-      console.log('[GlobalBatchManager] Got signed URLs for', Object.keys(signedUrls).length, 'paths')
+      // Got signed URLs
 
       // Store all returned URLs and resolve pending promises
       Object.entries(signedUrls).forEach(([path, url]) => {
@@ -142,50 +144,58 @@ class GlobalBatchManager {
 // Export for use in other components
 export const BatchAssetLoader = GlobalBatchManager
 
-export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl }: AssetPreviewProps) {
+export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl, showLoading = true, onAssetLoaded }: AssetPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(signedUrl || null)
-  const [loading, setLoading] = useState(!signedUrl) // Show loading initially if no signedUrl
+  const [loading, setLoading] = useState(!signedUrl && showLoading) // Show loading if no signedUrl and showLoading is true
   const [error, setError] = useState(false)
   const [mediaLoaded, setMediaLoaded] = useState(!!signedUrl) // Start as loaded if we have signedUrl
+  const hasLoadedRef = useRef(false)
+
+  const loadUrl = useCallback(async () => {
+    // Prevent duplicate loading
+    if (hasLoadedRef.current) return
+
+    try {
+      const loader = BatchAssetLoader.getInstance()
+      const url = await loader.getSignedUrl(storagePath)
+      if (url && url !== '/placeholder.jpg') {
+        setPreviewUrl(url)
+        hasLoadedRef.current = true
+        // Don't set loading to false here - wait for media to actually load
+      } else {
+        setError(true)
+        if (showLoading) setLoading(false)
+      }
+    } catch (err) {
+      setError(true)
+      if (showLoading) setLoading(false)
+    }
+  }, [storagePath])
 
   useEffect(() => {
-    // Reset states when props change
-    setError(false)
-    setLoading(true)
-    setMediaLoaded(!!signedUrl)
-
-    if (signedUrl) {
-      console.log('[AssetPreview] Using provided signedUrl for', storagePath)
-      setPreviewUrl(signedUrl)
-      // Don't set loading to false here - wait for media to actually load
+    // Don't load if we already have a preview URL
+    if (previewUrl || hasLoadedRef.current) {
+      setLoading(false)
+      setMediaLoaded(true)
       return
     }
 
-    console.log('[AssetPreview] Loading URL for', storagePath)
-    async function loadUrl() {
-      try {
-        const loader = BatchAssetLoader.getInstance()
-        const url = await loader.getSignedUrl(storagePath)
-        console.log('[AssetPreview] Got URL for', storagePath, ':', url ? 'SUCCESS' : 'EMPTY')
-        if (url && url !== '/placeholder.jpg') {
-          setPreviewUrl(url)
-          // Don't set loading to false here - wait for media to actually load
-        } else {
-          console.warn('[AssetPreview] Got placeholder URL for', storagePath)
-          setError(true)
-          setLoading(false)
-        }
-      } catch (err) {
-        console.error("[AssetPreview] Failed to load preview for", storagePath, ":", err)
-        setError(true)
-        setLoading(false)
-      }
+    // Reset states when props change
+    setError(false)
+    setLoading(!signedUrl && showLoading) // Show loading if no signedUrl and showLoading is true
+    setMediaLoaded(!!signedUrl)
+
+    if (signedUrl) {
+      setPreviewUrl(signedUrl)
+      hasLoadedRef.current = true
+      // For signed URLs, we still need to wait for media to load in the browser
+      return
     }
 
     loadUrl()
-  }, [storagePath, signedUrl])
+  }, [storagePath, signedUrl, previewUrl, loadUrl, showLoading])
 
-  if (loading || !mediaLoaded) {
+  if (loading) {
     return (
       <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -212,15 +222,13 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
         alt={alt}
         className={`${className} transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => {
-          console.log('[AssetPreview] ✅ Image loaded successfully:', storagePath)
           setMediaLoaded(true)
-          setLoading(false)
+          onAssetLoaded?.()
         }}
-        onError={(e) => {
-          console.error('[AssetPreview] ❌ Image failed to load:', storagePath, e)
+        onError={() => {
           setError(true)
           setMediaLoaded(true)
-          setLoading(false)
+          if (showLoading) setLoading(false)
         }}
       />
     )
@@ -236,15 +244,13 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
           muted
           playsInline
           onLoadedData={() => {
-            console.log('[AssetPreview] Video loaded:', storagePath)
             setMediaLoaded(true)
-            setLoading(false)
+            onAssetLoaded?.()
           }}
-          onError={(e) => {
-            console.error('[AssetPreview] Video failed to load:', storagePath, e)
+          onError={() => {
             setError(true)
             setMediaLoaded(true)
-            setLoading(false)
+            if (showLoading) setLoading(false)
           }}
         />
         {/* Video play indicator overlay */}
@@ -266,15 +272,13 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl 
           title={`PDF Preview: ${alt}`}
           style={{ border: 'none', minHeight: '300px' }}
           onLoad={() => {
-            console.log('[AssetPreview] PDF loaded:', storagePath)
             setMediaLoaded(true)
-            setLoading(false)
+            onAssetLoaded?.()
           }}
           onError={() => {
-            console.error('[AssetPreview] PDF failed to load:', storagePath)
             setError(true)
             setMediaLoaded(true)
-            setLoading(false)
+            if (showLoading) setLoading(false)
           }}
         />
         {/* PDF overlay */}

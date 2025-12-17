@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -20,8 +20,7 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const searchParamsPromise = useSearchParams()
-  const [resolvedSearchParams, setResolvedSearchParams] = useState<URLSearchParams | null>(null)
+  const searchParams = useSearchParams()
 
   // Check if we're on the wrong subdomain in development
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -46,19 +45,9 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   }
   const tenantSlug = getTenantSlug()
 
-  // Unwrap the searchParams promise
-  useEffect(() => {
-    const unwrapSearchParams = async () => {
-      const resolved = await searchParamsPromise
-      setResolvedSearchParams(resolved)
-    }
-    unwrapSearchParams()
-  }, [searchParamsPromise])
-
   // Handle URL error parameters
   useEffect(() => {
-    if (!resolvedSearchParams) return
-    const errorParam = resolvedSearchParams.get('error')
+    const errorParam = searchParams.get('error')
     if (errorParam === 'access_denied') {
       setError("You don't have permission to access this area. Please contact your administrator.")
     }

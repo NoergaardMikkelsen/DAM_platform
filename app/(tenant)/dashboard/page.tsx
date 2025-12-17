@@ -48,6 +48,8 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(false)
   const [maxCollections, setMaxCollections] = useState(3)
+  const [loadedAssets, setLoadedAssets] = useState(0)
+  const [totalAssets, setTotalAssets] = useState(0)
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -58,6 +60,17 @@ export default function DashboardPage() {
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  const handleAssetLoaded = useCallback(() => {
+    setLoadedAssets(prev => {
+      const newCount = prev + 1
+      // When all assets are loaded, hide the skeleton
+      if (newCount >= totalAssets && totalAssets > 0) {
+        setIsLoading(false)
+      }
+      return newCount
+    })
+  }, [totalAssets])
 
   useEffect(() => {
     // Show initial loading screen only on first login in this session
@@ -220,6 +233,22 @@ export default function DashboardPage() {
     setFilteredCollections(collectionsData)
     setAssets(allAssetsData || [])
     setFilteredAssets(allAssetsData || [])
+
+    // Count total assets that need to be loaded
+    const assetsWithMedia = (allAssetsData || []).filter(asset =>
+      asset.mime_type?.startsWith("image/") ||
+      asset.mime_type?.startsWith("video/") ||
+      asset.mime_type === "application/pdf"
+    )
+    const totalAssetsToLoad = assetsWithMedia.length + (recentUploadsData || []).filter(asset =>
+      asset.mime_type?.startsWith("image/") ||
+      asset.mime_type?.startsWith("video/") ||
+      asset.mime_type === "application/pdf"
+    ).length
+
+    setTotalAssets(totalAssetsToLoad)
+    setLoadedAssets(0) // Reset counter
+
     setStats({
       totalAssets: totalAssetsCount || 0,
       recentUploads: recentUploadsData || [],
@@ -227,7 +256,12 @@ export default function DashboardPage() {
       storagePercentage,
       userName: userData?.full_name || ""
     })
-    setIsLoading(false)
+
+    // If no assets need to be loaded, hide skeleton immediately
+    if (totalAssetsToLoad === 0) {
+      setIsLoading(false)
+    }
+    // Otherwise, wait for all assets to load
   }
 
   const handleApplyFilters = async (filters: {
@@ -442,6 +476,8 @@ export default function DashboardPage() {
                         mimeType={asset.mime_type}
                         alt={asset.title}
                         className={asset.mime_type === "application/pdf" ? "w-full h-auto" : "w-full h-full object-cover"}
+                        showLoading={false}
+                        onAssetLoaded={handleAssetLoaded}
                       />
                     )}
                     <Button

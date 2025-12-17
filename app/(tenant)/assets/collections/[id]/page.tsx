@@ -265,6 +265,7 @@ export default function CollectionDetailPage() {
                       mimeType={asset.mime_type}
                       alt={asset.title}
                       className="h-full w-full object-cover"
+                      showLoading={false}
                     />
                   )}
                   <Button

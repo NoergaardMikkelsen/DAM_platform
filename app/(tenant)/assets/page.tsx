@@ -460,6 +460,7 @@ export default function AssetsPage() {
                         mimeType={asset.mime_type}
                         alt={asset.title}
                         className={asset.mime_type === "application/pdf" ? "w-full h-auto" : "w-full h-full object-cover"}
+                        showLoading={false}
                       />
                     )}
                     <Button
