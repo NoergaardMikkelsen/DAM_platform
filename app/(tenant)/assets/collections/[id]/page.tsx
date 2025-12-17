@@ -141,7 +141,7 @@ export default function CollectionDetailPage() {
       setFilteredAssets(assetsData)
 
       // Count total assets that need to be loaded
-      const assetsWithMedia = (assetsData || []).filter(asset =>
+      const assetsWithMedia = (assetsData || []).filter((asset: Asset) =>
         asset.mime_type?.startsWith("image/") ||
         asset.mime_type?.startsWith("video/") ||
         asset.mime_type === "application/pdf"
