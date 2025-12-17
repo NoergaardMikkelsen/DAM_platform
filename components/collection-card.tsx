@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Heart } from "lucide-react"
 import Link from "next/link"
+import { BatchAssetLoader } from "./asset-preview"
 
 interface CollectionCardProps {
   id: string
@@ -25,68 +26,109 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
   useEffect(() => {
     const fetchImageUrls = async () => {
-      const urls: string[] = []
-      const types: string[] = []
-      const videoUrlsArr: string[] = []
+      const loader = BatchAssetLoader.getInstance()
+      const assetData: Array<{
+        type: string
+        storagePath: string
+        thumbnailPath?: string
+        isVideo: boolean
+        isPdf: boolean
+      }> = []
 
+      // Collect all paths that need URLs
       for (const asset of previewAssets.slice(0, 4)) {
         if (asset.storage_path) {
-          // For video files, use thumbnail if available, otherwise use video itself
-          if (asset.mime_type.startsWith("video/")) {
-            types.push("video")
-            // Always create video URL for video assets using proxy API
-            const cleanVideoPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-            const videoUrl = `/api/assets/${encodeURIComponent(cleanVideoPath)}`
-            videoUrlsArr.push(videoUrl)
+          const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
 
-            if (asset.thumbnail_path) {
-              // Use thumbnail for image pattern if available
-              const cleanThumbnailPath = asset.thumbnail_path.replace(/^\/+|\/+$/g, "")
-              const thumbnailUrl = `/api/assets/${encodeURIComponent(cleanThumbnailPath)}`
-              urls.push(thumbnailUrl)
-            } else {
-              // Use video URL as fallback for image pattern (won't work but at least consistent)
-              urls.push(videoUrl)
-            }
+          if (asset.mime_type.startsWith("video/")) {
+            assetData.push({
+              type: "video",
+              storagePath: cleanPath,
+              thumbnailPath: asset.thumbnail_path?.replace(/^\/+|\/+$/g, ""),
+              isVideo: true,
+              isPdf: false
+            })
           } else if (asset.mime_type === "application/pdf") {
-            types.push("pdf")
-            videoUrlsArr.push("") // Empty for non-video assets
-            // Create proxy URL for PDF
-            const cleanPdfPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-            const pdfUrl = `/api/assets/${encodeURIComponent(cleanPdfPath)}`
-            urls.push(pdfUrl)
+            assetData.push({
+              type: "pdf",
+              storagePath: cleanPath,
+              isVideo: false,
+              isPdf: true
+            })
           } else {
-            types.push("image")
-            videoUrlsArr.push("") // Empty for non-video assets
-            // Clean path - remove leading/trailing slashes
-            const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-            const imageUrl = `/api/assets/${encodeURIComponent(cleanPath)}`
-            urls.push(imageUrl)
+            assetData.push({
+              type: "image",
+              storagePath: cleanPath,
+              isVideo: false,
+              isPdf: false
+            })
           }
         } else {
-          urls.push("/placeholder.jpg")
-          types.push("unknown")
-          videoUrlsArr.push("")
+          assetData.push({
+            type: "placeholder",
+            storagePath: "",
+            isVideo: false,
+            isPdf: false
+          })
         }
       }
 
       // Fill remaining slots with placeholder
-      while (urls.length < 4) {
-        urls.push("/placeholder.jpg")
-        types.push("unknown")
-        videoUrlsArr.push("")
+      while (assetData.length < 4) {
+        assetData.push({
+          type: "placeholder",
+          storagePath: "",
+          isVideo: false,
+          isPdf: false
+        })
       }
+
+      // Get all URLs in parallel - BatchAssetLoader handles batching automatically
+      const urlPromises: Promise<string>[] = []
+      const videoUrlPromises: Promise<string>[] = []
+      const types: string[] = []
+
+      for (const data of assetData) {
+        if (data.type === "placeholder") {
+          urlPromises.push(Promise.resolve("/placeholder.jpg"))
+          videoUrlPromises.push(Promise.resolve(""))
+          types.push("unknown")
+        } else {
+          types.push(data.type)
+
+          if (data.isVideo) {
+            // Get video URL for video playback
+            const videoPromise = loader.getSignedUrl(data.storagePath)
+            videoUrlPromises.push(videoPromise)
+
+            // Get thumbnail URL for display, fallback to video URL
+            if (data.thumbnailPath) {
+              urlPromises.push(loader.getSignedUrl(data.thumbnailPath))
+            } else {
+              urlPromises.push(videoPromise)
+            }
+          } else {
+            videoUrlPromises.push(Promise.resolve(""))
+            urlPromises.push(loader.getSignedUrl(data.storagePath))
+          }
+        }
+      }
+
+      // Wait for all URLs to resolve
+      const [urls, videoUrls] = await Promise.all([
+        Promise.all(urlPromises),
+        Promise.all(videoUrlPromises)
+      ])
 
       setImageUrls(urls)
       setAssetTypes(types)
-      setVideoUrls(videoUrlsArr)
+      setVideoUrls(videoUrls)
     }
 
     if (previewAssets.length > 0) {
       fetchImageUrls()
     }
   }, [previewAssets])
-
 
   return (
     <Link href={`/assets/collections/${id}`}>

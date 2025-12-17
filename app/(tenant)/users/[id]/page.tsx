@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, User, Mail, Phone, Building, Settings, Trash2 } from "lucide-react"
 import Link from "next/link"
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { DetailPageHeaderSkeleton, FormSkeleton, StatsCardsSkeleton } from "@/components/skeleton-loaders"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,7 +30,7 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
-  const params = useParams() as { id: string }
+  const params = use(useParams()) as { id: string }
   const id = params.id
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)

@@ -20,7 +20,7 @@ try {
 }
 // #endregion
 
-import React, { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import React, { useEffect, useMemo, useRef, useState, useTransition, use } from "react"
 import type { ChangeEvent } from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
@@ -148,9 +148,9 @@ const formatOptions = [
 ]
 
 export default function AssetDetailPage() {
-  const params = useParams()
+  const params = use(useParams())
   const id = useMemo(() => (params.id as string) || "", [params.id])
-  const searchParams = useSearchParams()
+  const searchParams = use(useSearchParams())
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())

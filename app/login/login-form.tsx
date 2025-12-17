@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,7 @@ export function LoginForm({ currentHost }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const searchParams = use(useSearchParams())
 
   // Check if we're on the wrong subdomain in development
   const isDevelopment = process.env.NODE_ENV === 'development'

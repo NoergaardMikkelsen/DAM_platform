@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { AssetGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
 
 interface Asset {
@@ -32,7 +32,7 @@ type ClientUserRow = { client_id: string }
 type AssetTagRow = { asset_id: string }
 
 export default function CollectionDetailPage() {
-  const params = useParams() as { id: string }
+  const params = use(useParams()) as { id: string }
   const id = params.id
 
   const [assets, setAssets] = useState<Asset[]>([])

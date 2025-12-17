@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Loader2, Video, FileText } from "lucide-react"
 
 interface AssetPreviewProps {
@@ -9,45 +8,182 @@ interface AssetPreviewProps {
   mimeType: string
   alt: string
   className?: string
+  signedUrl?: string // Add this prop
 }
 
-export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPreviewProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+// Global batch manager to coordinate all asset loading requests
+class GlobalBatchManager {
+  private static instance: GlobalBatchManager
+  private pendingRequests = new Map<string, { promise: Promise<string>, resolve: (url: string) => void }>()
+  private loadedUrls = new Map<string, string>()
+  private batchQueue: string[] = []
+  private batchTimeout: NodeJS.Timeout | null = null
+  private isProcessingBatch = false
+
+  static getInstance() {
+    if (!GlobalBatchManager.instance) {
+      GlobalBatchManager.instance = new GlobalBatchManager()
+    }
+    return GlobalBatchManager.instance
+  }
+
+  async getSignedUrl(storagePath: string): Promise<string> {
+    // Return cached URL if available
+    if (this.loadedUrls.has(storagePath)) {
+      return this.loadedUrls.get(storagePath)!
+    }
+
+    // Return pending promise if request is already in progress
+    if (this.pendingRequests.has(storagePath)) {
+      return this.pendingRequests.get(storagePath)!.promise
+    }
+
+    // Create new promise for this request
+    let resolveCallback: ((url: string) => void) | null = null
+    const promise = new Promise<string>((resolve) => {
+      resolveCallback = resolve
+    })
+
+    // Now that promise is created, we can safely store it
+    this.pendingRequests.set(storagePath, { promise, resolve: resolveCallback! })
+    this.addToBatch(storagePath, resolveCallback!)
+
+    return promise
+  }
+
+  private addToBatch(storagePath: string, resolve: (url: string) => void) {
+    // Add to batch queue
+    if (!this.batchQueue.includes(storagePath)) {
+      this.batchQueue.push(storagePath)
+    }
+
+    // Schedule batch processing
+    this.scheduleBatchProcessing()
+  }
+
+  private scheduleBatchProcessing() {
+    // Clear existing timeout
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout)
+    }
+
+    // Set new timeout - wait 100ms to collect more requests
+    this.batchTimeout = setTimeout(() => {
+      this.processPendingBatch()
+    }, 100)
+  }
+
+  private async processPendingBatch() {
+    if (this.isProcessingBatch || this.batchQueue.length === 0) return
+
+    this.isProcessingBatch = true
+    const paths = [...this.batchQueue]
+    this.batchQueue = []
+
+    console.log('[GlobalBatchManager] Processing batch with', paths.length, 'paths:', paths.slice(0, 3), '...')
+
+    try {
+      const response = await fetch('/api/assets/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePaths: paths })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Batch API returned ${response.status}: ${response.statusText}`)
+      }
+
+      const { signedUrls } = await response.json()
+      console.log('[GlobalBatchManager] Got signed URLs for', Object.keys(signedUrls).length, 'paths')
+
+      // Store all returned URLs and resolve pending promises
+      Object.entries(signedUrls).forEach(([path, url]) => {
+        this.loadedUrls.set(path, url as string)
+        const pending = this.pendingRequests.get(path)
+        if (pending) {
+          pending.resolve(url as string)
+          this.pendingRequests.delete(path)
+        }
+      })
+
+      // Resolve remaining pending requests with fallback
+      paths.forEach(path => {
+        if (!this.loadedUrls.has(path)) {
+          console.warn('[GlobalBatchManager] No URL returned for', path)
+          this.loadedUrls.set(path, '/placeholder.jpg')
+        }
+
+        const pending = this.pendingRequests.get(path)
+        if (pending) {
+          const url = this.loadedUrls.get(path) || '/placeholder.jpg'
+          pending.resolve(url)
+          this.pendingRequests.delete(path)
+        }
+      })
+
+    } catch (error) {
+      console.error('[GlobalBatchManager] Batch load failed:', error)
+
+      // Resolve all pending requests with fallback
+      paths.forEach(path => {
+        this.loadedUrls.set(path, '/placeholder.jpg')
+        const pending = this.pendingRequests.get(path)
+        if (pending) {
+          pending.resolve('/placeholder.jpg')
+          this.pendingRequests.delete(path)
+        }
+      })
+    } finally {
+      this.isProcessingBatch = false
+    }
+  }
+}
+
+// Export for use in other components
+export const BatchAssetLoader = GlobalBatchManager
+
+export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl }: AssetPreviewProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(signedUrl || null)
+  const [loading, setLoading] = useState(!signedUrl) // Only show loading if we don't have a signedUrl
   const [error, setError] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(!!signedUrl) // Start as loaded if we have signedUrl
 
   useEffect(() => {
-    async function fetchPreview() {
-      const debugLog: string[] = []
-      debugLog.push(`[ASSET-PREVIEW] Starting fetchPreview`)
-      debugLog.push(`[ASSET-PREVIEW] Storage path: ${storagePath}`)
-      debugLog.push(`[ASSET-PREVIEW] MIME type: ${mimeType}`)
-      
-      try {
-        // Clean path - remove leading/trailing slashes
-        const cleanPath = storagePath.replace(/^\/+|\/+$/g, "")
-        debugLog.push(`[ASSET-PREVIEW] Cleaned path: ${cleanPath}`)
+    // Reset states when props change
+    setError(false)
+    setLoading(true)
+    setImageLoaded(!!signedUrl)
 
-        // Use the proxy endpoint instead of direct signed URLs
-        const proxyUrl = `/api/assets/${encodeURIComponent(cleanPath)}`
-        debugLog.push(`[ASSET-PREVIEW] Proxy URL: ${proxyUrl}`)
-        
-        setPreviewUrl(proxyUrl)
+    if (signedUrl) {
+      console.log('[AssetPreview] Using provided signedUrl for', storagePath)
+      setPreviewUrl(signedUrl)
+      setLoading(false) // Show image immediately when we have signedUrl
+      return
+    }
+
+    console.log('[AssetPreview] Loading URL for', storagePath)
+    async function loadUrl() {
+      try {
+        const loader = BatchAssetLoader.getInstance()
+        const url = await loader.getSignedUrl(storagePath)
+        console.log('[AssetPreview] Got URL for', storagePath, ':', url ? 'SUCCESS' : 'EMPTY')
+        if (url && url !== '/placeholder.jpg') {
+          setPreviewUrl(url)
+          setLoading(false) // Show image immediately when we get URL
+        } else {
+          console.warn('[AssetPreview] Got placeholder URL for', storagePath)
+          setError(true)
         setLoading(false)
-        
-        debugLog.push(`[ASSET-PREVIEW] Preview URL set successfully`)
-        console.log('[ASSET-PREVIEW DEBUG]', debugLog.join('\n'))
+        }
       } catch (err) {
-        debugLog.push(`[ASSET-PREVIEW] Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-        console.error('[ASSET-PREVIEW DEBUG]', debugLog.join('\n'))
-        console.error("Failed to fetch preview:", err)
+        console.error("[AssetPreview] Failed to load preview for", storagePath, ":", err)
         setError(true)
         setLoading(false)
       }
     }
 
-    fetchPreview()
-  }, [storagePath, mimeType])
+    loadUrl()
+  }, [storagePath, signedUrl])
 
   if (loading) {
     return (
@@ -70,21 +206,41 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
   const isPdf = mimeType === "application/pdf"
 
   if (isImage) {
-    return <img src={previewUrl} alt={alt} className={className} />
+    return (
+      <img
+        src={previewUrl}
+        alt={alt}
+        className={`${className} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => {
+          console.log('[AssetPreview] ✅ Image loaded successfully:', storagePath)
+          setImageLoaded(true)
+        }}
+        onError={(e) => {
+          console.error('[AssetPreview] ❌ Image failed to load:', storagePath, e)
+          setError(true)
+          setImageLoaded(true) // Still show the broken image
+        }}
+      />
+    )
   }
 
   if (isVideo) {
     return (
-      <div className={`relative ${className}`}>
+      <div className={`relative ${className} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <video
           src={previewUrl}
           className="h-full w-full object-cover"
           preload="metadata"
           muted
           playsInline
+          onLoadedData={() => {
+            console.log('[AssetPreview] Video loaded:', storagePath)
+            setImageLoaded(true)
+          }}
           onError={(e) => {
-            console.error("Video preview error:", e)
+            console.error('[AssetPreview] Video failed to load:', storagePath, e)
             setError(true)
+            setImageLoaded(true)
           }}
         />
         {/* Video play indicator overlay */}
@@ -99,12 +255,21 @@ export function AssetPreview({ storagePath, mimeType, alt, className }: AssetPre
 
   if (isPdf) {
     return (
-      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative`}>
+      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
           className="w-full h-full"
           title={`PDF Preview: ${alt}`}
           style={{ border: 'none', minHeight: '300px' }}
+          onLoad={() => {
+            console.log('[AssetPreview] PDF loaded:', storagePath)
+            setImageLoaded(true)
+          }}
+          onError={() => {
+            console.error('[AssetPreview] PDF failed to load:', storagePath)
+            setError(true)
+            setImageLoaded(true)
+          }}
         />
         {/* PDF overlay */}
         <div className="absolute top-2 right-2 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded font-medium backdrop-blur-sm border border-gray-200">
