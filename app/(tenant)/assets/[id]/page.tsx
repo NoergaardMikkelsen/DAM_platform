@@ -148,25 +148,21 @@ const formatOptions = [
 ]
 
 export default function AssetDetailPage() {
-  const paramsPromise = useParams()
-  const searchParamsPromise = useSearchParams()
-  const [id, setId] = useState<string>("")
-  const [resolvedSearchParams, setResolvedSearchParams] = useState<URLSearchParams | null>(null)
+  const params = useParams()
+  const searchParams = useSearchParams()
+  const id = params.id as string
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
   const [isNavigating, startNavigation] = useTransition()
 
-  // Unwrap the promises in useEffect
-  useEffect(() => {
-    const unwrapParams = async () => {
-      const resolvedParams = await paramsPromise
-      const resolvedSearch = await searchParamsPromise
-      setId(resolvedParams.id as string)
-      setResolvedSearchParams(resolvedSearch)
-    }
-    unwrapParams()
-  }, [paramsPromise, searchParamsPromise])
+  // Memoize search params values to avoid unnecessary re-renders
+  const searchContext = useMemo(() =>
+    searchParams.get("context") || "all", [searchParams]
+  )
+  const searchCollectionId = useMemo(() =>
+    searchParams.get("collectionId") || null, [searchParams]
+  )
 
   const [asset, setAsset] = useState<Asset | null>(null)
   const [uploader, setUploader] = useState<User | null>(null)
@@ -297,9 +293,9 @@ export default function AssetDetailPage() {
     await Promise.all([loadActivity(assetData.id), loadVersions(assetData.id)])
 
     // Load navigation assets based on context
-    const context = resolvedSearchParams?.get("context") || (assetData.category_tag_id ? "collection" : "all")
+    const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
     const collectionId =
-      resolvedSearchParams?.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
+      searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
     await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
 
     if (!soft) {
@@ -356,9 +352,9 @@ export default function AssetDetailPage() {
     const nextIndex = navIndex + direction
     if (nextIndex < 0 || nextIndex >= navAssets.length) return
     const nextAsset = navAssets[nextIndex]
-    const context = resolvedSearchParams?.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    const context = searchParams.get("context") || (asset?.category_tag_id ? "collection" : "all")
     const collectionId =
-      resolvedSearchParams?.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+      searchParams.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
     const query = new URLSearchParams()
     query.set("context", context)
     if (collectionId) query.set("collectionId", collectionId)
@@ -371,9 +367,9 @@ export default function AssetDetailPage() {
 
   // Prefetch neighbor routes for smoother navigation
   useEffect(() => {
-    const context = resolvedSearchParams?.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    const context = searchContext || (asset?.category_tag_id ? "collection" : "all")
     const collectionId =
-      resolvedSearchParams?.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+      searchCollectionId || (context === "collection" ? asset?.category_tag_id : null)
     const buildUrl = (assetId: string) => {
       const q = new URLSearchParams()
       q.set("context", context)
@@ -386,7 +382,7 @@ export default function AssetDetailPage() {
     if (navIndex >= 0 && navIndex < navAssets.length - 1) {
       router.prefetch(buildUrl(navAssets[navIndex + 1].id))
     }
-  }, [navIndex, navAssets, asset?.category_tag_id, searchParams, router])
+  }, [navIndex, navAssets, asset?.category_tag_id, searchContext, searchCollectionId, router])
 
   const loadVersions = async (assetId: string) => {
     try {
