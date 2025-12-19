@@ -220,7 +220,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
       <img
         src={previewUrl}
         alt={alt}
-        className={`${className} transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`${className} transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => {
           setMediaLoaded(true)
           onAssetLoaded?.()
@@ -236,7 +236,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
 
   if (isVideo) {
     return (
-      <div className={`relative ${className} transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`relative ${className} transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <video
           src={previewUrl}
           className="h-full w-full object-cover"
@@ -265,7 +265,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
 
   if (isPdf) {
     return (
-      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative transition-opacity duration-300 ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
           className="w-full h-full"

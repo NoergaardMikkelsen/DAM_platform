@@ -44,19 +44,31 @@ export default function CollectionDetailPage() {
   const [loadedAssets, setLoadedAssets] = useState(0)
   const [totalAssets, setTotalAssets] = useState(0)
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
+  const [signedUrlsReady, setSignedUrlsReady] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
   const handleAssetLoaded = useCallback(() => {
     setLoadedAssets(prev => {
       const newCount = prev + 1
-      // When all assets are loaded, hide the skeleton
-      if (newCount >= totalAssets && totalAssets > 0) {
-        setIsLoading(false)
+      
+      // Smart threshold: Show content when we have minimum assets loaded OR all assets loaded
+      const minAssetsToShow = totalAssets > 0 
+        ? Math.min(12, Math.max(6, Math.ceil(totalAssets * 0.3)))
+        : 0
+      
+      // Show content when:
+      // 1. Signed URLs are ready AND
+      // 2. We have minimum assets loaded OR all assets are loaded
+      if (signedUrlsReady && totalAssets > 0) {
+        if (newCount >= minAssetsToShow || newCount >= totalAssets) {
+          setIsLoading(false)
+        }
       }
+      
       return newCount
     })
-  }, [totalAssets])
+  }, [totalAssets, signedUrlsReady])
 
   useEffect(() => {
     if (!id || id === "undefined") return
@@ -158,21 +170,29 @@ export default function CollectionDetailPage() {
           if (batchResponse.ok) {
             const { signedUrls } = await batchResponse.json()
             setSignedUrlsCache(signedUrls)
+            setSignedUrlsReady(true)
+          } else {
+            setSignedUrlsReady(true) // Mark as ready even on error
           }
         } catch (error) {
           console.error("Error fetching signed URLs:", error)
+          setSignedUrlsReady(true) // Mark as ready even on error
         }
+      } else {
+        setSignedUrlsReady(true) // No assets to load
       }
 
       const totalAssetsToLoad = assetsWithMedia.length
       setTotalAssets(totalAssetsToLoad)
       setLoadedAssets(0) // Reset counter
+      setSignedUrlsReady(false) // Reset signed URLs ready state
 
       // If no assets need to be loaded, hide skeleton immediately
       if (totalAssetsToLoad === 0) {
         setIsLoading(false)
+        setSignedUrlsReady(true)
       }
-      // Otherwise, wait for all assets to load
+      // Otherwise, wait for smart threshold in handleAssetLoaded
     }
   }
 
@@ -288,8 +308,17 @@ export default function CollectionDetailPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {filteredAssets.map((asset) => (
-            <Link key={asset.id} href={`/assets/${asset.id}?context=collection&collectionId=${id}`}>
+          {filteredAssets.map((asset, index) => (
+            <Link 
+              key={asset.id} 
+              href={`/assets/${asset.id}?context=collection&collectionId=${id}`}
+              className="animate-in fade-in"
+              style={{
+                animationDelay: `${Math.min(index * 50, 500)}ms`,
+                animationDuration: '400ms',
+                animationFillMode: 'both'
+              }}
+            >
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
                 <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
                   {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (

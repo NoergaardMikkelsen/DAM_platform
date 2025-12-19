@@ -48,19 +48,32 @@ export default function AssetsPage() {
   const [loadedAssets, setLoadedAssets] = useState(0)
   const [totalAssets, setTotalAssets] = useState(0)
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
+  const [signedUrlsReady, setSignedUrlsReady] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
   const handleAssetLoaded = useCallback(() => {
     setLoadedAssets(prev => {
       const newCount = prev + 1
-      // When all assets are loaded, hide the skeleton
-      if (newCount >= totalAssets && totalAssets > 0) {
-        setIsLoading(false)
+      
+      // Smart threshold: Show content when we have minimum assets loaded OR all assets loaded
+      // Minimum is either 30% of total or 12 assets (whichever is smaller)
+      const minAssetsToShow = totalAssets > 0 
+        ? Math.min(12, Math.max(6, Math.ceil(totalAssets * 0.3)))
+        : 0
+      
+      // Show content when:
+      // 1. Signed URLs are ready AND
+      // 2. We have minimum assets loaded OR all assets are loaded
+      if (signedUrlsReady && totalAssets > 0) {
+        if (newCount >= minAssetsToShow || newCount >= totalAssets) {
+          setIsLoading(false)
+        }
       }
+      
       return newCount
     })
-  }, [totalAssets])
+  }, [totalAssets, signedUrlsReady])
 
   useEffect(() => {
     loadData()
@@ -255,13 +268,21 @@ export default function AssetsPage() {
         if (batchResponse.ok) {
           const { signedUrls } = await batchResponse.json()
           setSignedUrlsCache(signedUrls)
+          setSignedUrlsReady(true) // Mark signed URLs as ready
           debugLog.push(`[ASSETS-PAGE] Got ${Object.keys(signedUrls).length} signed URLs`)
         } else {
           debugLog.push(`[ASSETS-PAGE] Batch signed URL request failed: ${batchResponse.status}`)
+          // Even if batch fails, mark as ready to avoid infinite loading
+          setSignedUrlsReady(true)
         }
       } catch (error) {
         debugLog.push(`[ASSETS-PAGE] Error fetching signed URLs: ${error}`)
+        // Mark as ready even on error to avoid infinite loading
+        setSignedUrlsReady(true)
       }
+    } else {
+      // No assets to load, mark as ready immediately
+      setSignedUrlsReady(true)
     }
 
     debugLog.push(`[ASSETS-PAGE] LoadData completed`)
@@ -270,12 +291,14 @@ export default function AssetsPage() {
     const totalAssetsToLoad = assetsWithMedia.length
     setTotalAssets(totalAssetsToLoad)
     setLoadedAssets(0) // Reset counter
+    setSignedUrlsReady(false) // Reset signed URLs ready state
 
     // If no assets need to be loaded, hide skeleton immediately
     if (totalAssetsToLoad === 0) {
       setIsLoading(false)
+      setSignedUrlsReady(true)
     }
-    // Otherwise, wait for all assets to load
+    // Otherwise, wait for smart threshold in handleAssetLoaded
   }
 
   const applySearchAndSort = () => {
@@ -426,14 +449,23 @@ export default function AssetsPage() {
           </div>
         ) : (
           <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-            {sortedCollections.slice(0, maxCollections).map((collection) => (
-              <CollectionCard
+            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
+              <div
                 key={collection.id}
-                id={collection.id}
-                label={collection.label}
-                assetCount={collection.assetCount}
-                previewAssets={collection.previewAssets}
-              />
+                className="animate-in fade-in"
+                style={{
+                  animationDelay: `${Math.min(index * 50, 500)}ms`,
+                  animationDuration: '400ms',
+                  animationFillMode: 'both'
+                }}
+              >
+                <CollectionCard
+                  id={collection.id}
+                  label={collection.label}
+                  assetCount={collection.assetCount}
+                  previewAssets={collection.previewAssets}
+                />
+              </div>
             ))}
           </div>
         )}
