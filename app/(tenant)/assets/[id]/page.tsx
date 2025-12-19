@@ -230,12 +230,21 @@ export default function AssetDetailPage() {
         return
       }
 
+      // Set media loading state IMMEDIATELY based on file type (kritisk!)
+      const isImage = assetData.mime_type?.startsWith("image/")
+      const isVideo = assetData.mime_type?.startsWith("video/")
+      if (isImage || isVideo) {
+        setIsMediaLoading(true)
+      } else {
+        setIsMediaLoading(false)
+      }
+
       setAsset(assetData)
 
       // 2. HENT SIGNED URL MED DET SAMME (kritisk for billedet!) - bruger caching
       const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
       const loader = BatchAssetLoader.getInstance()
-      
+
       try {
         const signedUrl = await loader.getSignedUrl(cleanPath)
         if (signedUrl && signedUrl !== '/placeholder.jpg') {
@@ -247,15 +256,6 @@ export default function AssetDetailPage() {
       } catch (err) {
         // Fallback to proxy
         setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` })
-      }
-
-      // Set media loading state based on file type
-      const isImage = assetData.mime_type?.startsWith("image/")
-      const isVideo = assetData.mime_type?.startsWith("video/")
-      if (isImage || isVideo) {
-        setIsMediaLoading(true)
-      } else {
-        setIsMediaLoading(false)
       }
 
       // 3. HENT ALT ANDET I PARALLEL (ikke kritisk for billedet)
@@ -870,73 +870,97 @@ export default function AssetDetailPage() {
           {/* Asset Preview - Centered */}
           <div className="flex flex-1 items-center justify-center min-h-0">
             <div className="w-full flex items-center justify-center">
-              {previewUrl ? (
+              {(previewUrl || isMediaLoading) ? (
                 <>
                   {isImage && (
-                    <img
-                      key={asset.id}
-                      src={previewUrl || undefined}
-                      alt={asset.title}
-                      className="max-h-[72vh] max-w-full object-contain"
-                      onLoad={() => {
-                        setIsMediaLoading(false)
-                      }}
-                      onError={() => {
-                        setIsMediaLoading(false)
-                      }}
-                    />
+                    <>
+                      {!previewUrl && isMediaLoading && (
+                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl bg-gray-100">
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
+                            <p className="text-sm text-gray-600">Loading image…</p>
+                          </div>
+                        </div>
+                      )}
+                      {previewUrl && (
+                        <img
+                          key={asset.id}
+                          src={previewUrl}
+                          alt={asset.title}
+                          className="max-h-[72vh] max-w-full object-contain"
+                          onLoad={() => {
+                            setIsMediaLoading(false)
+                          }}
+                          onError={() => {
+                            setIsMediaLoading(false)
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                   {isVideo && (
-                    <video
-                      key={asset.id}
-                      src={previewUrl}
-                      controls
-                      className="max-h-[72vh] max-w-full object-contain rounded-2xl"
-                      preload="metadata"
-                      crossOrigin="anonymous"
-                      onLoad={() => setIsMediaLoading(false)}
-                      onError={async (e) => {
-                        setIsMediaLoading(false)
-                        const videoEl = e.target as HTMLVideoElement
-                        const currentSrc = videoEl.src
-                        const expectedPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+                    <>
+                      {!previewUrl && isMediaLoading && (
+                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl bg-gray-100">
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
+                            <p className="text-sm text-gray-600">Loading video…</p>
+                          </div>
+                        </div>
+                      )}
+                      {previewUrl && (
+                        <video
+                          key={asset.id}
+                          src={previewUrl}
+                          controls
+                          className="max-h-[72vh] max-w-full object-contain rounded-2xl"
+                          preload="metadata"
+                          crossOrigin="anonymous"
+                          onLoad={() => setIsMediaLoading(false)}
+                          onError={async (e) => {
+                            setIsMediaLoading(false)
+                            const videoEl = e.target as HTMLVideoElement
+                            const currentSrc = videoEl.src
+                            const expectedPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
 
-                        // Only log if URL doesn't match current asset
-                        if (!currentSrc.includes(expectedPath)) {
-                          console.warn("Video URL mismatch - clearing and reloading")
-                          setStorageData(null)
-                          setVideoErrorCount(0)
-                          return
-                        }
+                            // Only log if URL doesn't match current asset
+                            if (!currentSrc.includes(expectedPath)) {
+                              console.warn("Video URL mismatch - clearing and reloading")
+                              setStorageData(null)
+                              setVideoErrorCount(0)
+                              return
+                            }
 
-                        // Retry once with a fresh signed URL
-                        if (asset && videoErrorCount < 1) {
-                          setVideoErrorCount((c) => c + 1)
-                          const retryCleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-                          // Use BatchAssetLoader for retry (with caching)
-                          const loader = BatchAssetLoader.getInstance()
-                          loader.getSignedUrl(retryCleanPath)
-                            .then(url => {
-                              if (url && url !== '/placeholder.jpg') {
-                                setStorageData({ signedUrl: url })
-                              } else {
-                                setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` })
-                              }
-                            })
-                            .catch(() => {
-                              setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` })
-                            })
-                          return
-                        }
+                            // Retry once with a fresh signed URL
+                            if (asset && videoErrorCount < 1) {
+                              setVideoErrorCount((c) => c + 1)
+                              const retryCleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+                              // Use BatchAssetLoader for retry (with caching)
+                              const loader = BatchAssetLoader.getInstance()
+                              loader.getSignedUrl(retryCleanPath)
+                                .then(url => {
+                                  if (url && url !== '/placeholder.jpg') {
+                                    setStorageData({ signedUrl: url })
+                                  } else {
+                                    setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` })
+                                  }
+                                })
+                                .catch(() => {
+                                  setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` })
+                                })
+                              return
+                            }
 
-                        setErrorMessage("Failed to load video. The file may not exist or be corrupted.")
-                      }}
-                      onLoadStart={() => {
-                        // Video loading started
-                      }}
-                    >
-                      Your browser does not support the video tag.
-                    </video>
+                            setErrorMessage("Failed to load video. The file may not exist or be corrupted.")
+                          }}
+                          onLoadStart={() => {
+                            // Video loading started
+                          }}
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      )}
+                    </>
                   )}
                   {isPdf && (
                     <iframe
@@ -949,7 +973,7 @@ export default function AssetDetailPage() {
                 </>
               ) : (
                 <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl bg-gray-100 text-sm text-gray-500">
-                  {previewUrl ? "Loading preview..." : "Preview not available"}
+                  Preview not available
                 </div>
               )}
             </div>
