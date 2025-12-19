@@ -21,17 +21,19 @@ export default function TenantLayoutClient({ tenant, userData, role, children }:
     // Show loading screen only on first visit to tenant area in this session
     const hasSeenTenantLoading = sessionStorage.getItem('hasSeenTenantLoading')
 
-    if (!hasSeenTenantLoading) {
-      // First time ever - show loading experience
-      sessionStorage.setItem('hasSeenTenantLoading', 'true')
-    } else {
-      // Returning user - skip loading screen, show content immediately
+    if (hasSeenTenantLoading === 'completed') {
+      // User has seen the full loading experience - skip loading screen
       setShowLoadingScreen(false)
       setShowContent(true)
+    } else {
+      // First time or loading in progress - show loading screen
+      // Don't set sessionStorage yet - wait for loading to complete
     }
   }, [])
 
   const handleLoadingComplete = () => {
+    // Mark loading as completed in sessionStorage
+    sessionStorage.setItem('hasSeenTenantLoading', 'completed')
     setShowLoadingScreen(false)
     setShowContent(true)
   }
