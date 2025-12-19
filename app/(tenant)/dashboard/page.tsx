@@ -11,8 +11,7 @@ import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Skeleton } from "@/components/ui/skeleton"
-import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton } from "@/components/skeleton-loaders"
+import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
 
 interface Collection {
   id: string
@@ -340,13 +339,7 @@ export default function DashboardPage() {
 
         {/* Collections section skeleton */}
         <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-            <Skeleton className="h-10 w-32" />
-          </div>
+          <SectionHeaderSkeleton showSort={true} />
           <CollectionGridSkeleton count={6} />
         </div>
       </div>

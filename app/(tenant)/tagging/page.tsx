@@ -9,7 +9,6 @@ import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 
 interface Tag {
   id: string
@@ -179,18 +178,6 @@ export default function TaggingPage() {
     }
 
     setFilteredTags(filtered)
-  }
-
-
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <ListPageHeaderSkeleton showCreateButton={true} />
-        <SearchSkeleton />
-        <TabsSkeleton count={4} />
-        <TableSkeleton rows={8} columns={4} />
-      </div>
-    )
   }
 
   return (

@@ -9,7 +9,6 @@ import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
-import { AssetGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
 
@@ -208,17 +207,6 @@ export default function CollectionDetailPage() {
 
     setFilteredAssets(filtered)
     setIsFilterOpen(false)
-  }
-
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <PageHeaderSkeleton showBackLink={true} showSearch={true} />
-        <SortingSkeleton />
-        <AssetGridSkeleton count={15} />
-        <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} onApplyFilters={handleApplyFilters} showCategoryFilter={false} />
-      </div>
-    )
   }
 
   return (

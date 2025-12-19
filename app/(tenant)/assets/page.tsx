@@ -10,7 +10,6 @@ import { Card, CardHeader } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
-import { AssetGridSkeleton, CollectionGridSkeleton, PageHeaderSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 
@@ -359,28 +358,6 @@ export default function AssetsPage() {
     setFilteredAssets(filteredAssets)
     setFilteredCollections(filteredCollectionsResult)
     setIsFilterOpen(false)
-  }
-
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <PageHeaderSkeleton showSearch={true} />
-
-        {/* Collections section skeleton */}
-        <div className="mb-10">
-          <SectionHeaderSkeleton showSort={true} />
-          <CollectionGridSkeleton count={maxCollections} />
-        </div>
-
-        {/* Assets section skeleton */}
-        <div>
-          <SectionHeaderSkeleton showSort={true} />
-          <AssetGridSkeleton count={12} />
-        </div>
-
-        <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} onApplyFilters={handleApplyFilters} />
-      </div>
-    )
   }
 
   return (
