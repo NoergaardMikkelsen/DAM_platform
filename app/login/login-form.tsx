@@ -43,10 +43,6 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
       // Check what's in localStorage
       const localStorageKeys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-') || k.includes('auth'))
       const localStorageData = localStorageKeys.map(k => ({ key: k, hasValue: !!localStorage.getItem(k) }))
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:checkSession',message:'Checking existing session on page load',data:{hasSession:!!session,hasUser:!!session?.user,host:window.location.host,localStorageKeys:localStorageKeys,localStorageData:localStorageData,documentCookies:document.cookie.split(';').map(c=>c.trim().split('=')[0]).filter(n=>n.includes('sb-')||n.includes('auth'))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,G'})}).catch(()=>{});
-      // #endregion
 
       if (session?.user) {
         // User is already logged in, redirect based on context
@@ -96,10 +92,6 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
     try {
       debugLog.push(`[DEBUG] Attempting to sign in via API route...`)
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:before-api-call',message:'About to call login API',data:{host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       // Use API route to login and set cookies with correct domain
       const loginResponse = await fetch('/api/auth/login', {
         method: 'POST',
@@ -109,10 +101,6 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
         body: JSON.stringify({ email, password }),
         credentials: 'include', // Important: include cookies
       })
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:after-api-call',message:'Login API response received',data:{status:loginResponse.status,ok:loginResponse.ok,host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       if (!loginResponse.ok) {
         const errorData = await loginResponse.json()

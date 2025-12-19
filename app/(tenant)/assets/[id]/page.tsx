@@ -1,25 +1,5 @@
 "use client"
 
-// #region agent log - hypothesis A: Test if imports work at runtime
-try {
-  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId: 'debug-typescript-errors',
-      runId: 'initial-test',
-      hypothesisId: 'A',
-      location: 'app/(tenant)/assets/[id]/page.tsx:3',
-      message: 'Testing if imports load successfully',
-      data: { importAttempt: true },
-      timestamp: Date.now()
-    })
-  }).catch(() => {});
-} catch (e) {
-  // Silent fail for debugging
-}
-// #endregion
-
 import React, { useEffect, useMemo, useRef, useState, useTransition, use } from "react"
 import type { ChangeEvent } from "react"
 import Link from "next/link"
@@ -228,94 +208,124 @@ export default function AssetDetailPage() {
   }, [id, router])
 
   const loadAsset = async (targetId: string, soft: boolean) => {
-    // clear previous signed URL to avoid stale previews during navigation
-    setStorageData(null)
-    setVideoErrorCount(0)
-    if (!soft) {
-      setIsLoading(true)
-    }
-
-    const supabase = supabaseRef.current
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-      setIsLoading(false)
-      router.push("/login")
-      return
-    }
-
-    const { data: assetData, error } = await supabase.from("assets").select("*").eq("id", targetId).single()
-
-    if (!assetData || error) {
-      setIsLoading(false)
-      router.push("/assets")
-      return
-    }
-
-    setAsset(assetData)
-
-    const { data: uploaderData } = await supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single()
-    setUploader(uploaderData)
-
-    const { data: favoriteData } = await supabase
-    .from("favorites")
-    .select("id")
-    .eq("user_id", user.id)
-      .eq("asset_id", targetId)
-    .maybeSingle()
-    setFavorite(favoriteData)
-    setIsFavorited(!!favoriteData)
-
-    const { data: assetTags } = await supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId)
-    setTags(assetTags?.map((at: any) => at.tags) || [])
-
-    // Ensure storage_path doesn't have leading/trailing slashes
-    const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
-    
-    console.log("Creating signed URL for:", {
-      bucket: assetData.storage_bucket,
-      path: cleanPath,
-      originalPath: assetData.storage_path,
-      mimeType: assetData.mime_type
-    })
-
-    // Use proxy endpoint instead of direct signed URL
-    const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
-
-    console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
-    setStorageData(storageUrl)
-    setVideoErrorCount(0)
-
-    // Load previous version preview (if any)
-    setPreviousVersion(null)
-    setPreviousPreviewUrl(null)
-    if (assetData.previous_version_id) {
-      const { data: prevVersion } = await supabase
-        .from("asset_versions")
-        .select("id, storage_bucket, storage_path, mime_type, version_label, created_at, file_size")
-        .eq("id", assetData.previous_version_id)
-        .single()
-
-      if (prevVersion) {
-        setPreviousVersion(prevVersion)
-        const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
-        // Use proxy endpoint instead of direct signed URL
-        setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+    try {
+      console.log("[ASSET-DETAIL] Starting loadAsset for:", targetId)
+      // clear previous signed URL to avoid stale previews during navigation
+      setStorageData(null)
+      setVideoErrorCount(0)
+      if (!soft) {
+        setIsLoading(true)
       }
-    }
 
-    await Promise.all([loadActivity(assetData.id), loadVersions(assetData.id)])
+      const supabase = supabaseRef.current
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-    // Load navigation assets based on context
-    const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
-    const collectionId =
-      searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
-    await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
+      if (!user) {
+        console.log("[ASSET-DETAIL] No user, redirecting to login")
+        setIsLoading(false)
+        router.push("/login")
+        return
+      }
 
-    if (!soft) {
-    setIsLoading(false)
+      console.log("[ASSET-DETAIL] Fetching asset data...")
+      const { data: assetData, error } = await supabase.from("assets").select("*").eq("id", targetId).single()
+
+      if (!assetData || error) {
+        console.error("[ASSET-DETAIL] Asset not found or error:", error)
+        setIsLoading(false)
+        router.push("/assets")
+        return
+      }
+
+      console.log("[ASSET-DETAIL] Asset found:", assetData.title)
+
+      setAsset(assetData)
+
+      const { data: uploaderData } = await supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single()
+      setUploader(uploaderData)
+
+      const { data: favoriteData } = await supabase
+        .from("favorites")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("asset_id", targetId)
+        .maybeSingle()
+      setFavorite(favoriteData)
+      setIsFavorited(!!favoriteData)
+
+      const { data: assetTags } = await supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId)
+      setTags(assetTags?.map((at: any) => at.tags) || [])
+
+      // Ensure storage_path doesn't have leading/trailing slashes
+      const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
+      
+      console.log("Creating signed URL for:", {
+        bucket: assetData.storage_bucket,
+        path: cleanPath,
+        originalPath: assetData.storage_path,
+        mimeType: assetData.mime_type
+      })
+
+      // Use proxy endpoint instead of direct signed URL
+      const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
+
+      console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
+      setStorageData(storageUrl)
+      setVideoErrorCount(0)
+
+      // Load previous version preview (if any)
+      setPreviousVersion(null)
+      setPreviousPreviewUrl(null)
+      if (assetData.previous_version_id) {
+        try {
+          const { data: prevVersion } = await supabase
+            .from("asset_versions")
+            .select("id, storage_bucket, storage_path, mime_type, version_label, created_at, file_size")
+            .eq("id", assetData.previous_version_id)
+            .single()
+
+          if (prevVersion) {
+            setPreviousVersion(prevVersion)
+            const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
+            // Use proxy endpoint instead of direct signed URL
+            setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+          }
+        } catch (err) {
+          console.error("Error loading previous version:", err)
+        }
+      }
+
+      // Load activity and versions with error handling
+      try {
+        console.log("[ASSET-DETAIL] Loading activity and versions...")
+        await Promise.all([loadActivity(assetData.id), loadVersions(assetData.id)])
+        console.log("[ASSET-DETAIL] Activity and versions loaded")
+      } catch (err) {
+        console.error("[ASSET-DETAIL] Error loading activity or versions:", err)
+      }
+
+      // Load navigation assets based on context
+      try {
+        console.log("[ASSET-DETAIL] Loading navigation assets...")
+        const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
+        const collectionId =
+          searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
+        await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
+        console.log("[ASSET-DETAIL] Navigation assets loaded")
+      } catch (err) {
+        console.error("[ASSET-DETAIL] Error loading navigation assets:", err)
+      }
+
+      console.log("[ASSET-DETAIL] LoadAsset completed successfully")
+      if (!soft) {
+        setIsLoading(false)
+      }
+    } catch (error) {
+      console.error("[ASSET-DETAIL] Error loading asset:", error)
+      setIsLoading(false)
+      // Don't redirect on error - let user see the error state
     }
   }
 

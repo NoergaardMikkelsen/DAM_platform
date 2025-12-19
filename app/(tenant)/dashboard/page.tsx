@@ -67,10 +67,6 @@ export default function DashboardPage() {
       const refreshToken = params.get('refresh_token')
 
       if (isAuthTransfer && accessToken && refreshToken) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/dashboard:auth-transfer',message:'Processing auth transfer',data:{host:window.location.host,hasTokens:!!(accessToken&&refreshToken)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX'})}).catch(()=>{});
-        // #endregion
-
         try {
           const supabase = supabaseRef.current
           // Set the session using transferred tokens
