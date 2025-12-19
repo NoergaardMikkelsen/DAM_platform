@@ -49,6 +49,7 @@ export default function AssetsPage() {
   const [totalAssets, setTotalAssets] = useState(0)
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
   const [signedUrlsReady, setSignedUrlsReady] = useState(false)
+  const [shouldAnimate, setShouldAnimate] = useState(false) // Control when stagger animation should start
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -68,6 +69,10 @@ export default function AssetsPage() {
       if (signedUrlsReady && totalAssets > 0) {
         if (newCount >= minAssetsToShow || newCount >= totalAssets) {
           setIsLoading(false)
+          // Start stagger animation once we have enough assets loaded
+          if (!shouldAnimate) {
+            setShouldAnimate(true)
+          }
         }
       }
       
@@ -297,6 +302,7 @@ export default function AssetsPage() {
     if (totalAssetsToLoad === 0) {
       setIsLoading(false)
       setSignedUrlsReady(true)
+      setShouldAnimate(true) // Start animation immediately if no assets to load
     }
     // Otherwise, wait for smart threshold in handleAssetLoaded
   }
@@ -452,10 +458,10 @@ export default function AssetsPage() {
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className="animate-stagger-fade-in"
-                style={{
+                className={shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}
+                style={shouldAnimate ? {
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                }}
+                } : {}}
               >
                 <CollectionCard
                   id={collection.id}
@@ -503,23 +509,16 @@ export default function AssetsPage() {
         ) : (
           <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {filteredAssets.map((asset, index) => {
-              // Only show assets that have signed URLs ready OR are in the first batch
-              // This prevents showing empty cards before URLs are ready
-              const hasSignedUrl = signedUrlsCache[asset.storage_path] !== undefined
-              const shouldShow = signedUrlsReady && (hasSignedUrl || index < 12) // Show first 12 even if URL not cached yet
-              
-              if (!shouldShow) {
-                return null // Don't render card until signed URL is ready
-              }
-              
+              // Show all assets once signed URLs are ready
+              // Animation only starts when shouldAnimate is true
               return (
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
-                className="block mb-6 break-inside-avoid animate-stagger-fade-in"
-                style={{
+                className={`block mb-6 break-inside-avoid ${shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}`}
+                style={shouldAnimate ? {
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                }}
+                } : {}}
               >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
                   <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">

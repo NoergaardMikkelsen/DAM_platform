@@ -45,6 +45,7 @@ export default function CollectionDetailPage() {
   const [totalAssets, setTotalAssets] = useState(0)
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
   const [signedUrlsReady, setSignedUrlsReady] = useState(false)
+  const [shouldAnimate, setShouldAnimate] = useState(false) // Control when stagger animation should start
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -63,6 +64,10 @@ export default function CollectionDetailPage() {
       if (signedUrlsReady && totalAssets > 0) {
         if (newCount >= minAssetsToShow || newCount >= totalAssets) {
           setIsLoading(false)
+          // Start stagger animation once we have enough assets loaded
+          if (!shouldAnimate) {
+            setShouldAnimate(true)
+          }
         }
       }
       
@@ -191,6 +196,7 @@ export default function CollectionDetailPage() {
       if (totalAssetsToLoad === 0) {
         setIsLoading(false)
         setSignedUrlsReady(true)
+        setShouldAnimate(true) // Start animation immediately if no assets to load
       }
       // Otherwise, wait for smart threshold in handleAssetLoaded
     }
@@ -309,22 +315,16 @@ export default function CollectionDetailPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           {filteredAssets.map((asset, index) => {
-            // Only show assets that have signed URLs ready OR are in the first batch
-            const hasSignedUrl = signedUrlsCache[asset.storage_path] !== undefined
-            const shouldShow = signedUrlsReady && (hasSignedUrl || index < 12)
-            
-            if (!shouldShow) {
-              return null // Don't render card until signed URL is ready
-            }
-            
+            // Show all assets once signed URLs are ready
+            // Animation only starts when shouldAnimate is true
             return (
             <Link 
               key={asset.id} 
               href={`/assets/${asset.id}?context=collection&collectionId=${id}`}
-              className="animate-stagger-fade-in"
-              style={{
+              className={shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}
+              style={shouldAnimate ? {
                 animationDelay: `${Math.min(index * 40, 600)}ms`,
-              }}
+              } : {}}
             >
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
                 <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
