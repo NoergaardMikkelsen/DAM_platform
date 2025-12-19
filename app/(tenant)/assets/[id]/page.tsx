@@ -47,6 +47,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { uploadAsset, getImageDimensions, getVideoDimensions } from "@/lib/utils/storage"
+import { BatchAssetLoader } from "@/components/asset-preview"
 
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -186,21 +187,7 @@ export default function AssetDetailPage() {
     }
   }, [asset?.width, asset?.height])
 
-  useEffect(() => {
-    if (storageData?.signedUrl && asset) {
-      // Only set media loading for images and videos, not PDFs
-      const isImage = asset.mime_type?.startsWith("image/")
-      const isVideo = asset.mime_type?.startsWith("video/")
-      if (isImage || isVideo) {
-        console.log("[ASSET-DETAIL] Setting isMediaLoading to true for", asset.mime_type)
-        setIsMediaLoading(true)
-      } else {
-        // For PDFs and other non-media files, don't set loading state
-        console.log("[ASSET-DETAIL] Setting isMediaLoading to false for", asset.mime_type)
-        setIsMediaLoading(false)
-      }
-    }
-  }, [storageData?.signedUrl, asset])
+  // Removed useEffect that was blocking rendering - media loading state is set directly in loadAsset
 
   useEffect(() => {
     // Wait for id to be available
@@ -219,8 +206,6 @@ export default function AssetDetailPage() {
 
   const loadAsset = async (targetId: string, soft: boolean) => {
     try {
-      // clear previous signed URL to avoid stale previews during navigation
-      setStorageData(null)
       setVideoErrorCount(0)
       if (!soft) {
         setIsLoading(true)
@@ -235,7 +220,7 @@ export default function AssetDetailPage() {
         return
       }
 
-      // Parallel fetch all essential data
+      // 1. HENT ASSET DATA FØRST (kritisk)
       const assetResult = await supabase.from("assets").select("*").eq("id", targetId).single()
       const { data: assetData, error } = assetResult
 
@@ -247,13 +232,37 @@ export default function AssetDetailPage() {
 
       setAsset(assetData)
 
-      // Parallel fetch all related data
+      // 2. HENT SIGNED URL MED DET SAMME (kritisk for billedet!) - bruger caching
       const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
-      const [favoriteResult, tagsResult, uploaderResult, signedUrlResult, activityResult, versionsResult] = await Promise.all([
+      const loader = BatchAssetLoader.getInstance()
+      
+      try {
+        const signedUrl = await loader.getSignedUrl(cleanPath)
+        if (signedUrl && signedUrl !== '/placeholder.jpg') {
+          setStorageData({ signedUrl })
+        } else {
+          // Fallback to proxy if BatchAssetLoader fails
+          setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` })
+        }
+      } catch (err) {
+        // Fallback to proxy
+        setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` })
+      }
+
+      // Set media loading state based on file type
+      const isImage = assetData.mime_type?.startsWith("image/")
+      const isVideo = assetData.mime_type?.startsWith("video/")
+      if (isImage || isVideo) {
+        setIsMediaLoading(true)
+      } else {
+        setIsMediaLoading(false)
+      }
+
+      // 3. HENT ALT ANDET I PARALLEL (ikke kritisk for billedet)
+      const [favoriteResult, tagsResult, uploaderResult, activityResult, versionsResult] = await Promise.all([
         supabase.from("favorites").select("id").eq("user_id", user.id).eq("asset_id", targetId).maybeSingle(),
         supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId),
         supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single(),
-        supabase.storage.from('assets').createSignedUrl(cleanPath, 3600),
         supabase.from("asset_events").select("*").eq("asset_id", targetId).order("created_at", { ascending: false }).limit(20),
         supabase.from("asset_versions").select("*").eq("asset_id", targetId).order("created_at", { ascending: false })
       ])
@@ -266,73 +275,46 @@ export default function AssetDetailPage() {
       setActivity(activityResult.data || [])
       setVersions(versionsResult.data || [])
 
-      // Handle signed URL - prefer direct URL, fallback to proxy
-      const { data: signedUrlData, error: signedUrlError } = signedUrlResult
-
-      if (signedUrlData?.signedUrl) {
-        setStorageData({ signedUrl: signedUrlData.signedUrl })
-      } else {
-        // Fallback to proxy endpoint if direct signed URL fails
-        setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` })
-      }
-      
-      setVideoErrorCount(0)
-      
-      // Set media loading state based on file type
-      // Only images and videos need to wait for media to load
-      const isImage = assetData.mime_type?.startsWith("image/")
-      const isVideo = assetData.mime_type?.startsWith("video/")
-      if (!isImage && !isVideo) {
-        // For PDFs and other non-media files, don't wait for media to load
-        setIsMediaLoading(false)
-      }
-
-      // Load previous version preview (if any)
+      // Load previous version preview (non-critical, kan gøres asynkront)
       setPreviousVersion(null)
       setPreviousPreviewUrl(null)
       if (assetData.previous_version_id) {
-        try {
-          const { data: prevVersion } = await supabase
-            .from("asset_versions")
-            .select("id, storage_bucket, storage_path, mime_type, version_label, created_at, file_size")
-            .eq("id", assetData.previous_version_id)
-            .single()
-
-          if (prevVersion) {
-            setPreviousVersion(prevVersion)
-            const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
-            // Get signed URL directly for previous version
-            try {
-              const { data: prevSignedUrlData } = await supabase.storage
-                .from('assets')
-                .createSignedUrl(prevClean, 3600)
-              if (prevSignedUrlData?.signedUrl) {
-                setPreviousPreviewUrl(prevSignedUrlData.signedUrl)
-              } else {
-                // Fallback to proxy
-                setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
-              }
-            } catch (err) {
-              // Fallback to proxy
-              setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+        // Load asynchronously - don't block main asset loading
+        supabase
+          .from("asset_versions")
+          .select("id, storage_bucket, storage_path, mime_type, version_label, created_at, file_size")
+          .eq("id", assetData.previous_version_id)
+          .single()
+          .then(({ data: prevVersion }: { data: any }) => {
+            if (prevVersion) {
+              setPreviousVersion(prevVersion)
+              const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
+              // Use BatchAssetLoader for caching
+              loader.getSignedUrl(prevClean)
+                .then(url => {
+                  if (url && url !== '/placeholder.jpg') {
+                    setPreviousPreviewUrl(url)
+                  } else {
+                    setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+                  }
+                })
+                .catch(() => {
+                  setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+                })
             }
-          }
-        } catch (err) {
-          console.error("Error loading previous version:", err)
-        }
+          })
+          .catch(() => {
+            // Non-critical error
+          })
       }
 
-      // Activity and versions are already loaded above in parallel
-
-      // Load navigation assets based on context
-      try {
-        const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
-        const collectionId =
-          searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
-        await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
-      } catch (err) {
-        // Error loading navigation assets - non-critical
-      }
+      // Load navigation assets asynchronously (non-critical, blokerer ikke billedet)
+      const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
+      const collectionId = searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
+      loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
+        .catch(() => {
+          // Non-critical error
+        })
 
       if (!soft) {
         setIsLoading(false)
@@ -816,12 +798,9 @@ export default function AssetDetailPage() {
   const isPdf = asset?.mime_type === "application/pdf"
 
   // Debug logging
-  console.log("[ASSET-DETAIL] Render check - isLoading:", isLoading, "isMediaLoading:", isMediaLoading, "previewUrl:", previewUrl, "asset:", asset?.title, "isImage:", isImage)
-
   // Only show loading state if we don't have asset data yet
   // Once we have asset data, render the page and let the img/video handle loading
   if (isLoading && !asset) {
-    console.log("[ASSET-DETAIL] Rendering loading state - isLoading is true and no asset yet")
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
         <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 shadow-sm">
@@ -900,11 +879,9 @@ export default function AssetDetailPage() {
                       alt={asset.title}
                       className="max-h-[72vh] max-w-full object-contain"
                       onLoad={() => {
-                        console.log("[ASSET-DETAIL] Image onLoad fired, setting isMediaLoading to false")
                         setIsMediaLoading(false)
                       }}
-                      onError={(e) => {
-                        console.log("[ASSET-DETAIL] Image onError fired, setting isMediaLoading to false", e)
+                      onError={() => {
                         setIsMediaLoading(false)
                       }}
                     />
@@ -935,22 +912,27 @@ export default function AssetDetailPage() {
                         // Retry once with a fresh signed URL
                         if (asset && videoErrorCount < 1) {
                           setVideoErrorCount((c) => c + 1)
-                          const supabase = supabaseRef.current
                           const retryCleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-                          // Use proxy endpoint instead of direct signed URL
-                          const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` }
-                          setStorageData(storageUrl)
+                          // Use BatchAssetLoader for retry (with caching)
+                          const loader = BatchAssetLoader.getInstance()
+                          loader.getSignedUrl(retryCleanPath)
+                            .then(url => {
+                              if (url && url !== '/placeholder.jpg') {
+                                setStorageData({ signedUrl: url })
+                              } else {
+                                setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` })
+                              }
+                            })
+                            .catch(() => {
+                              setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` })
+                            })
                           return
                         }
 
                         setErrorMessage("Failed to load video. The file may not exist or be corrupted.")
                       }}
                       onLoadStart={() => {
-                        // Only log if URL matches current asset
-                        const expectedPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
-                        if (previewUrl?.includes(expectedPath)) {
-                          console.log("Video loading started for asset:", asset.id)
-                        }
+                        // Video loading started
                       }}
                     >
                       Your browser does not support the video tag.
