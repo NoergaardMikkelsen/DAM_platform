@@ -411,8 +411,8 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-gray-200 pointer-events-auto z-20"
           style={{
-            bottom: 'clamp(2px, 0.5cqw, 8px)',
-            right: 'clamp(2px, 0.5cqw, 8px)',
+            bottom: 'clamp(1px, 0.3cqw, 4px)',
+            right: 'clamp(1px, 0.3cqw, 4px)',
             width: 'clamp(32px, 12cqw, 48px)',
             height: 'clamp(32px, 12cqw, 48px)',
             backgroundColor: '#E5E5E5',
