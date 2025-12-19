@@ -120,7 +120,7 @@ export default function SystemUsersPage() {
 
     // Apply user type filter
     if (userTypeFilter !== "all") {
-      if (userTypeFilter === "system-admin") {
+      if (userTypeFilter === "superadmin") {
         filtered = filtered.filter((user) => user.is_superadmin)
       } else if (userTypeFilter === "client-users") {
         filtered = filtered.filter((user) => !user.is_superadmin && user.client_count > 0)
@@ -176,7 +176,7 @@ export default function SystemUsersPage() {
       <Tabs value={userTypeFilter} onValueChange={setUserTypeFilter} className="mb-6">
         <TabsList suppressHydrationWarning>
           <TabsTrigger value="all">All users</TabsTrigger>
-          <TabsTrigger value="system-admin">Superadmins</TabsTrigger>
+          <TabsTrigger value="superadmin">Superadmins</TabsTrigger>
           <TabsTrigger value="client-users">Client Users</TabsTrigger>
           <TabsTrigger value="no-clients">No Clients</TabsTrigger>
         </TabsList>

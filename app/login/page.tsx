@@ -5,11 +5,14 @@ import { LoginForm } from "./login-form"
 export default async function LoginPage() {
   // Get host from server-side headers to avoid hydration mismatch
   const headersList = await headers()
-  const host = headersList.get('host') || ''
+  const hostname = headersList.get('host') || ''
+  
+  // Remove port if present
+  const [host] = hostname.split(':')
 
   // Only log in development and when referrer is present (indicating redirect)
   if (process.env.NODE_ENV === 'development' && headersList.get('referer')) {
-    console.log('[LOGIN PAGE] Server-side host:', host, 'Referrer:', headersList.get('referer'))
+    console.log('[LOGIN PAGE] Server-side host:', hostname, 'Host without port:', host, 'Referrer:', headersList.get('referer'))
   }
 
   // Detect context for fallback
@@ -37,7 +40,7 @@ export default async function LoginPage() {
         </div>
       </div>
     }>
-      <LoginForm currentHost={host} />
+      <LoginForm isSystemAdmin={isSystemAdmin} />
     </Suspense>
   )
 }

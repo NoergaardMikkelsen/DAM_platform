@@ -18,7 +18,7 @@ export async function middleware(request: NextRequest) {
   // CONTEXT DETECTION AND ROUTING
 
   // Tenant context: localhost subdomains for development (e.g., tenant.localhost)
-  if (host.endsWith('.localhost') && !host.startsWith('admin.')) {
+  if (host.endsWith('.localhost') && !host.startsWith('admin.') && host !== 'localhost') {
     console.log('[MIDDLEWARE] Tenant localhost detected:', host)
     // If root route on tenant subdomain, redirect to dashboard
     if (pathname === '/') {
@@ -30,8 +30,8 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // Tenant context: any subdomain of brandassets.space (excluding admin)
-  if (host.endsWith('.brandassets.space') && !host.startsWith('admin.')) {
+  // Tenant context: any subdomain of brandassets.space (excluding admin and main domain)
+  if (host.endsWith('.brandassets.space') && !host.startsWith('admin.') && host !== 'brandassets.space') {
     // If root route on tenant subdomain, redirect to dashboard
     if (pathname === '/') {
       const url = request.nextUrl.clone()

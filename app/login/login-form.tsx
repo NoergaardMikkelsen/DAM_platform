@@ -19,6 +19,21 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
   const searchParams = useSearchParams()
 
   const redirectTo = searchParams.get('redirect') || '/dashboard'
+  
+  // Client-side fallback: detect admin subdomain from window.location
+  // This ensures correct styling even if server-side prop isn't passed correctly
+  const [clientIsSystemAdmin, setClientIsSystemAdmin] = useState(isSystemAdmin)
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname
+      const isAdmin = host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost')
+      setClientIsSystemAdmin(isAdmin)
+    }
+  }, [])
+  
+  // Use client-side detection if server-side prop is false but we're on admin subdomain
+  const effectiveIsSystemAdmin = isSystemAdmin || clientIsSystemAdmin
 
   useEffect(() => {
     const checkSession = async () => {
@@ -159,7 +174,7 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
   }
 
   return (
-    <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
+    <div className={`flex min-h-screen w-full items-center justify-center p-6 ${effectiveIsSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
@@ -210,7 +225,7 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
                   )}
                 </div>
               )}
-              <Button type="submit" className={`w-full rounded-[25px] ${isSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
+              <Button type="submit" className={`w-full rounded-[25px] ${effectiveIsSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
             </form>

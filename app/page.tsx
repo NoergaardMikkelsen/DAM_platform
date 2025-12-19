@@ -37,11 +37,11 @@ export default async function LandingPage() {
 
   // If on tenant subdomain, redirect to dashboard
   // Tenant layout will handle authentication and tenant validation
-  if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'admin.localhost') {
+  if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'admin.localhost' && hostWithoutPort !== 'localhost') {
     redirect("/dashboard")
   }
 
-  if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'admin.brandassets.space') {
+  if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'admin.brandassets.space' && hostWithoutPort !== 'brandassets.space') {
     redirect("/dashboard")
   }
 
