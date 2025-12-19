@@ -43,6 +43,7 @@ export default function CollectionDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadedAssets, setLoadedAssets] = useState(0)
   const [totalAssets, setTotalAssets] = useState(0)
+  const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -82,14 +83,26 @@ export default function CollectionDetailPage() {
       return
     }
 
-    // Get the collection (category tag) info
-    const { data: tag } = await supabase
-      .from("tags")
-      .select("id, label, slug")
-      .eq("id", id)
-      .eq("tag_type", "category")
-      .single()
+    // Parallelliser: Fetch tag and client data simultaneously
+    const [tagResult, clientUsersResult, allClientsResult] = await Promise.all([
+      supabase
+        .from("tags")
+        .select("id, label, slug")
+        .eq("id", id)
+        .eq("tag_type", "category")
+        .single(),
+      supabase
+        .from("client_users")
+        .select(`roles!inner(key), client_id`)
+        .eq("user_id", user.id)
+        .eq("status", "active"),
+      supabase
+        .from("clients")
+        .select("id")
+        .eq("status", "active")
+    ])
 
+    const tag = tagResult.data
     if (!tag) {
       router.push("/assets")
       return
@@ -97,33 +110,15 @@ export default function CollectionDetailPage() {
 
     setCollectionName(tag.label)
 
-    // Check if user is superadmin
-    const { data: clientUsers } = await supabase
-      .from("client_users")
-      .select(`roles!inner(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-
     const isSuperAdmin =
-      (clientUsers as ClientUserRoleRow[] | null)?.some((cu) => cu.roles?.key === "superadmin") || false
+      (clientUsersResult.data as ClientUserRoleRow[] | null)?.some((cu) => cu.roles?.key === "superadmin") || false
 
     let clientIds: string[] = []
 
     if (isSuperAdmin) {
-      // Superadmin can see all clients
-      const { data: allClients } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("status", "active")
-      clientIds = (allClients as ClientIdRow[] | null)?.map((c) => c.id) || []
+      clientIds = (allClientsResult.data as ClientIdRow[] | null)?.map((c) => c.id) || []
     } else {
-      // Regular users see only their clients
-      const { data: clientUsers } = await supabase
-        .from("client_users")
-        .select("client_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-      clientIds = (clientUsers as ClientUserRow[] | null)?.map((cu) => cu.client_id) || []
+      clientIds = (clientUsersResult.data as ClientUserRow[] | null)?.map((cu) => cu.client_id) || []
     }
 
     // Get all assets in this collection (with this category tag)
@@ -139,14 +134,37 @@ export default function CollectionDetailPage() {
       setAssets(assetsData)
       setFilteredAssets(assetsData)
 
-      // Count total assets that need to be loaded
+      // Batch fetch signed URLs for assets that need them
       const assetsWithMedia = (assetsData || []).filter((asset: Asset) =>
         asset.mime_type?.startsWith("image/") ||
         asset.mime_type?.startsWith("video/") ||
         asset.mime_type === "application/pdf"
       )
-      const totalAssetsToLoad = assetsWithMedia.length
 
+      if (assetsWithMedia.length > 0) {
+        try {
+          const assetIds = assetsWithMedia.map((a: Asset) => a.id)
+          const storagePaths = assetsWithMedia.map((a: Asset) => a.storage_path).filter(Boolean)
+          
+          const batchResponse = await fetch('/api/assets/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              storagePaths,
+              assetIds 
+            })
+          })
+          
+          if (batchResponse.ok) {
+            const { signedUrls } = await batchResponse.json()
+            setSignedUrlsCache(signedUrls)
+          }
+        } catch (error) {
+          console.error("Error fetching signed URLs:", error)
+        }
+      }
+
+      const totalAssetsToLoad = assetsWithMedia.length
       setTotalAssets(totalAssetsToLoad)
       setLoadedAssets(0) // Reset counter
 
@@ -280,6 +298,7 @@ export default function CollectionDetailPage() {
                       mimeType={asset.mime_type}
                       alt={asset.title}
                       className="h-full w-full object-cover"
+                      signedUrl={signedUrlsCache[asset.storage_path]} // Pass cached signed URL if available
                       showLoading={false}
                       onAssetLoaded={handleAssetLoaded}
                     />

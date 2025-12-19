@@ -278,11 +278,29 @@ export default function AssetDetailPage() {
         mimeType: assetData.mime_type
       })
 
-      // Use proxy endpoint instead of direct signed URL
-      const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
+      // Get signed URL directly from Supabase (no proxy double-fetch)
+      try {
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from('assets')
+          .createSignedUrl(cleanPath, 3600)
 
-      console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
-      setStorageData(storageUrl)
+        if (signedUrlError || !signedUrlData?.signedUrl) {
+          console.error("Error creating signed URL:", signedUrlError)
+          // Fallback to proxy endpoint if direct signed URL fails
+          const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
+          setStorageData(storageUrl)
+        } else {
+          console.log("Generated signed URL for", assetData.mime_type, ":", signedUrlData.signedUrl)
+          const storageUrl = { signedUrl: signedUrlData.signedUrl }
+          setStorageData(storageUrl)
+        }
+      } catch (error) {
+        console.error("Error creating signed URL:", error)
+        // Fallback to proxy endpoint
+        const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
+        setStorageData(storageUrl)
+      }
+      
       setVideoErrorCount(0)
       
       // Set media loading state based on file type
@@ -308,8 +326,21 @@ export default function AssetDetailPage() {
           if (prevVersion) {
             setPreviousVersion(prevVersion)
             const prevClean = prevVersion.storage_path.replace(/^\/+|\/+$/g, "")
-            // Use proxy endpoint instead of direct signed URL
-            setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+            // Get signed URL directly for previous version
+            try {
+              const { data: prevSignedUrlData } = await supabase.storage
+                .from('assets')
+                .createSignedUrl(prevClean, 3600)
+              if (prevSignedUrlData?.signedUrl) {
+                setPreviousPreviewUrl(prevSignedUrlData.signedUrl)
+              } else {
+                // Fallback to proxy
+                setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+              }
+            } catch (err) {
+              // Fallback to proxy
+              setPreviousPreviewUrl(`/api/assets/${encodeURIComponent(prevClean)}`)
+            }
           }
         } catch (err) {
           console.error("Error loading previous version:", err)

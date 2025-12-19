@@ -4,13 +4,12 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { storagePaths } = await request.json()
+    const { storagePaths, assetIds } = await request.json()
 
-    if (!Array.isArray(storagePaths) || storagePaths.length === 0) {
-      return NextResponse.json({ error: 'No storage paths provided' }, { status: 400 })
+    if ((!Array.isArray(storagePaths) || storagePaths.length === 0) && 
+        (!Array.isArray(assetIds) || assetIds.length === 0)) {
+      return NextResponse.json({ error: 'No storage paths or asset IDs provided' }, { status: 400 })
     }
-
-    console.log('[BATCH-API] Received storage paths:', storagePaths)
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -31,11 +30,8 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.log('[BATCH-API] Auth error:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    console.log('[BATCH-API] User authenticated:', user.id)
 
     // Get user clients for access control
     const { data: clientUsers } = await supabase
@@ -45,48 +41,60 @@ export async function POST(request: NextRequest) {
       .eq('status', 'active')
 
     const clientIds = clientUsers?.map(cu => cu.client_id) || []
-    console.log('[BATCH-API] User client IDs:', clientIds)
 
-    // Batch get signed URLs
-    const signedUrls: { [key: string]: string } = {}
-
-    for (const path of storagePaths) {
-      try {
-        console.log(`[BATCH-API] Processing path: ${path}`)
-        // Verify asset access
-        const { data: asset } = await supabase
-          .from('assets')
-          .select('id, client_id')
-          .eq('storage_path', path)
-          .single()
-
-        if (!asset) {
-          console.log(`[BATCH-API] Asset not found for path: ${path}`)
-          continue
-        }
-
-        if (!clientIds.includes(asset.client_id)) {
-          console.log(`[BATCH-API] Access denied for asset ${asset.id}, client ${asset.client_id}`)
-          continue
-        }
-
-        console.log(`[BATCH-API] Creating signed URL for ${path}`)
-        const { data, error } = await supabaseService.storage
-          .from('assets')
-          .createSignedUrl(path, 3600)
-
-        if (error) {
-          console.error(`[BATCH-API] Signed URL error for ${path}:`, error)
-        } else if (data?.signedUrl) {
-          signedUrls[path] = data.signedUrl
-          console.log(`[BATCH-API] Got signed URL for ${path}`)
-        }
-      } catch (error) {
-        console.error(`[BATCH-API] Failed to get signed URL for ${path}:`, error)
-      }
+    // Verify asset access - batch check all assets at once
+    let validAssets: Array<{ id: string; storage_path: string }> = []
+    
+    if (assetIds && assetIds.length > 0) {
+      // If assetIds provided, use them for faster lookup
+      const { data: assets } = await supabase
+        .from('assets')
+        .select('id, storage_path, client_id')
+        .in('id', assetIds)
+        .in('client_id', clientIds)
+      
+      validAssets = assets?.filter(a => a.storage_path) || []
+    } else if (storagePaths && storagePaths.length > 0) {
+      // Fallback to storage path lookup
+      const { data: assets } = await supabase
+        .from('assets')
+        .select('id, storage_path, client_id')
+        .in('storage_path', storagePaths)
+        .in('client_id', clientIds)
+      
+      validAssets = assets?.filter(a => a.storage_path) || []
     }
 
-    console.log('[BATCH-API] Returning signed URLs:', Object.keys(signedUrls))
+    if (validAssets.length === 0) {
+      return NextResponse.json({ signedUrls: {} })
+    }
+
+    // Batch create signed URLs in parallel
+    const signedUrlPromises = validAssets.map(asset =>
+      supabaseService.storage
+        .from('assets')
+        .createSignedUrl(asset.storage_path, 3600)
+        .then(({ data, error }) => ({
+          storagePath: asset.storage_path,
+          url: data?.signedUrl || null,
+          error
+        }))
+        .catch((error) => ({
+          storagePath: asset.storage_path,
+          url: null,
+          error: error.message
+        }))
+    )
+
+    const results = await Promise.all(signedUrlPromises)
+    const signedUrls: { [key: string]: string } = {}
+
+    results.forEach(({ storagePath, url }) => {
+      if (url) {
+        signedUrls[storagePath] = url
+      }
+    })
+
     return NextResponse.json({ signedUrls })
   } catch (error) {
     console.error('[BATCH-API] Batch assets error:', error)

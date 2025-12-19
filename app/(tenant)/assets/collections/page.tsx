@@ -75,57 +75,55 @@ export default function CollectionsPage() {
       return
     }
 
-    // Check if user is superadmin
-    const { data: clientUsers } = await supabase
-      .from("client_users")
-      .select(`roles!inner(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
+    // Parallelliser: Check role and get client IDs
+    const [clientUsersResult, allClientsResult] = await Promise.all([
+      supabase
+        .from("client_users")
+        .select(`roles!inner(key), client_id`)
+        .eq("user_id", user.id)
+        .eq("status", "active"),
+      supabase
+        .from("clients")
+        .select("id")
+        .eq("status", "active")
+    ])
 
-    const isSuperAdmin = clientUsers?.some((cu: any) => cu.roles?.key === "superadmin") || false
+    const isSuperAdmin = clientUsersResult.data?.some((cu: any) => cu.roles?.key === "superadmin") || false
 
     let clientIds: string[] = []
 
     if (isSuperAdmin) {
-      // Superadmin can see all clients
-      const { data: allClients } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("status", "active")
-      clientIds = allClients?.map((c: any) => c.id) || []
+      clientIds = allClientsResult.data?.map((c: any) => c.id) || []
     } else {
-      // Regular users see only their clients
-      const { data: clientUsers } = await supabase
-        .from("client_users")
-        .select("client_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-      clientIds = clientUsers?.map((cu: any) => cu.client_id) || []
+      clientIds = clientUsersResult.data?.map((cu: any) => cu.client_id) || []
     }
 
-    // Get all assets for the user's clients
-    const { data: assetsData } = await supabase
-      .from("assets")
-      .select(`
-        id,
-        title,
-        storage_path,
-        mime_type,
-        category_tag_id,
-        current_version:asset_versions!current_version_id (
-          thumbnail_path
-        )
-      `)
-      .in("client_id", clientIds)
-      .eq("status", "active")
+    // Parallelliser: Fetch assets and category tags simultaneously
+    const [assetsResult, categoryTagsResult] = await Promise.all([
+      supabase
+        .from("assets")
+        .select(`
+          id,
+          title,
+          storage_path,
+          mime_type,
+          category_tag_id,
+          current_version:asset_versions!current_version_id (
+            thumbnail_path
+          )
+        `)
+        .in("client_id", clientIds)
+        .eq("status", "active"),
+      supabase
+        .from("tags")
+        .select("id, label, slug")
+        .eq("tag_type", "category")
+        .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
+        .order("sort_order", { ascending: true })
+    ])
 
-    // Get all category tags
-    const { data: categoryTags } = await supabase
-      .from("tags")
-      .select("id, label, slug")
-      .eq("tag_type", "category")
-      .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
-      .order("sort_order", { ascending: true })
+    const assetsData = assetsResult.data || []
+    const categoryTags = categoryTagsResult.data || []
 
     if (categoryTags && assetsData) {
       const collectionsWithCounts: Collection[] = categoryTags
