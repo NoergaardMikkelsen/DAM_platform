@@ -33,7 +33,7 @@ export async function updateSession(request: NextRequest) {
   // Debug: Log incoming cookies in development
   if (process.env.NODE_ENV === 'development') {
     if (authCookies.length > 0) {
-      console.log('[PROXY] Incoming auth cookies:', authCookies.map(c => ({ name: c.name, domain: c.domain || 'none' })))
+      console.log('[PROXY] Incoming auth cookies:', authCookies.map(c => ({ name: c.name, hasValue: !!c.value })))
     }
   }
 
