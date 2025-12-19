@@ -266,15 +266,14 @@ export default function AssetDetailPage() {
       setActivity(activityResult.data || [])
       setVersions(versionsResult.data || [])
 
-      // Handle signed URL - use direct URL or fallback to proxy
-      const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
+      // Handle signed URL - prefer direct URL, fallback to proxy
       const { data: signedUrlData, error: signedUrlError } = signedUrlResult
 
-      if (signedUrlError || !signedUrlData?.signedUrl) {
+      if (signedUrlData?.signedUrl) {
+        setStorageData({ signedUrl: signedUrlData.signedUrl })
+      } else {
         // Fallback to proxy endpoint if direct signed URL fails
         setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` })
-      } else {
-        setStorageData({ signedUrl: signedUrlData.signedUrl })
       }
       
       setVideoErrorCount(0)
@@ -327,41 +326,24 @@ export default function AssetDetailPage() {
 
       // Load navigation assets based on context
       try {
-        console.log("[ASSET-DETAIL] Loading navigation assets...")
         const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
         const collectionId =
           searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
         await loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
-        console.log("[ASSET-DETAIL] Navigation assets loaded")
       } catch (err) {
-        console.error("[ASSET-DETAIL] Error loading navigation assets:", err)
+        // Error loading navigation assets - non-critical
       }
 
-      console.log("[ASSET-DETAIL] LoadAsset completed successfully, soft:", soft)
       if (!soft) {
-        console.log("[ASSET-DETAIL] Setting isLoading to false")
         setIsLoading(false)
       } else {
-        console.log("[ASSET-DETAIL] Skipping setIsLoading(false) because soft=true")
       }
     } catch (error) {
-      console.error("[ASSET-DETAIL] Error loading asset:", error)
       setIsLoading(false)
       // Don't redirect on error - let user see the error state
     }
   }
 
-  const loadActivity = async (assetId: string) => {
-      const supabase = supabaseRef.current
-    const { data } = await supabase
-      .from("asset_events")
-      .select("*")
-      .eq("asset_id", assetId)
-      .order("created_at", { ascending: false })
-      .limit(20)
-
-    setActivity(data || [])
-  }
 
   const loadNavAssets = async ({
     context,
@@ -503,7 +485,15 @@ export default function AssetDetailPage() {
       source: "web",
       metadata,
     })
-    await loadActivity(asset.id)
+
+    // Refresh activity data
+    const { data: updatedActivity } = await supabase
+      .from("asset_events")
+      .select("*")
+      .eq("asset_id", asset.id)
+      .order("created_at", { ascending: false })
+      .limit(20)
+    setActivity(updatedActivity || [])
   }
 
   const handleRestorePrevious = async () => {
@@ -946,9 +936,9 @@ export default function AssetDetailPage() {
                         if (asset && videoErrorCount < 1) {
                           setVideoErrorCount((c) => c + 1)
                           const supabase = supabaseRef.current
-                          const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+                          const retryCleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
                           // Use proxy endpoint instead of direct signed URL
-                          const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
+                          const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(retryCleanPath)}` }
                           setStorageData(storageUrl)
                           return
                         }
