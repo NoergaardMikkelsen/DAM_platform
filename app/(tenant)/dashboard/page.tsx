@@ -421,16 +421,16 @@ export default function DashboardPage() {
           <span className="text-sm text-gray-500">Sort collection by Newest</span>
         </div>
 
-        {filteredCollections.length === 0 ? (
+        {!shouldAnimate ? (
+          // Show skeleton while waiting for animation to start
+          <CollectionGridSkeleton count={Math.min(maxCollections, collections.length || 3)} />
+        ) : filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
             <Link href="/assets/upload">
               <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
             </Link>
           </div>
-        ) : !shouldAnimate ? (
-          // Show skeleton while waiting for animation to start
-          <CollectionGridSkeleton count={maxCollections} />
         ) : (
           <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
@@ -465,16 +465,16 @@ export default function DashboardPage() {
           <span className="text-sm text-gray-500">Sort assets by Newest</span>
         </div>
 
-        {stats.recentUploads.length === 0 ? (
+        {!shouldAnimate ? (
+          // Show skeleton while waiting for animation to start
+          <AssetGridSkeleton count={Math.min(10, stats.recentUploads.length || 10)} />
+        ) : stats.recentUploads.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No assets uploaded yet.</p>
             <Link href="/assets/upload">
               <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
             </Link>
           </div>
-        ) : !shouldAnimate ? (
-          // Show skeleton while waiting for animation to start
-          <AssetGridSkeleton count={10} />
         ) : (
           <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {stats.recentUploads.map((asset, index) => (

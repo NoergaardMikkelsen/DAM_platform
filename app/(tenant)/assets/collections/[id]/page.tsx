@@ -320,16 +320,16 @@ export default function CollectionDetailPage() {
       </div>
 
       {/* Assets Grid */}
-      {filteredAssets.length === 0 ? (
+      {!shouldAnimate ? (
+        // Show skeleton while waiting for animation to start
+        <AssetGridSkeleton count={Math.min(15, assets.length || 15)} />
+      ) : filteredAssets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No assets found in this collection</p>
           <Link href="/assets/upload">
             <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload assets to this collection</Button>
           </Link>
         </div>
-      ) : !shouldAnimate ? (
-        // Show skeleton while waiting for animation to start
-        <AssetGridSkeleton count={15} />
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           {filteredAssets.map((asset, index) => {
