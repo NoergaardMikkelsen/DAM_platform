@@ -10,6 +10,7 @@ import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 
 interface UserWithRole {
   id: string
@@ -50,32 +51,29 @@ export default function UsersPage() {
     } = await supabase.auth.getUser()
 
     if (!user) {
+      setIsLoading(false)
       router.push("/login")
       return
     }
 
-    // Check if user is admin or superadmin
-    const { data: userRole } = await supabase
+    // Check if user is admin or superadmin (check all client_users entries)
+    const { data: clientUsersCheck } = await supabase
       .from("client_users")
       .select(`roles(key)`)
       .eq("user_id", user.id)
       .eq("status", "active")
-      .maybeSingle()
 
-    const role = userRole?.roles?.key
+    const hasAdminOrSuperadminRole = clientUsersCheck?.some((cu: any) => 
+      cu.roles?.key === "admin" || cu.roles?.key === "superadmin"
+    ) || false
 
-    if (role !== "admin" && role !== "superadmin") {
+    if (!hasAdminOrSuperadminRole) {
+      setIsLoading(false)
       router.push("/dashboard")
       return
     }
 
     // Check if user is superadmin
-    const { data: clientUsersCheck } = await supabase
-      .from("client_users")
-      .select(`roles!inner(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-
     const isSuperAdmin = clientUsersCheck?.some((cu: any) => cu.roles?.key === "superadmin") || false
 
     let usersData: UserWithRole[] = []
@@ -118,6 +116,7 @@ export default function UsersPage() {
       const clientId = clientUsers?.[0]?.client_id
 
       if (!clientId) {
+        setIsLoading(false)
         router.push("/dashboard")
         return
       }
@@ -168,6 +167,18 @@ export default function UsersPage() {
     }
 
     setFilteredUsers(filtered)
+  }
+
+  // Show loading skeleton while checking access (before redirect happens)
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <ListPageHeaderSkeleton showCreateButton={true} />
+        <SearchSkeleton />
+        <TabsSkeleton count={4} />
+        <TableSkeleton rows={8} columns={4} />
+      </div>
+    )
   }
 
   return (

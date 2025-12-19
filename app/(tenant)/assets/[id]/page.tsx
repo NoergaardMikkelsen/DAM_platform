@@ -213,10 +213,17 @@ export default function AssetDetailPage() {
   }, [storageData?.signedUrl, asset])
 
   useEffect(() => {
-    if (!id || !isValidUUID(id)) {
+    // Wait for id to be available
+    if (!id) {
+      return
+    }
+    
+    if (!isValidUUID(id)) {
+      setIsLoading(false)
       router.push("/assets")
       return
     }
+    
     void loadAsset(id, false)
   }, [id, router])
 
@@ -234,6 +241,7 @@ export default function AssetDetailPage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
+      setIsLoading(false)
       router.push("/login")
       return
     }
@@ -241,6 +249,7 @@ export default function AssetDetailPage() {
     const { data: assetData, error } = await supabase.from("assets").select("*").eq("id", targetId).single()
 
     if (!assetData || error) {
+      setIsLoading(false)
       router.push("/assets")
       return
     }
