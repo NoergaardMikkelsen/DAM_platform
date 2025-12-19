@@ -192,9 +192,11 @@ export default function AssetDetailPage() {
       const isImage = asset.mime_type?.startsWith("image/")
       const isVideo = asset.mime_type?.startsWith("video/")
       if (isImage || isVideo) {
+        console.log("[ASSET-DETAIL] Setting isMediaLoading to true for", asset.mime_type)
         setIsMediaLoading(true)
       } else {
         // For PDFs and other non-media files, don't set loading state
+        console.log("[ASSET-DETAIL] Setting isMediaLoading to false for", asset.mime_type)
         setIsMediaLoading(false)
       }
     }
@@ -335,9 +337,12 @@ export default function AssetDetailPage() {
         console.error("[ASSET-DETAIL] Error loading navigation assets:", err)
       }
 
-      console.log("[ASSET-DETAIL] LoadAsset completed successfully")
+      console.log("[ASSET-DETAIL] LoadAsset completed successfully, soft:", soft)
       if (!soft) {
+        console.log("[ASSET-DETAIL] Setting isLoading to false")
         setIsLoading(false)
+      } else {
+        console.log("[ASSET-DETAIL] Skipping setIsLoading(false) because soft=true")
       }
     } catch (error) {
       console.error("[ASSET-DETAIL] Error loading asset:", error)
@@ -820,7 +825,13 @@ export default function AssetDetailPage() {
   const isVideo = asset?.mime_type?.startsWith("video/")
   const isPdf = asset?.mime_type === "application/pdf"
 
-  if (isLoading || isMediaLoading) {
+  // Debug logging
+  console.log("[ASSET-DETAIL] Render check - isLoading:", isLoading, "isMediaLoading:", isMediaLoading, "previewUrl:", previewUrl, "asset:", asset?.title, "isImage:", isImage)
+
+  // Only show loading state if we don't have asset data yet
+  // Once we have asset data, render the page and let the img/video handle loading
+  if (isLoading && !asset) {
+    console.log("[ASSET-DETAIL] Rendering loading state - isLoading is true and no asset yet")
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
         <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 shadow-sm">
@@ -895,11 +906,17 @@ export default function AssetDetailPage() {
                   {isImage && (
                     <img
                       key={asset.id}
-                      src={previewUrl}
+                      src={previewUrl || undefined}
                       alt={asset.title}
                       className="max-h-[72vh] max-w-full object-contain"
-                      onLoad={() => setIsMediaLoading(false)}
-                      onError={() => setIsMediaLoading(false)}
+                      onLoad={() => {
+                        console.log("[ASSET-DETAIL] Image onLoad fired, setting isMediaLoading to false")
+                        setIsMediaLoading(false)
+                      }}
+                      onError={(e) => {
+                        console.log("[ASSET-DETAIL] Image onError fired, setting isMediaLoading to false", e)
+                        setIsMediaLoading(false)
+                      }}
                     />
                   )}
                   {isVideo && (
