@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Pencil, Plus, Search, Trash2, Shield, Users, Building } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
@@ -21,17 +25,35 @@ interface SystemUser {
   last_active?: string
 }
 
+interface Client {
+  id: string
+  name: string
+  slug: string
+}
+
 export default function SystemUsersPage() {
   const [allUsers, setAllUsers] = useState<SystemUser[]>([])
   const [filteredUsers, setFilteredUsers] = useState<SystemUser[]>([])
   const [userTypeFilter, setUserTypeFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [createUserLoading, setCreateUserLoading] = useState(false)
+  const [clients, setClients] = useState<Client[]>([])
+  const [selectedClients, setSelectedClients] = useState<string[]>([])
+  const [createUserForm, setCreateUserForm] = useState({
+    email: '',
+    password: '',
+    fullName: '',
+    role: 'admin' // default to admin, can be changed to superadmin
+  })
+  const [createUserError, setCreateUserError] = useState<string | null>(null)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
     loadUsers()
+    loadClients()
   }, [])
 
   useEffect(() => {
@@ -107,6 +129,91 @@ export default function SystemUsersPage() {
     setIsLoading(false)
   }
 
+  const loadClients = async () => {
+    const supabase = supabaseRef.current
+
+    const { data: clients, error } = await supabase
+      .from("clients")
+      .select("id, name, slug")
+      .eq("status", "active")
+      .order("name")
+
+    if (error) {
+      console.error("Error loading clients:", error)
+      return
+    }
+
+    setClients(clients || [])
+  }
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const supabase = supabaseRef.current
+
+    setCreateUserLoading(true)
+    setCreateUserError(null)
+
+    try {
+      // Create the user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: createUserForm.email,
+        password: createUserForm.password,
+        options: {
+          data: {
+            full_name: createUserForm.fullName,
+          },
+        },
+      })
+
+      if (authError) throw authError
+
+      if (authData.user) {
+        // Get the role ID for selected role
+        const { data: roleData, error: roleError } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('key', createUserForm.role)
+          .single()
+
+        if (roleError) throw roleError
+
+        // Create client_users entries for selected clients
+        const clientUserInserts = selectedClients.map(clientId => ({
+          user_id: authData.user.id,
+          client_id: clientId,
+          role_id: roleData.id,
+          status: 'active'
+        }))
+
+        if (clientUserInserts.length > 0) {
+          const { error: clientUserError } = await supabase
+            .from('client_users')
+            .insert(clientUserInserts)
+
+          if (clientUserError) throw clientUserError
+        }
+      }
+
+      // Reset form and close modal
+      setCreateUserForm({
+        email: '',
+        password: '',
+        fullName: '',
+        role: 'admin'
+      })
+      setSelectedClients([])
+      setIsCreateModalOpen(false)
+
+      // Reload users list
+      loadUsers()
+
+    } catch (error: any) {
+      setCreateUserError(error.message)
+    } finally {
+      setCreateUserLoading(false)
+    }
+  }
+
   const applyFilters = () => {
     let filtered = [...allUsers]
 
@@ -152,10 +259,125 @@ export default function SystemUsersPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">System Users</h1>
-        <Button className="bg-black hover:bg-gray-800 text-white rounded-[25px]">
-          <Plus className="mr-2 h-4 w-4" />
-          Invite new user
-        </Button>
+        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-black hover:bg-gray-800 text-white rounded-[25px]">
+              <Plus className="mr-2 h-4 w-4" />
+              Invite new user
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Invite New User</DialogTitle>
+              <DialogDescription>
+                Create a new user account and assign them to specific clients.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateUser} className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Input
+                    id="fullName"
+                    required
+                    value={createUserForm.fullName}
+                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, fullName: e.target.value }))}
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    value={createUserForm.email}
+                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="john@example.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    required
+                    value={createUserForm.password}
+                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">System Role *</Label>
+                  <Select
+                    value={createUserForm.role}
+                    onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="superadmin">Superadmin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Assign to Clients</Label>
+                <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+                  {clients.map((client) => (
+                    <div key={client.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`client-${client.id}`}
+                        checked={selectedClients.includes(client.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedClients(prev => [...prev, client.id])
+                          } else {
+                            setSelectedClients(prev => prev.filter(id => id !== client.id))
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`client-${client.id}`} className="text-sm">
+                        {client.name} ({client.slug})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                {clients.length === 0 && (
+                  <p className="text-sm text-gray-500">No active clients found</p>
+                )}
+              </div>
+
+              {createUserError && (
+                <p className="text-sm text-red-500">{createUserError}</p>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-black hover:bg-gray-800 text-white"
+                  disabled={createUserLoading}
+                >
+                  {createUserLoading ? "Creating..." : "Create User"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search */}

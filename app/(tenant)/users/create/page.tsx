@@ -12,6 +12,7 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { useTenant } from "@/lib/context/tenant-context"
 
 export default function CreateUserPage() {
   const [email, setEmail] = useState("")
@@ -20,10 +21,11 @@ export default function CreateUserPage() {
   const [phone, setPhone] = useState("")
   const [department, setDepartment] = useState("")
   const [currentPosition, setCurrentPosition] = useState("")
-  const [role, setRole] = useState("")
+  const [role, setRole] = useState("user") // Default to user role
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { tenant } = useTenant()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,7 +54,30 @@ export default function CreateUserPage() {
       if (authError) throw authError
 
       // The trigger will create the user profile automatically
-      // Now we need to assign the role via client_users
+      // Now we need to assign the admin role for this tenant via client_users
+
+      if (authData.user) {
+        // Get the selected role ID
+        const { data: roleData, error: roleError } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('key', role)
+          .single()
+
+        if (roleError) throw roleError
+
+        // Assign user to this tenant with admin role
+        const { error: clientUserError } = await supabase
+          .from('client_users')
+          .insert({
+            user_id: authData.user.id,
+            client_id: tenant.id,
+            role_id: roleData.id,
+            status: 'active'
+          })
+
+        if (clientUserError) throw clientUserError
+      }
 
       router.push("/users")
     } catch (error: unknown) {
@@ -156,7 +181,6 @@ export default function CreateUserPage() {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
