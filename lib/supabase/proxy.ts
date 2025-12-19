@@ -43,8 +43,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          // Determine cookie domain based on environment
-          const cookieDomain = process.env.NODE_ENV === 'production' ? '.brandassets.space' : '.localhost'
+          const isProduction = process.env.NODE_ENV === 'production'
           
           // Create new response for setting cookies
           supabaseResponse = NextResponse.next({
@@ -52,21 +51,22 @@ export async function updateSession(request: NextRequest) {
           })
           
           cookiesToSet.forEach(({ name, value, options }) => {
-            // Always set cookies with correct domain for cross-subdomain sharing
-            // Override any existing options to ensure domain is set
+            // For localhost: don't set domain (browser handles it)
+            // For production: use .brandassets.space for cross-subdomain sharing
+            // NOTE: httpOnly must be false for Supabase client-side to read session
             const updatedOptions = {
-              domain: cookieDomain,
+              ...(isProduction ? { domain: '.brandassets.space' } : {}),
               path: '/',
-              httpOnly: true,
-              secure: process.env.NODE_ENV === 'production',
+              httpOnly: false, // Must be false for client-side Supabase
+              secure: isProduction,
               sameSite: 'lax' as const,
               // Preserve maxAge if provided, otherwise default to 7 days
               maxAge: options?.maxAge || 60 * 60 * 24 * 7,
             }
             
             // Debug: Log cookie setting in development
-            if (process.env.NODE_ENV === 'development' && (name.includes('auth') || name.includes('supabase') || name.includes('sb-'))) {
-              console.log('[PROXY] Setting cookie with domain:', { name, domain: cookieDomain, hasValue: !!value, maxAge: updatedOptions.maxAge })
+            if (!isProduction && (name.includes('auth') || name.includes('supabase') || name.includes('sb-'))) {
+              console.log('[PROXY] Setting cookie:', { name, hasValue: !!value, maxAge: updatedOptions.maxAge })
             }
             
             // Delete old cookie first (if exists) to ensure clean state

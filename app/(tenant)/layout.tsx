@@ -2,12 +2,11 @@ import type React from "react"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import Head from "next/head"
-import { Sidebar } from "@/components/layout/sidebar"
-import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
 import { createClient } from "@/lib/supabase/server"
 import { BrandProvider } from "@/lib/context/brand-context"
 import { TenantProvider } from "@/lib/context/tenant-context"
 import { SessionSyncProvider } from "@/components/session-sync-provider"
+import TenantLayoutClient from "./layout-client"
 
 export default async function AuthenticatedLayout({
   children
@@ -212,7 +211,7 @@ export default async function AuthenticatedLayout({
     // Client-side BrandContext will handle updates
   }
 
-  // Render tenant-scoped layout
+  // Render tenant-scoped layout with loading screen
   return (
     <TenantProvider tenant={tenant}>
       <BrandProvider>
@@ -234,12 +233,13 @@ export default async function AuthenticatedLayout({
               </>
             )}
           </Head>
-          <div className="flex h-screen overflow-hidden bg-gray-50">
-            <SidebarVisibility>
-              <Sidebar user={userData} role={role || undefined} isSystemAdminContext={false} />
-            </SidebarVisibility>
-            <main className="flex-1 overflow-y-auto">{children}</main>
-          </div>
+          <TenantLayoutClient
+            tenant={tenant}
+            userData={userData}
+            role={role}
+          >
+            {children}
+          </TenantLayoutClient>
         </SessionSyncProvider>
       </BrandProvider>
     </TenantProvider>

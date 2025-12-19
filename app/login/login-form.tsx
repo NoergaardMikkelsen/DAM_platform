@@ -131,22 +131,27 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
           })
         }
 
-        // Determine redirect URL based on user context
-        const redirectUrl = await determineUserRedirect(loginData.user.id, supabase, window.location.host)
-        debugLog.push(`[DEBUG] Redirect URL determined: ${redirectUrl}`)
-
+        // Simple redirect logic: 
+        // - If on tenant subdomain (nmic.localhost), go to /dashboard
+        // - If on admin subdomain (admin.localhost), go to /system-admin/dashboard
+        // - Otherwise, let the server-side layout handle authorization
+        const host = window.location.hostname
+        const isAdminSubdomain = host === 'admin.localhost' || host === 'admin.brandassets.space'
+        const isTenantSubdomain = (host.endsWith('.localhost') && host !== 'localhost' && !isAdminSubdomain) ||
+                                   (host.endsWith('.brandassets.space') && host !== 'brandassets.space' && !isAdminSubdomain)
+        
+        let redirectUrl = '/dashboard'
+        if (isAdminSubdomain) {
+          redirectUrl = '/system-admin/dashboard'
+        }
+        
+        debugLog.push(`[DEBUG] Host: ${host}, isAdmin: ${isAdminSubdomain}, isTenant: ${isTenantSubdomain}`)
+        debugLog.push(`[DEBUG] Redirecting to: ${redirectUrl}`)
         console.log('[LOGIN DEBUG]', debugLog.join('\n'))
 
-        if (redirectUrl) {
-          // Small delay to ensure cookies are set
-          await new Promise(resolve => setTimeout(resolve, 300))
-          window.location.href = redirectUrl
-        } else {
-          // No valid access found, stay on login page with error
-          setError('You do not have access to any tenants. Please contact your administrator.')
-          setIsLoading(false)
-          await supabase.auth.signOut()
-        }
+        // Small delay to ensure cookies are set
+        await new Promise(resolve => setTimeout(resolve, 300))
+        window.location.href = redirectUrl
       } else {
         debugLog.push(`[DEBUG] API login successful but no user data`)
         console.error('[LOGIN DEBUG]', debugLog.join('\n'))
@@ -263,23 +268,25 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   }
 
   // 2. Tenant Context (*.brandassets.space or *.localhost)
-  const isDevelopment = host.includes('localhost')
-  const port = isDevelopment ? host.split(':')[1] || '3000' : null
-  const isLocalhost = host.includes('localhost')
+  const hostWithoutPort = host.split(':')[0]
+  const port = host.split(':')[1] || '3000'
 
   let subdomain = ''
-  if (isDevelopment && !isLocalhost) {
-    // Development subdomain: subdomain.localhost:port
-    subdomain = host.split('.')[0]
-  } else if (!isDevelopment) {
-    // Production subdomain: subdomain.brandassets.space
-    if (host.endsWith('.brandassets.space')) {
-      subdomain = host.replace('.brandassets.space', '')
-    }
-  } else {
-    // Plain localhost - no subdomain
+  
+  // Check for localhost subdomains (e.g., nmic.localhost:3000)
+  if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'localhost') {
+    subdomain = hostWithoutPort.replace('.localhost', '')
+  }
+  // Check for production subdomains (e.g., nmic.brandassets.space)
+  else if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'brandassets.space') {
+    subdomain = hostWithoutPort.replace('.brandassets.space', '')
+  }
+  // Plain localhost or main domain - no subdomain
+  else {
     subdomain = ''
   }
+  
+  const isDevelopment = hostWithoutPort.includes('localhost')
 
   debugLog.push(`[REDIRECT] Tenant context detected, subdomain: "${subdomain}"`)
 
@@ -407,7 +414,7 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     const client = clientUsers[0].clients
     debugLog.push(`[REDIRECT] User has access to tenant: ${client.slug} (${client.name})`)
     // Redirect to tenant subdomain
-    if (isDevelopment && isLocalhost) {
+    if (isDevelopment) {
       return `http://${client.slug}.localhost:${port}/dashboard`
     }
     return `https://${client.slug}.brandassets.space/dashboard`

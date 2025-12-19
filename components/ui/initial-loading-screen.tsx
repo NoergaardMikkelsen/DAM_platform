@@ -1,164 +1,116 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
 
 export function InitialLoadingScreen({
-  onComplete
+  onComplete,
+  tenantLogo
 }: {
   onComplete: () => void
+  tenantLogo?: string
 }) {
-  const [phase, setPhase] = useState(0)
-  const [showText, setShowText] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
 
   useEffect(() => {
-    // Add loading class to body when component mounts
+    // Add loading class to body to hide other content during animation
     document.body.classList.add('loading-screen-active')
 
-    // Animation sequence
-    const timer1 = setTimeout(() => setPhase(1), 100)    // Start progress bar
-    const timer2 = setTimeout(() => setPhase(2), 800)    // Show logo reveal
-    const timer3 = setTimeout(() => setPhase(3), 1500)   // Show first text
-    const timer4 = setTimeout(() => setPhase(4), 2200)   // Transition to second text
-    const timer5 = setTimeout(() => setPhase(5), 2800)   // Hide everything
-    const timer6 = setTimeout(() => {
-      // Remove loading class from body when animation completes
+    // Animation duration - matches CSS keyframes timing
+    const timer = setTimeout(() => {
+      setIsVisible(false)
       document.body.classList.remove('loading-screen-active')
       onComplete()
-    }, 3500)
+    }, 3000)
 
     return () => {
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-      clearTimeout(timer3)
-      clearTimeout(timer4)
-      clearTimeout(timer5)
-      clearTimeout(timer6)
-      // Ensure loading class is removed if component unmounts
+      clearTimeout(timer)
       document.body.classList.remove('loading-screen-active')
     }
   }, [onComplete])
 
-  const firstText = "Hold tight"
-  const secondText = "Hi there!"
-  const firstLetters = firstText.split('')
-  const secondLetters = secondText.split('')
+  if (!isVisible) return null
 
   return (
-    <motion.div
-      key={phase >= 5 ? 'exit' : 'enter'}
-      initial={phase >= 5 ? { y: 0 } : { opacity: 0 }}
-      animate={phase >= 5 ? { y: '-100%' } : { opacity: 1 }}
-      transition={phase >= 5 ? { duration: 0.4, ease: 'easeInOut' } : { duration: 0.3 }}
-      className="loading-screen-overlay text-foreground"
+    <div
+      className="loading-screen-overlay"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'white !important',
+        zIndex: 999999,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        color: '#0a0a0a'
+      }}
     >
-        {/* Background - pure white */}
-        <div className="absolute inset-0 bg-white" style={{ backgroundColor: 'white' }} />
-
-        {/* Progress bar */}
-        <motion.div
-          className="absolute bottom-0 left-0 h-2 bg-white origin-left"
-          initial={{ scaleX: 0 }}
-          animate={phase >= 1 ? { scaleX: 1 } : {}}
-          transition={{ duration: 2.5, ease: 'easeInOut' }}
+      <div style={{ marginBottom: '2rem', position: 'relative' }}>
+        {/* Base logo */}
+        <img
+          src={tenantLogo || "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"}
+          alt="Logo"
+          style={{
+            width: '200px',
+            height: '50px',
+            objectFit: 'contain',
+            opacity: 0.2
+          }}
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder-logo.png'
+          }}
         />
 
-        {/* Main content */}
-        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen">
-          {/* Logo section */}
-          <div className="relative mb-16">
-            {/* Base logo (faded) */}
-            <div className="relative opacity-20">
-              <motion.img
-                src="/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"
-                alt="Logo"
-                className="w-48 h-12 object-contain"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
-              />
-            </div>
+        {/* Animated logo overlay */}
+        <img
+          src={tenantLogo || "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"}
+          alt="Logo"
+          style={{
+            width: '200px',
+            height: '50px',
+            objectFit: 'contain',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            clipPath: 'inset(0 0 0 0)',
+            animation: 'logoReveal 2s ease-in-out'
+          }}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none'
+          }}
+        />
+      </div>
 
-            {/* Top logo (clipped reveal) */}
-            <motion.div
-              className="absolute inset-0 overflow-hidden"
-              initial={{ clipPath: 'inset(0 100% 0 0)' }}
-              animate={phase >= 2 ? { clipPath: 'inset(0 0% 0 0)' } : {}}
-              transition={{ duration: 1.2, ease: 'easeInOut' }}
-            >
-              <motion.img
-                src="/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"
-                alt="Logo"
-                className="w-48 h-12 object-contain"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-              />
-            </motion.div>
-          </div>
+      {/* Progress bar */}
+      <div style={{
+        width: '200px',
+        height: '4px',
+        backgroundColor: '#f0f0f0',
+        borderRadius: '2px',
+        overflow: 'hidden',
+        marginBottom: '2rem'
+      }}>
+        <div style={{
+          height: '100%',
+          backgroundColor: 'white',
+          animation: 'progressFill 2.5s ease-in-out'
+        }} />
+      </div>
 
-          {/* Text animation */}
-          <div className="relative h-8 overflow-hidden">
-            {/* First text */}
-            <AnimatePresence>
-              {phase >= 3 && phase < 4 && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex justify-center items-center font-mono uppercase text-lg tracking-wider"
-                >
-                  {firstLetters.map((letter, index) => (
-                    <motion.span
-                      key={`first-${index}`}
-                      initial={{ y: 100, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{
-                        duration: 0.4,
-                        delay: index * 0.03,
-                        ease: 'easeOut'
-                      }}
-                      className="inline-block"
-                    >
-                      {letter === ' ' ? '\u00A0' : letter}
-                    </motion.span>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+      <style jsx>{`
+        @keyframes logoReveal {
+          0% { clip-path: inset(0 100% 0 0); }
+          100% { clip-path: inset(0 0% 0 0); }
+        }
 
-            {/* Second text */}
-            <AnimatePresence>
-              {phase >= 4 && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex justify-center items-center font-mono uppercase text-lg tracking-wider"
-                >
-                  {secondLetters.map((letter, index) => (
-                    <motion.span
-                      key={`second-${index}`}
-                      initial={{ y: 100, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{
-                        duration: 0.4,
-                        delay: index * 0.03,
-                        ease: 'easeOut'
-                      }}
-                      className="inline-block"
-                    >
-                      {letter === ' ' ? '\u00A0' : letter}
-                    </motion.span>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-        </div>
-      </motion.div>
+        @keyframes progressFill {
+          0% { transform: scaleX(0); transform-origin: left center; }
+          100% { transform: scaleX(1); transform-origin: left center; }
+        }
+      `}</style>
+    </div>
   )
 }
-
-

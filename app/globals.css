@@ -193,9 +193,17 @@ body.loading-screen-active * {
   visibility: hidden !important;
 }
 
-body.loading-screen-active {
-  background: white !important;
+/* But show the loading screen itself */
+body.loading-screen-active .loading-screen-overlay,
+body.loading-screen-active .loading-screen-overlay * {
+  opacity: 1 !important;
+  visibility: visible !important;
 }
+
+/* Remove white background from body when loading screen is active */
+/* body.loading-screen-active {
+  background: white !important;
+} */
 
 /* Ensure loading screen overlay works */
 .loading-screen-overlay {
@@ -204,8 +212,100 @@ body.loading-screen-active {
   left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  z-index: 10000 !important;
-  background: white !important;
+  z-index: 999999 !important;
+  /* background controlled by component - DO NOT set white background here */
+}
+
+/* GSAP Loader Styles */
+.loader {
+  z-index: 100;
+  color: #fff;
+  width: 100%;
+  height: 100dvh;
+  position: fixed;
+  inset: 0% 0% auto;
+  background: #0a0a0a;
+}
+
+.loader__bg {
+  background-color: #0a0a0a;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0%;
+}
+
+.loader__container {
+  z-index: 2;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  position: relative;
+}
+
+.loader__bg-bar {
+  z-index: 1;
+  transform-origin: 0%;
+  transform-style: preserve-3d;
+  background-color: #fff;
+  width: 100%;
+  height: .5em;
+  position: absolute;
+  inset: auto 0% 0%;
+  transform: scale3d(0, 1, 1);
+}
+
+.loader__logo-wrap {
+  justify-content: center;
+  align-items: center;
+  width: 12em;
+  height: 3em;
+  display: flex;
+  position: relative;
+}
+
+.loader__logo-item {
+  width: 100%;
+  position: absolute;
+}
+
+.loader__logo-item.is--base {
+  opacity: .2;
+}
+
+.loader__logo-item.is--top {
+  -webkit-clip-path: inset(0% 100% 0% 0%);
+  clip-path: inset(0% 100% 0% 0%);
+}
+
+.loader__logo-img {
+  width: 100%;
+  display: block;
+}
+
+.loader__text-wrap {
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  position: absolute;
+  bottom: 3.5em;
+}
+
+.loader__text-el {
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-bottom: -.25em;
+  padding-bottom: .25em;
+  font-family: 'Haffer Mono', Arial, sans-serif;
+  position: absolute;
+}
+
+[data-load-reset] {
+  opacity: 0;
 }
 
 /* Hide tenant layout content by default */

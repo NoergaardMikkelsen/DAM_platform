@@ -45,7 +45,6 @@ export default function DashboardPage() {
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isInitialLoading, setIsInitialLoading] = useState(false)
   const [maxCollections, setMaxCollections] = useState(3)
   const [shouldAnimate, setShouldAnimate] = useState(false) // Control when stagger animation should start
   const [stats, setStats] = useState({
@@ -94,16 +93,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // Show initial loading screen only on first login in this session
-    const hasSeenInitialLoading = sessionStorage.getItem('hasSeenInitialLoading')
-
-    if (!hasSeenInitialLoading) {
-      setIsInitialLoading(true)
-      sessionStorage.setItem('hasSeenInitialLoading', 'true')
-    } else {
-      // If already seen, just load data directly
-      loadDashboardData()
-    }
+    loadDashboardData()
   }, [])
 
   useEffect(() => {
@@ -128,12 +118,17 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     setIsLoading(true)
     const supabase = supabaseRef.current
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
+    
+    // Server-side layout already verified auth, so we get user for data queries
+    // Use getSession instead of getUser since cookies might be httpOnly
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    
     if (!user) {
-      router.push("/login")
+      // Session not found client-side, but server verified - likely httpOnly cookie issue
+      // Reload page to let server handle it
+      console.log('[DASHBOARD] No client session, reloading...')
+      window.location.reload()
       return
     }
 
@@ -325,12 +320,6 @@ export default function DashboardPage() {
     setIsFilterOpen(false)
   }
 
-  if (isInitialLoading) {
-    return <InitialLoadingScreen onComplete={() => {
-      setIsInitialLoading(false)
-      loadDashboardData()
-    }} />
-  }
 
   if (isLoading) {
     return (

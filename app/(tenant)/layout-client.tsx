@@ -12,48 +12,51 @@ interface TenantLayoutClientProps {
   children: React.ReactNode
 }
 
-export function TenantLayoutClient({ tenant, userData, role, children }: TenantLayoutClientProps) {
+// Client-side layout component that handles loading screen and main layout
+export default function TenantLayoutClient({ tenant, userData, role, children }: TenantLayoutClientProps) {
   const [showContent, setShowContent] = useState(false)
-  const [hasInitialized, setHasInitialized] = useState(false)
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true)
 
   useEffect(() => {
-    // Always show loading screen initially when component mounts
-    // This ensures no content flash when navigating to tenant pages
-    const hasSeenInitialLoading = sessionStorage.getItem('hasSeenInitialLoading')
+    // Show loading screen only on first visit to tenant area in this session
+    const hasSeenTenantLoading = sessionStorage.getItem('hasSeenTenantLoading')
 
-    if (!hasSeenInitialLoading) {
-      // First time ever - show full loading experience
-      sessionStorage.setItem('hasSeenInitialLoading', 'true')
-      // Keep content hidden until loading completes
+    if (!hasSeenTenantLoading) {
+      // First time ever - show loading experience
+      sessionStorage.setItem('hasSeenTenantLoading', 'true')
     } else {
-      // Returning user - still show brief loading to prevent flash
-      setTimeout(() => setShowContent(true), 100) // Brief delay for smooth transition
+      // Returning user - skip loading screen, show content immediately
+      setShowLoadingScreen(false)
+      setShowContent(true)
     }
-
-    setHasInitialized(true)
   }, [])
 
-  // Don't render anything until we've initialized
-  if (!hasInitialized) {
-    return <InitialLoadingScreen onComplete={() => setShowContent(true)} />
+  const handleLoadingComplete = () => {
+    setShowLoadingScreen(false)
+    setShowContent(true)
   }
 
   return (
     <>
-      {/* Show loading screen overlay until content should be visible */}
-      {!showContent && (
-        <InitialLoadingScreen onComplete={() => setShowContent(true)} />
+      {/* Show loading screen overlay until it completes */}
+      {showLoadingScreen && (
+        <InitialLoadingScreen
+          onComplete={handleLoadingComplete}
+          tenantLogo={tenant.logo_url}
+        />
       )}
 
-      {/* Show layout content - hidden by default with CSS */}
-      <div className={`tenant-layout-wrapper ${showContent ? 'visible' : ''}`}>
-        <div className="flex h-screen overflow-hidden bg-gray-50">
-          <SidebarVisibility>
-            <Sidebar user={userData} role={role || undefined} />
-          </SidebarVisibility>
-          <main className="flex-1 overflow-y-auto">{children}</main>
+      {/* Show layout content - only when loading is complete and content should be visible */}
+      {showContent && (
+        <div className="tenant-layout-wrapper visible">
+          <div className="flex h-screen overflow-hidden bg-gray-50">
+            <SidebarVisibility>
+              <Sidebar user={userData} role={role || undefined} />
+            </SidebarVisibility>
+            <main className="flex-1 overflow-y-auto">{children}</main>
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
 }

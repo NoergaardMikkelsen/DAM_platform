@@ -4,9 +4,13 @@ import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
+    const { email, password } = body
+    
+    console.log('[LOGIN-API] Attempting login for:', email)
 
     if (!email || !password) {
+      console.log('[LOGIN-API] Missing email or password')
       return NextResponse.json(
         { error: "Email and password are required" },
         { status: 400 }
@@ -16,17 +20,21 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     
     // Sign in with password
+    console.log('[LOGIN-API] Calling Supabase signInWithPassword...')
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (error) {
+      console.log('[LOGIN-API] Supabase error:', error.message)
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
       )
     }
+    
+    console.log('[LOGIN-API] Login successful for:', data.user?.email)
 
     if (!data.session) {
       return NextResponse.json(
@@ -37,7 +45,7 @@ export async function POST(request: Request) {
 
     // Get cookies that were set by Supabase
     const cookieStore = await cookies()
-    const cookieDomain = process.env.NODE_ENV === 'production' ? '.brandassets.space' : '.localhost'
+    const isProduction = process.env.NODE_ENV === 'production'
     
     // Get all cookies BEFORE we set new ones
     const allCookiesBefore = cookieStore.getAll()
@@ -59,13 +67,16 @@ export async function POST(request: Request) {
       c.name.includes('sb-')
     )
 
-    // Re-set all auth cookies with correct domain
+    // Re-set all auth cookies
+    // For localhost: don't set domain (browser handles it)
+    // For production: use .brandassets.space
+    // NOTE: httpOnly must be false for Supabase client-side to read session
     authCookies.forEach(cookie => {
       response.cookies.set(cookie.name, cookie.value, {
-        domain: cookieDomain,
+        ...(isProduction ? { domain: '.brandassets.space' } : {}),
         path: '/',
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        httpOnly: false, // Must be false for client-side Supabase
+        secure: isProduction,
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 7 days
       })
@@ -77,10 +88,10 @@ export async function POST(request: Request) {
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
       }), {
-        domain: cookieDomain,
+        ...(isProduction ? { domain: '.brandassets.space' } : {}),
         path: '/',
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        httpOnly: false, // Must be false for client-side Supabase
+        secure: isProduction,
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7,
       })

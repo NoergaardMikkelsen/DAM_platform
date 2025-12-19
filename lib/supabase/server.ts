@@ -15,15 +15,16 @@ export async function createClient() {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             // Set cookies to be shareable across subdomains
-            // Use .localhost for development (modern browsers support this)
-            // Use .brandassets.space for production
-            const cookieDomain = process.env.NODE_ENV === 'production' ? '.brandassets.space' : '.localhost'
+            // For localhost: don't set domain (browser handles it)
+            // For production: use .brandassets.space
+            // NOTE: httpOnly must be false for Supabase client-side to read session
+            const isProduction = process.env.NODE_ENV === 'production'
             const updatedOptions = {
               ...options,
-              domain: cookieDomain,
+              ...(isProduction ? { domain: '.brandassets.space' } : {}),
               path: '/',
-              httpOnly: true,
-              secure: process.env.NODE_ENV === 'production',
+              httpOnly: false, // Must be false for client-side Supabase
+              secure: isProduction,
               sameSite: 'lax' as const,
             }
             cookieStore.set(name, value, updatedOptions)
