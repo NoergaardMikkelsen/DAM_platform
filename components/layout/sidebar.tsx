@@ -98,32 +98,37 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   const adminNavItems = getAdminNavItems()
   const isAdmin = role === "admin" || role === "superadmin"
 
+  // Button size for calculations
+  const buttonSize = 48;
+  
   return (
     <div
-      className={`relative overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}
+      className={`relative transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}
       style={{
         filter: 'drop-shadow(rgba(0, 0, 0, 0.08) 0px 4px 12px)',
         marginTop: '16px',
         marginLeft: '16px',
-        marginBottom: '30px',
-        height: '-webkit-fill-available',
+        // When collapsed: leave space for button below sidebar
+        marginBottom: isCollapsed ? `${buttonSize + 16}px` : '30px',
+        // When collapsed: sidebar is shorter to make room for button below
+        height: isCollapsed ? `calc(100% - ${buttonSize + 32}px)` : '-webkit-fill-available',
       }}
     >
       {/* Main sidebar SVG shape with organic curve - same style as collection cards */}
       <svg
         className="absolute inset-0 w-full h-full"
-        viewBox={isCollapsed ? "0 0 64 939" : "0 0 288 939"}
+        viewBox={isCollapsed ? "0 0 64 800" : "0 0 288 939"}
         preserveAspectRatio="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
           {/* Sidebar mask with organic shape matching collection cards */}
-          {/* 32px border radius in corners, indentation for Upload button */}
-          {/* Exact path from design - indentation starts at V845.79, log out is above it */}
-          <mask id="sidebarMask" maskUnits="userSpaceOnUse" x="0" y="0" width={isCollapsed ? "64" : "288"} height="939">
+          {/* When expanded: indentation for toggle button at bottom-right */}
+          {/* When collapsed: simple rounded rectangle, button is below */}
+          <mask id="sidebarMask" maskUnits="userSpaceOnUse" x="0" y="0" width={isCollapsed ? "64" : "288"} height={isCollapsed ? "800" : "939"}>
             <path
               d={isCollapsed
-                ? "M0 32C0 14.3269 14.3269 0 32 0H32C49.6731 0 64 14.3269 64 32V845.79C64 859.437 52.9373 870.5 39.29 870.5H33.29C15.617 870.5 1.29 884.827 1.29 902.5V909.5C1.29 925.792 -11.918 939 1.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+                ? "M0 32C0 14.3269 14.3269 0 32 0H32C49.6731 0 64 14.3269 64 32V768C64 785.673 49.6731 800 32 800H32C14.3269 800 0 785.673 0 768V32Z"
                 : "M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
               }
               fill="white"
@@ -141,8 +146,8 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         <rect
           x="0"
           y="0"
-          width="288"
-          height="939"
+          width={isCollapsed ? "64" : "288"}
+          height={isCollapsed ? "800" : "939"}
           fill="url(#sidebarGradient)"
           mask="url(#sidebarMask)"
         />
@@ -150,7 +155,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         {/* Border with organic curve matching collection cards */}
         <path
           d={isCollapsed
-            ? "M0 32C0 14.3269 14.3269 0 32 0H32C49.6731 0 64 14.3269 64 32V845.79C64 859.437 52.9373 870.5 39.29 870.5H33.29C15.617 870.5 1.29 884.827 1.29 902.5V909.5C1.29 925.792 -11.918 939 1.79 939H32C14.3269 939 0 924.673 0 907V32Z"
+            ? "M0 32C0 14.3269 14.3269 0 32 0H32C49.6731 0 64 14.3269 64 32V768C64 785.673 49.6731 800 32 800H32C14.3269 800 0 785.673 0 768V32Z"
             : "M0 32C0 14.3269 14.3269 0 32 0H256C273.673 0 288 14.3269 288 32V845.79C288 859.437 276.937 870.5 263.29 870.5H257.29C239.617 870.5 225.29 884.827 225.29 902.5V909.5C225.29 925.792 212.082 939 195.79 939H32C14.3269 939 0 924.673 0 907V32Z"
           }
           fill="none"
@@ -372,8 +377,8 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
           </div>
         )}
 
-        {/* User Profile - positioned ABOVE indentation */}
-        <div className={`border-t pb-6 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
+        {/* User Profile */}
+        <div className={`border-t pb-20 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
             <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
@@ -392,7 +397,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             </Link>
           </div>
           <Button
-            className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 justify-center' : 'w-full justify-start'} text-gray-600`}
+            className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 justify-center mb-4' : 'w-full justify-start'} text-gray-600`}
             style={{
               backgroundColor: 'transparent',
               border: 'none',
@@ -406,17 +411,31 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
           </Button>
         </div>
 
-        {/* Toggle Button - positioned outside SVG like collection card arrow button */}
+        {/* Toggle Button */}
+        {/* When expanded: positioned perfectly in the SVG indentation notch */}
+        {/* When collapsed: centered below the sidebar */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-gray-200 pointer-events-auto z-20"
+          className="absolute rounded-full flex items-center justify-center transition-all duration-300 hover:bg-gray-300 pointer-events-auto z-20"
           style={{
-            bottom: 'clamp(1px, 0.3cqw, 4px)',
-            right: 'clamp(1px, 0.3cqw, 4px)',
-            width: 'clamp(32px, 12cqw, 48px)',
-            height: 'clamp(32px, 12cqw, 48px)',
+            width: `${buttonSize}px`,
+            height: `${buttonSize}px`,
             backgroundColor: '#E5E5E5',
             cursor: 'pointer',
+            // Expanded: position in SVG notch - the notch "pocket" center is approximately at:
+            // x = 257 (from left), y = 886 (from top) in viewBox 288x939
+            // As percentages: right = (288-257)/288 = 10.8%, bottom = (939-886)/939 = 5.6%
+            // Use transform: translate(-50%, 50%) to center the button on this point
+            // Collapsed: centered below the sidebar
+            ...(isCollapsed ? {
+              bottom: `-${buttonSize + 8}px`,
+              left: '50%',
+              transform: 'translateX(-50%)',
+            } : {
+              bottom: '3.2%',
+              right: '9%',
+              transform: 'translate(50%, 50%)',
+            }),
           }}
           aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
         >
@@ -426,8 +445,8 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             xmlns="http://www.w3.org/2000/svg"
             preserveAspectRatio="xMidYMid"
             style={{
-              width: 'clamp(16px, 5cqw, 24px)',
-              height: 'clamp(14px, 4cqw, 20px)',
+              width: '24px',
+              height: '20px',
               transform: isCollapsed ? 'scaleX(-1)' : 'none',
               transition: 'transform 0.3s ease',
             }}
