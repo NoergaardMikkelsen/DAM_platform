@@ -887,7 +887,7 @@ export default function AssetDetailPage() {
                           key={asset.id}
                           src={previewUrl}
                           alt={asset.title}
-                          className="max-h-[72vh] max-w-full object-contain"
+                          className="max-h-[72vh] max-w-full object-contain opacity-0 transition-all duration-500 ease-out animate-fade-in"
                           onLoad={() => {
                             setIsMediaLoading(false)
                           }}
@@ -913,7 +913,7 @@ export default function AssetDetailPage() {
                           key={asset.id}
                           src={previewUrl}
                           controls
-                          className="max-h-[72vh] max-w-full object-contain rounded-2xl"
+                          className="max-h-[72vh] max-w-full object-contain rounded-2xl opacity-0 transition-all duration-500 ease-out animate-fade-in"
                           preload="metadata"
                           crossOrigin="anonymous"
                           onLoad={() => setIsMediaLoading(false)}
