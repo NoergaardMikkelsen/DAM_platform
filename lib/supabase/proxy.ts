@@ -26,12 +26,9 @@ export async function updateSession(request: NextRequest) {
     c.name.includes('sb-')
   )
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'proxy.ts:entry',message:'Proxy updateSession called',data:{hostname:hostname,pathname:pathname,authCookieCount:authCookies.length,authCookieNames:authCookies.map(c=>c.name),allCookieCount:incomingCookies.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
-  // #endregion
-
-  // Debug: Log incoming cookies in development
-  if (process.env.NODE_ENV === 'development') {
+  // Debug: Log incoming cookies in development (only for auth-related paths)
+  if (process.env.NODE_ENV === 'development' && 
+      (pathname.startsWith('/login') || pathname.startsWith('/api/auth'))) {
     if (authCookies.length > 0) {
       console.log('[PROXY] Incoming auth cookies:', authCookies.map(c => ({ name: c.name, hasValue: !!c.value })))
     }
@@ -94,10 +91,6 @@ export async function updateSession(request: NextRequest) {
 
   // Handle auth transfer - set session cookies server-side
   if (isAuthTransfer && hasTransferTokens && !user) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'proxy.ts:auth-transfer-setting',message:'Setting session from auth transfer',data:{hostname:hostname,pathname:pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX'})}).catch(()=>{});
-    // #endregion
-    
     try {
       // Set the session using transferred tokens
       const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
@@ -111,10 +104,6 @@ export async function updateSession(request: NextRequest) {
         cleanUrl.searchParams.delete('auth_transfer')
         cleanUrl.searchParams.delete('access_token')
         cleanUrl.searchParams.delete('refresh_token')
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'proxy.ts:auth-transfer-success',message:'Session established, redirecting to clean URL',data:{hostname:hostname,cleanPath:cleanUrl.pathname,userId:sessionData.user?.id?.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX'})}).catch(()=>{});
-        // #endregion
         
         return NextResponse.redirect(cleanUrl)
       } else {

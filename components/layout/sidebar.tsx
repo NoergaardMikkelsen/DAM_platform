@@ -23,8 +23,6 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  console.log("Sidebar role:", role, "isSystemAdminContext:", isSystemAdminContext)
-
   const handleLogout = async () => {
     try {
       // Clear all auth state

@@ -7,45 +7,28 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { access_token, refresh_token, bridgeUserId } = body
 
-    console.log('[SYNC-API] Request received:', {
-      hasAccessToken: !!access_token,
-      hasRefreshToken: !!refresh_token,
-      bridgeUserId,
-      host: request.headers.get('host')
-    })
-
     const supabase = await createClient()
 
     // Handle bridge token scenario
     if (bridgeUserId && !access_token && !refresh_token) {
-      console.log('[SYNC-API] Processing bridge token for user:', bridgeUserId)
-
       // Verify the user exists and has access to this tenant
       const host = request.headers.get('host') || ''
       const subdomain = host.split('.')[0]
 
-      console.log('[SYNC-API] Checking tenant access:', { host, subdomain })
-
-      const { data: client, error: clientError } = await supabase
+      const { data: client } = await supabase
         .from('clients')
         .select('id')
         .eq('slug', subdomain)
         .single()
 
-      console.log('[SYNC-API] Client lookup result:', {
-        client: client?.id,
-        error: clientError?.message
-      })
-
       if (!client) {
-        console.log('[SYNC-API] Invalid tenant, returning 400')
         return NextResponse.json(
           { error: "Invalid tenant" },
           { status: 400 }
         )
       }
 
-      const { data: userAccess, error: accessError } = await supabase
+      const { data: userAccess } = await supabase
         .from('client_users')
         .select('id')
         .eq('user_id', bridgeUserId)
@@ -53,15 +36,7 @@ export async function POST(request: Request) {
         .eq('status', 'active')
         .single()
 
-      console.log('[SYNC-API] User access check:', {
-        userId: bridgeUserId,
-        clientId: client.id,
-        hasAccess: !!userAccess,
-        error: accessError?.message
-      })
-
       if (!userAccess) {
-        console.log('[SYNC-API] No access to tenant, returning 403')
         return NextResponse.json(
           { error: "No access to this tenant" },
           { status: 403 }
@@ -91,8 +66,6 @@ export async function POST(request: Request) {
         c.name.includes('supabase') ||
         c.name.includes('sb-')
       )
-
-      console.log('[SYNC-API] Bridge session created successfully for user:', bridgeUserId)
 
       return NextResponse.json({
         success: true,

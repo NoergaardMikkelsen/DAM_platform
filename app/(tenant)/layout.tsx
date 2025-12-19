@@ -22,10 +22,6 @@ export default async function AuthenticatedLayout({
   const host = headersList.get('host') || ''
   const protocol = headersList.get('x-forwarded-proto') || 'http'
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/layout.tsx:entry',message:'Tenant layout started',data:{host:host,protocol:protocol},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-
   debugLog.push(`[TENANT-LAYOUT] Host: ${host}`)
   debugLog.push(`[TENANT-LAYOUT] Protocol: ${protocol}`)
 
@@ -54,10 +50,6 @@ export default async function AuthenticatedLayout({
   debugLog.push(`[TENANT-LAYOUT] Checking user authentication...`)
   const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/layout.tsx:auth-check',message:'Auth check result',data:{userFound:!!user,userId:user?.id?.substring(0,8)||null,userError:userError?.message||null,host:host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
-  // #endregion
-
   if (userError) {
     debugLog.push(`[TENANT-LAYOUT] Get user error: ${userError.message}`)
   }
@@ -65,9 +57,6 @@ export default async function AuthenticatedLayout({
   debugLog.push(`[TENANT-LAYOUT] User: ${user ? `found (id: ${user.id})` : 'not found'}`)
 
   if (!user) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/layout.tsx:redirect-to-login',message:'No user found, redirecting to login',data:{host:host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
-    // #endregion
     debugLog.push(`[TENANT-LAYOUT] No user - redirecting to login`)
     console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/login")

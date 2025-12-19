@@ -13,7 +13,7 @@ export async function syncSessionAcrossSubdomains(supabase: any) {
     }
 
     if (!session) {
-      console.log('[SESSION-SYNC] No session found')
+      // No session to sync
       return false
     }
 
@@ -36,8 +36,7 @@ export async function syncSessionAcrossSubdomains(supabase: any) {
         return false
       }
 
-      const result = await response.json()
-      console.log('[SESSION-SYNC] Session synced successfully via API:', result)
+      await response.json()
       return true
     } catch (apiError) {
       console.error('[SESSION-SYNC] API call failed:', apiError)
@@ -65,7 +64,6 @@ export async function syncSessionAcrossSubdomains(supabase: any) {
         return false
       }
 
-      console.log('[SESSION-SYNC] Session synced with fallback method, domain:', cookieDomain)
       return true
     }
   } catch (error) {
