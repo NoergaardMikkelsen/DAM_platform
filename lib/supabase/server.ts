@@ -11,7 +11,7 @@ export async function createClient() {
     c.name.includes('sb-')
   )
 
-  // #region agent log
+  // #region agent log 
   fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.ts:createClient',message:'Server client created',data:{authCookieCount:authCookies.length,authCookieNames:authCookies.map(c=>c.name),totalCookies:allCookies.length,hasAuthToken:authCookies.some(c=>c.name==='sb-auth-token')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
   // #endregion
 
