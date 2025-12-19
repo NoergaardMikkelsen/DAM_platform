@@ -452,11 +452,9 @@ export default function AssetsPage() {
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className="animate-in fade-in"
+                className="animate-stagger-fade-in"
                 style={{
-                  animationDelay: `${Math.min(index * 50, 500)}ms`,
-                  animationDuration: '400ms',
-                  animationFillMode: 'both'
+                  animationDelay: `${Math.min(index * 40, 600)}ms`,
                 }}
               >
                 <CollectionCard
@@ -504,16 +502,33 @@ export default function AssetsPage() {
           </div>
         ) : (
           <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
-            {filteredAssets.map((asset) => (
-              <Link key={asset.id} href={`/assets/${asset.id}?context=all`} className="block mb-6 break-inside-avoid">
+            {filteredAssets.map((asset, index) => {
+              // Only show assets that have signed URLs ready OR are in the first batch
+              // This prevents showing empty cards before URLs are ready
+              const hasSignedUrl = signedUrlsCache[asset.storage_path] !== undefined
+              const shouldShow = signedUrlsReady && (hasSignedUrl || index < 12) // Show first 12 even if URL not cached yet
+              
+              if (!shouldShow) {
+                return null // Don't render card until signed URL is ready
+              }
+              
+              return (
+              <Link 
+                key={asset.id} 
+                href={`/assets/${asset.id}?context=all`} 
+                className="block mb-6 break-inside-avoid animate-stagger-fade-in"
+                style={{
+                  animationDelay: `${Math.min(index * 40, 600)}ms`,
+                }}
+              >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
-                  <div className="relative bg-gradient-to-br from-gray-100 to-gray-200">
+                  <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">
                     {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                       <AssetPreview
                         storagePath={asset.storage_path}
                         mimeType={asset.mime_type}
                         alt={asset.title}
-                        className={asset.mime_type === "application/pdf" ? "w-full h-auto" : "w-full h-full object-cover"}
+                        className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain" : "w-full h-full object-cover"}
                         signedUrl={signedUrlsCache[asset.storage_path]} // Pass cached signed URL if available
                         showLoading={false}
                         onAssetLoaded={handleAssetLoaded}
@@ -529,7 +544,8 @@ export default function AssetsPage() {
                   </div>
                 </Card>
               </Link>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

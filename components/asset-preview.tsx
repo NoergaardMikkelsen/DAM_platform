@@ -149,11 +149,14 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
   const [loading, setLoading] = useState(!signedUrl && showLoading) // Show loading if no signedUrl and showLoading is true
   const [error, setError] = useState(false)
   const [mediaLoaded, setMediaLoaded] = useState(!!signedUrl) // Start as loaded if we have signedUrl
+  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(!!signedUrl) // Track if we've attempted to load
   const hasLoadedRef = useRef(false)
 
   const loadUrl = useCallback(async () => {
     // Prevent duplicate loading
     if (hasLoadedRef.current) return
+    
+    setHasAttemptedLoad(true) // Mark that we've attempted to load
 
     try {
       const loader = BatchAssetLoader.getInstance()
@@ -161,22 +164,30 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
       if (url && url !== '/placeholder.jpg') {
         setPreviewUrl(url)
         hasLoadedRef.current = true
+        setError(false) // Clear any previous errors
         // Don't set loading to false here - wait for media to actually load
       } else {
-        setError(true)
-        if (showLoading) setLoading(false)
+        // Only show error after a delay to avoid flashing "failed to load"
+        setTimeout(() => {
+          setError(true)
+          if (showLoading) setLoading(false)
+        }, 1000) // Wait 1 second before showing error
       }
     } catch (err) {
-      setError(true)
-      if (showLoading) setLoading(false)
+      // Only show error after a delay to avoid flashing "failed to load"
+      setTimeout(() => {
+        setError(true)
+        if (showLoading) setLoading(false)
+      }, 1000) // Wait 1 second before showing error
     }
-  }, [storagePath])
+  }, [storagePath, showLoading])
 
   useEffect(() => {
     // Don't load if we already have a preview URL
     if (previewUrl || hasLoadedRef.current) {
       setLoading(false)
       setMediaLoaded(true)
+      setError(false) // Clear errors if we have a URL
       return
     }
 
@@ -184,10 +195,12 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
     setError(false)
     setLoading(!signedUrl && showLoading) // Show loading if no signedUrl and showLoading is true
     setMediaLoaded(!!signedUrl)
+    setHasAttemptedLoad(!!signedUrl) // If we have signedUrl, we've attempted load
 
     if (signedUrl) {
       setPreviewUrl(signedUrl)
       hasLoadedRef.current = true
+      setError(false) // Clear errors
       // For signed URLs, we still need to wait for media to load in the browser
       return
     }
@@ -195,18 +208,39 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
     loadUrl()
   }, [storagePath, signedUrl, previewUrl, loadUrl, showLoading])
 
-  if (loading) {
+  // Show loading state if we're loading OR if we don't have a URL yet but haven't attempted load
+  // Use skeleton placeholder that fills the entire container to prevent layout shift
+  if (loading || (!previewUrl && !hasAttemptedLoad)) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      <div className={`flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 ${className} absolute inset-0`}>
+        <div className="flex flex-col items-center justify-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <div className="h-2 w-16 bg-gray-300 rounded animate-pulse" />
+        </div>
       </div>
     )
   }
 
-  if (error || !previewUrl) {
+  // Only show error if we've attempted to load AND there's an error AND we don't have a preview URL
+  // Error state should also maintain size to prevent layout shift
+  if (error && hasAttemptedLoad && !previewUrl) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
-        <span className="text-xs text-gray-400">Failed to load</span>
+      <div className={`flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 ${className} absolute inset-0`}>
+        <div className="flex flex-col items-center justify-center gap-2">
+          <span className="text-sm text-gray-500">Failed to load</span>
+        </div>
+      </div>
+    )
+  }
+  
+  // If we don't have a preview URL but haven't attempted load yet, show loading
+  if (!previewUrl) {
+    return (
+      <div className={`flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 ${className} absolute inset-0`}>
+        <div className="flex flex-col items-center justify-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <div className="h-2 w-16 bg-gray-300 rounded animate-pulse" />
+        </div>
       </div>
     )
   }
@@ -236,10 +270,19 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
 
   if (isVideo) {
     return (
-      <div className={`relative ${className} transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`relative ${className}`}>
+        {/* Loading overlay that maintains size */}
+        {!mediaLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <div className="h-2 w-16 bg-gray-300 rounded animate-pulse" />
+            </div>
+          </div>
+        )}
         <video
           src={previewUrl}
-          className="h-full w-full object-cover"
+          className={`h-full w-full object-cover transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
           preload="metadata"
           muted
           playsInline
@@ -265,10 +308,19 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
 
   if (isPdf) {
     return (
-      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative`}>
+        {/* Loading overlay that maintains size */}
+        {!mediaLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <div className="h-2 w-16 bg-gray-300 rounded animate-pulse" />
+            </div>
+          </div>
+        )}
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
-          className="w-full h-full"
+          className={`w-full h-full transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
           title={`PDF Preview: ${alt}`}
           style={{ border: 'none', minHeight: '300px' }}
           onLoad={() => {

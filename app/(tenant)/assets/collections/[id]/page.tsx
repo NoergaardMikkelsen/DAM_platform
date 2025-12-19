@@ -308,15 +308,22 @@ export default function CollectionDetailPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {filteredAssets.map((asset, index) => (
+          {filteredAssets.map((asset, index) => {
+            // Only show assets that have signed URLs ready OR are in the first batch
+            const hasSignedUrl = signedUrlsCache[asset.storage_path] !== undefined
+            const shouldShow = signedUrlsReady && (hasSignedUrl || index < 12)
+            
+            if (!shouldShow) {
+              return null // Don't render card until signed URL is ready
+            }
+            
+            return (
             <Link 
               key={asset.id} 
               href={`/assets/${asset.id}?context=collection&collectionId=${id}`}
-              className="animate-in fade-in"
+              className="animate-stagger-fade-in"
               style={{
-                animationDelay: `${Math.min(index * 50, 500)}ms`,
-                animationDuration: '400ms',
-                animationFillMode: 'both'
+                animationDelay: `${Math.min(index * 40, 600)}ms`,
               }}
             >
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
@@ -342,7 +349,8 @@ export default function CollectionDetailPage() {
                 </div>
               </Card>
             </Link>
-          ))}
+            )
+          })}
         </div>
       )}
 
