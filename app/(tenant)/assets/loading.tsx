@@ -5,10 +5,10 @@ export default function Loading() {
     <div className="p-8">
       <PageHeaderSkeleton showSearch={true} />
 
-      {/* Collections section skeleton - match maxCollections (starts at 3, max 4) */}
+      {/* Collections section skeleton - match maxCollections (typically 4 on desktop) */}
       <div className="mb-10">
         <SectionHeaderSkeleton showSort={true} />
-        <CollectionGridSkeleton count={3} />
+        <CollectionGridSkeleton count={4} />
       </div>
 
       {/* Assets section skeleton - match minimum shown (12) */}
