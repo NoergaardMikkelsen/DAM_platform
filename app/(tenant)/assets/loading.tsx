@@ -5,7 +5,7 @@ export default function Loading() {
     <div className="p-8">
       <PageHeaderSkeleton showSearch={true} />
 
-      {/* Collections section skeleton - match maxCollections (typically 4) */}
+      {/* Collections section skeleton - match maxCollections (4) */}
       <div className="mb-10">
         <SectionHeaderSkeleton showSort={true} />
         <CollectionGridSkeleton count={4} />

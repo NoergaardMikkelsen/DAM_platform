@@ -463,7 +463,7 @@ export default function AssetsPage() {
         {!shouldAnimate ? (
           // Show skeleton while waiting for animation to start - match the actual number that will be shown
           // Use collections.length (primary state) or filteredCollections.length, whichever is available
-          <CollectionGridSkeleton count={Math.min(maxCollections, collections.length || filteredCollections.length || maxCollections)} />
+          <CollectionGridSkeleton count={4} />
         ) : filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
@@ -516,7 +516,7 @@ export default function AssetsPage() {
 
         {!shouldAnimate ? (
           // Show skeleton while waiting for animation to start
-          <AssetGridSkeleton count={Math.min(12, assets.length || 12)} />
+          <AssetGridSkeleton count={12} />
         ) : filteredAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-gray-600">No assets found</p>
