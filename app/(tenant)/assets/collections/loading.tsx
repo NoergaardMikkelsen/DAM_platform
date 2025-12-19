@@ -5,7 +5,7 @@ export default function Loading() {
     <div className="p-8">
       <PageHeaderSkeleton showBackLink={true} showSearch={true} />
       <SortingSkeleton />
-      <CollectionGridSkeleton count={8} />
+      <CollectionGridSkeleton count={12} />
     </div>
   )
 }
