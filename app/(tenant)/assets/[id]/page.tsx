@@ -188,7 +188,15 @@ export default function AssetDetailPage() {
 
   useEffect(() => {
     if (storageData?.signedUrl && asset) {
-      setIsMediaLoading(true)
+      // Only set media loading for images and videos, not PDFs
+      const isImage = asset.mime_type?.startsWith("image/")
+      const isVideo = asset.mime_type?.startsWith("video/")
+      if (isImage || isVideo) {
+        setIsMediaLoading(true)
+      } else {
+        // For PDFs and other non-media files, don't set loading state
+        setIsMediaLoading(false)
+      }
     }
   }, [storageData?.signedUrl, asset])
 
@@ -274,6 +282,15 @@ export default function AssetDetailPage() {
       console.log("Generated signed URL for", assetData.mime_type, ":", storageUrl?.signedUrl)
       setStorageData(storageUrl)
       setVideoErrorCount(0)
+      
+      // Set media loading state based on file type
+      // Only images and videos need to wait for media to load
+      const isImage = assetData.mime_type?.startsWith("image/")
+      const isVideo = assetData.mime_type?.startsWith("video/")
+      if (!isImage && !isVideo) {
+        // For PDFs and other non-media files, don't wait for media to load
+        setIsMediaLoading(false)
+      }
 
       // Load previous version preview (if any)
       setPreviousVersion(null)
