@@ -69,10 +69,6 @@ export default function AssetsPage() {
       if (signedUrlsReady && totalAssets > 0) {
         if (newCount >= minAssetsToShow || newCount >= totalAssets) {
           setIsLoading(false)
-          // Start stagger animation once we have enough assets loaded
-          if (!shouldAnimate) {
-            setShouldAnimate(true)
-          }
         }
       }
       
@@ -275,19 +271,33 @@ export default function AssetsPage() {
           setSignedUrlsCache(signedUrls)
           setSignedUrlsReady(true) // Mark signed URLs as ready
           debugLog.push(`[ASSETS-PAGE] Got ${Object.keys(signedUrls).length} signed URLs`)
+          
+          // Start animation after a short delay to ensure assets are rendered
+          setTimeout(() => {
+            setShouldAnimate(true)
+          }, 200)
         } else {
           debugLog.push(`[ASSETS-PAGE] Batch signed URL request failed: ${batchResponse.status}`)
           // Even if batch fails, mark as ready to avoid infinite loading
           setSignedUrlsReady(true)
+          setTimeout(() => {
+            setShouldAnimate(true)
+          }, 200)
         }
       } catch (error) {
         debugLog.push(`[ASSETS-PAGE] Error fetching signed URLs: ${error}`)
         // Mark as ready even on error to avoid infinite loading
         setSignedUrlsReady(true)
+        setTimeout(() => {
+          setShouldAnimate(true)
+        }, 200)
       }
     } else {
       // No assets to load, mark as ready immediately
       setSignedUrlsReady(true)
+      setTimeout(() => {
+        setShouldAnimate(true)
+      }, 200)
     }
 
     debugLog.push(`[ASSETS-PAGE] LoadData completed`)
@@ -458,10 +468,12 @@ export default function AssetsPage() {
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className={shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}
+                className={shouldAnimate ? 'animate-stagger-fade-in' : ''}
                 style={shouldAnimate ? {
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                } : {}}
+                } : {
+                  opacity: 0,
+                }}
               >
                 <CollectionCard
                   id={collection.id}
@@ -509,16 +521,18 @@ export default function AssetsPage() {
         ) : (
           <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {filteredAssets.map((asset, index) => {
-              // Show all assets once signed URLs are ready
-              // Animation only starts when shouldAnimate is true
+              // Always render assets, but control animation timing
+              // Use inline style for opacity to ensure it works with animation
               return (
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
-                className={`block mb-6 break-inside-avoid ${shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}`}
+                className={`block mb-6 break-inside-avoid ${shouldAnimate ? 'animate-stagger-fade-in' : ''}`}
                 style={shouldAnimate ? {
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                } : {}}
+                } : {
+                  opacity: 0,
+                }}
               >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
                   <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">

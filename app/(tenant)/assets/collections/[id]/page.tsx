@@ -176,15 +176,29 @@ export default function CollectionDetailPage() {
             const { signedUrls } = await batchResponse.json()
             setSignedUrlsCache(signedUrls)
             setSignedUrlsReady(true)
+            
+            // Start animation after a short delay to ensure assets are rendered
+            setTimeout(() => {
+              setShouldAnimate(true)
+            }, 200)
           } else {
             setSignedUrlsReady(true) // Mark as ready even on error
+            setTimeout(() => {
+              setShouldAnimate(true)
+            }, 200)
           }
         } catch (error) {
           console.error("Error fetching signed URLs:", error)
           setSignedUrlsReady(true) // Mark as ready even on error
+          setTimeout(() => {
+            setShouldAnimate(true)
+          }, 200)
         }
       } else {
         setSignedUrlsReady(true) // No assets to load
+        setTimeout(() => {
+          setShouldAnimate(true)
+        }, 200)
       }
 
       const totalAssetsToLoad = assetsWithMedia.length
@@ -315,16 +329,17 @@ export default function CollectionDetailPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           {filteredAssets.map((asset, index) => {
-            // Show all assets once signed URLs are ready
-            // Animation only starts when shouldAnimate is true
+            // Always render assets, but control animation timing
             return (
             <Link 
               key={asset.id} 
               href={`/assets/${asset.id}?context=collection&collectionId=${id}`}
-              className={shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}
+              className={shouldAnimate ? 'animate-stagger-fade-in' : ''}
               style={shouldAnimate ? {
                 animationDelay: `${Math.min(index * 40, 600)}ms`,
-              } : {}}
+              } : {
+                opacity: 0,
+              }}
             >
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
                 <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">

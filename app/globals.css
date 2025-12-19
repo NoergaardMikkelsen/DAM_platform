@@ -23,6 +23,12 @@
 .animate-stagger-fade-in {
   animation: staggerFadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
+  will-change: opacity, transform;
+}
+
+/* Ensure elements are visible after animation */
+.animate-stagger-fade-in[style*="animationDelay"] {
+  opacity: 0;
 }
 
 :root {
