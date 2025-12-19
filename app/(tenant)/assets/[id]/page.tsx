@@ -219,7 +219,6 @@ export default function AssetDetailPage() {
 
   const loadAsset = async (targetId: string, soft: boolean) => {
     try {
-      console.log("[ASSET-DETAIL] Starting loadAsset for:", targetId)
       // clear previous signed URL to avoid stale previews during navigation
       setStorageData(null)
       setVideoErrorCount(0)
@@ -228,77 +227,54 @@ export default function AssetDetailPage() {
       }
 
       const supabase = supabaseRef.current
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        console.log("[ASSET-DETAIL] No user, redirecting to login")
         setIsLoading(false)
         router.push("/login")
         return
       }
 
-      console.log("[ASSET-DETAIL] Fetching asset data...")
-      const { data: assetData, error } = await supabase.from("assets").select("*").eq("id", targetId).single()
+      // Parallel fetch all essential data
+      const assetResult = await supabase.from("assets").select("*").eq("id", targetId).single()
+      const { data: assetData, error } = assetResult
 
       if (!assetData || error) {
-        console.error("[ASSET-DETAIL] Asset not found or error:", error)
         setIsLoading(false)
         router.push("/assets")
         return
       }
 
-      console.log("[ASSET-DETAIL] Asset found:", assetData.title)
-
       setAsset(assetData)
 
-      const { data: uploaderData } = await supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single()
-      setUploader(uploaderData)
-
-      const { data: favoriteData } = await supabase
-        .from("favorites")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("asset_id", targetId)
-        .maybeSingle()
-      setFavorite(favoriteData)
-      setIsFavorited(!!favoriteData)
-
-      const { data: assetTags } = await supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId)
-      setTags(assetTags?.map((at: any) => at.tags) || [])
-
-      // Ensure storage_path doesn't have leading/trailing slashes
+      // Parallel fetch all related data
       const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
-      
-      console.log("Creating signed URL for:", {
-        bucket: assetData.storage_bucket,
-        path: cleanPath,
-        originalPath: assetData.storage_path,
-        mimeType: assetData.mime_type
-      })
+      const [favoriteResult, tagsResult, uploaderResult, signedUrlResult, activityResult, versionsResult] = await Promise.all([
+        supabase.from("favorites").select("id").eq("user_id", user.id).eq("asset_id", targetId).maybeSingle(),
+        supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId),
+        supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single(),
+        supabase.storage.from('assets').createSignedUrl(cleanPath, 3600),
+        supabase.from("asset_events").select("*").eq("asset_id", targetId).order("created_at", { ascending: false }).limit(20),
+        supabase.from("asset_versions").select("*").eq("asset_id", targetId).order("created_at", { ascending: false })
+      ])
 
-      // Get signed URL directly from Supabase (no proxy double-fetch)
-      try {
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-          .from('assets')
-          .createSignedUrl(cleanPath, 3600)
+      // Set all data
+      setFavorite(favoriteResult.data)
+      setIsFavorited(!!favoriteResult.data)
+      setTags(tagsResult.data?.map((at: any) => at.tags) || [])
+      setUploader(uploaderResult.data)
+      setActivity(activityResult.data || [])
+      setVersions(versionsResult.data || [])
 
-        if (signedUrlError || !signedUrlData?.signedUrl) {
-          console.error("Error creating signed URL:", signedUrlError)
-          // Fallback to proxy endpoint if direct signed URL fails
-          const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
-          setStorageData(storageUrl)
-        } else {
-          console.log("Generated signed URL for", assetData.mime_type, ":", signedUrlData.signedUrl)
-          const storageUrl = { signedUrl: signedUrlData.signedUrl }
-          setStorageData(storageUrl)
-        }
-      } catch (error) {
-        console.error("Error creating signed URL:", error)
-        // Fallback to proxy endpoint
-        const storageUrl = { signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` }
-        setStorageData(storageUrl)
+      // Handle signed URL - use direct URL or fallback to proxy
+      const cleanPath = assetData.storage_path.replace(/^\/+|\/+$/g, "")
+      const { data: signedUrlData, error: signedUrlError } = signedUrlResult
+
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        // Fallback to proxy endpoint if direct signed URL fails
+        setStorageData({ signedUrl: `/api/assets/${encodeURIComponent(cleanPath)}` })
+      } else {
+        setStorageData({ signedUrl: signedUrlData.signedUrl })
       }
       
       setVideoErrorCount(0)
@@ -347,14 +323,7 @@ export default function AssetDetailPage() {
         }
       }
 
-      // Load activity and versions with error handling
-      try {
-        console.log("[ASSET-DETAIL] Loading activity and versions...")
-        await Promise.all([loadActivity(assetData.id), loadVersions(assetData.id)])
-        console.log("[ASSET-DETAIL] Activity and versions loaded")
-      } catch (err) {
-        console.error("[ASSET-DETAIL] Error loading activity or versions:", err)
-      }
+      // Activity and versions are already loaded above in parallel
 
       // Load navigation assets based on context
       try {
