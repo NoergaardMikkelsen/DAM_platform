@@ -2,50 +2,55 @@
 
 import type React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 
 import { createClient } from "@/lib/supabase/client"
-import { extractTenantSubdomain, isTenantSubdomain, isSystemAdminSubdomain } from "@/lib/utils/hostname"
-import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-interface LoginFormProps {
-  currentHost: string
-}
-
-export function LoginForm({ currentHost }: LoginFormProps) {
+function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [showLoadingScreen, setShowLoadingScreen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Check if we're on the wrong subdomain in development
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  const isWrongSubdomain = isDevelopment &&
-    currentHost === 'localhost' &&
-    !currentHost.includes('.localhost')
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
 
-  // Detect context: system admin vs tenant
-  const isSystemAdmin = currentHost === 'admin.brandassets.space' ||
-    currentHost === 'admin.localhost' ||
-    currentHost.startsWith('admin.localhost:')
-
-  // Extract tenant slug from hostname for tenant context
-  const tenantSlug = extractTenantSubdomain(currentHost)
-
-  // Handle URL error parameters
   useEffect(() => {
-    const errorParam = searchParams.get('error')
-    if (errorParam === 'access_denied') {
-      setError("You don't have permission to access this area. Please contact your administrator.")
+    const checkSession = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      // Check what's in localStorage
+      const localStorageKeys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-') || k.includes('auth'))
+      const localStorageData = localStorageKeys.map(k => ({ key: k, hasValue: !!localStorage.getItem(k) }))
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:checkSession',message:'Checking existing session on page load',data:{hasSession:!!session,hasUser:!!session?.user,host:window.location.host,localStorageKeys:localStorageKeys,localStorageData:localStorageData,documentCookies:document.cookie.split(';').map(c=>c.trim().split('=')[0]).filter(n=>n.includes('sb-')||n.includes('auth'))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,G'})}).catch(()=>{});
+      // #endregion
+
+      if (session?.user) {
+        // User is already logged in, redirect based on context
+        const redirectUrl = await determineUserRedirect(session.user.id, supabase, window.location.host)
+        if (redirectUrl) {
+          // Use window.location for system admin redirects to ensure cookies are sent
+          if (redirectUrl.startsWith('/system-admin')) {
+            window.location.href = redirectUrl
+          } else {
+            router.push(redirectUrl)
+          }
+        } else {
+          router.push('/dashboard')
+        }
+      }
     }
-  }, [searchParams])
+
+    checkSession()
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,7 +60,7 @@ export function LoginForm({ currentHost }: LoginFormProps) {
 
     const debugLog: string[] = []
     debugLog.push(`[DEBUG] Starting login process`)
-    debugLog.push(`[DEBUG] Host: ${currentHost}`)
+    debugLog.push(`[DEBUG] Host: ${window.location.host}`)
     debugLog.push(`[DEBUG] Email: ${email}`)
 
     // Debug Supabase configuration
@@ -74,205 +79,145 @@ export function LoginForm({ currentHost }: LoginFormProps) {
     }
 
     try {
-      debugLog.push(`[DEBUG] Attempting to sign in with password...`)
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      debugLog.push(`[DEBUG] Attempting to sign in via API route...`)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:before-api-call',message:'About to call login API',data:{host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      // Use API route to login and set cookies with correct domain
+      const loginResponse = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include', // Important: include cookies
       })
 
-      if (signInError) {
-        debugLog.push(`[DEBUG] Sign in error: ${signInError.message}`)
-        debugLog.push(`[DEBUG] Error code: ${signInError.status || 'unknown'}`)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:after-api-call',message:'Login API response received',data:{status:loginResponse.status,ok:loginResponse.ok,host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
+      if (!loginResponse.ok) {
+        const errorData = await loginResponse.json()
+        debugLog.push(`[DEBUG] API login error: ${errorData.error}`)
         console.error('[LOGIN DEBUG]', debugLog.join('\n'))
 
-        // Provide more helpful error messages
-        if (signInError.message.includes('Invalid login credentials')) {
+        if (errorData.error.includes('Invalid login credentials') || errorData.error.includes('Invalid')) {
           setError('Invalid email or password. Please check your credentials and try again.')
+        } else if (errorData.error.includes('Email not confirmed')) {
+          setError('Please check your email and click the confirmation link before logging in.')
         } else {
-          setError(`${signInError.message}\n\nDebug info:\n${debugLog.join('\n')}`)
+          setError(errorData.error)
         }
         setIsLoading(false)
         return
       }
 
-      debugLog.push(`[DEBUG] Sign in successful`)
-      debugLog.push(`[DEBUG] Sign in data user ID: ${signInData?.user?.id || 'none'}`)
-      debugLog.push(`[DEBUG] Sign in data session: ${signInData?.session ? 'present' : 'missing'}`)
+      const loginData = await loginResponse.json()
+      
+      if (loginData?.user) {
+        debugLog.push(`[DEBUG] API login successful, user: ${loginData.user.id}`)
 
-      if (!signInData?.session) {
-        debugLog.push(`[DEBUG] No session in sign in data`)
-        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
-        throw new Error("Authentication failed - no session returned")
-      }
-
-      debugLog.push(`[DEBUG] Getting user...`)
-      const { data: { user }, error: getUserError } = await supabase.auth.getUser()
-
-      if (getUserError) {
-        debugLog.push(`[DEBUG] Get user error: ${getUserError.message}`)
-        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
-        throw getUserError
-      }
-
-      if (!user) {
-        debugLog.push(`[DEBUG] No user returned from getUser()`)
-        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
-        throw new Error("Authentication failed - no user returned")
-      }
-
-      debugLog.push(`[DEBUG] User ID: ${user.id}`)
-      debugLog.push(`[DEBUG] User email: ${user.email}`)
-
-      // Sync session to server-side cookies via API route
-      debugLog.push(`[DEBUG] Syncing session to server-side cookies...`)
-      try {
-        const syncResponse = await fetch('/api/auth/sync-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            access_token: signInData.session.access_token,
-            refresh_token: signInData.session.refresh_token,
-          }),
-        })
-
-        if (!syncResponse.ok) {
-          const errorData = await syncResponse.json()
-          debugLog.push(`[DEBUG] Sync session error: ${errorData.error}`)
-          console.warn('[LOGIN DEBUG]', debugLog.join('\n'))
-          // Don't throw, continue anyway - cookies might still work
-        } else {
-          const syncData = await syncResponse.json()
-          debugLog.push(`[DEBUG] Session synced successfully, ${syncData.cookiesSet} cookies set`)
+        // Set session in Supabase client
+        if (loginData.session) {
+          await supabase.auth.setSession({
+            access_token: loginData.session.access_token,
+            refresh_token: loginData.session.refresh_token,
+          })
         }
-      } catch (syncError) {
-        debugLog.push(`[DEBUG] Sync session exception: ${syncError instanceof Error ? syncError.message : 'Unknown'}`)
-        console.warn('[LOGIN DEBUG]', debugLog.join('\n'))
-        // Don't throw, continue anyway
-      }
 
-      // Determine user context and redirect appropriately
-      debugLog.push(`[DEBUG] Determining redirect URL...`)
-      const redirectUrl = await determineUserRedirect(user.id, supabase, currentHost, debugLog)
+        // Determine redirect URL based on user context
+        const redirectUrl = await determineUserRedirect(loginData.user.id, supabase, window.location.host)
+        debugLog.push(`[DEBUG] Redirect URL determined: ${redirectUrl}`)
 
-      debugLog.push(`[DEBUG] Redirect URL: ${redirectUrl || 'null'}`)
+        console.log('[LOGIN DEBUG]', debugLog.join('\n'))
 
-      if (!redirectUrl) {
-        debugLog.push(`[DEBUG] No redirect URL found - user has no access`)
+        if (redirectUrl) {
+          // Small delay to ensure cookies are set
+          await new Promise(resolve => setTimeout(resolve, 300))
+          window.location.href = redirectUrl
+        } else {
+          // No valid access found, stay on login page with error
+          setError('You do not have access to any tenants. Please contact your administrator.')
+          setIsLoading(false)
+          await supabase.auth.signOut()
+        }
+      } else {
+        debugLog.push(`[DEBUG] API login successful but no user data`)
         console.error('[LOGIN DEBUG]', debugLog.join('\n'))
-        setError(`No access found. Please contact your administrator.\n\nDebug info:\n${debugLog.join('\n')}`)
-        setIsLoading(false) // Stop loading if error
-        setShowLoadingScreen(false) // Also stop loading screen
-        return
+        setError('Login failed. Please try again.')
+        setIsLoading(false)
       }
-
-      // Check if we need to redirect to a different host
-      const redirectHost = redirectUrl.startsWith('http')
-        ? new URL(redirectUrl).host
-        : currentHost
-
-      debugLog.push(`[DEBUG] Current host: ${currentHost}`)
-      debugLog.push(`[DEBUG] Redirect host: ${redirectHost}`)
-
-      // Always use window.location.href after login to ensure cookies are sent
-      // router.push() doesn't send cookies to server-side rendering in Next.js App Router
-      const fullRedirectUrl = redirectUrl.startsWith('http')
-        ? redirectUrl
-        : `${window.location.protocol}//${currentHost}${redirectUrl}`
-
-      debugLog.push(`[DEBUG] Full redirect URL: ${fullRedirectUrl}`)
-      console.log('[LOGIN DEBUG]', debugLog.join('\n'))
-
-      // Show fancy loading screen and redirect immediately
-      // Loading screen will hide when dashboard loads
-      setShowLoadingScreen(true)
-
-      // Redirect immediately - loading screen covers the transition
-      window.location.href = fullRedirectUrl
-
-    } catch (error: unknown) {
-      debugLog.push(`[DEBUG] Error caught: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } catch (err) {
+      debugLog.push(`[DEBUG] Unexpected error: ${err}`)
       console.error('[LOGIN DEBUG]', debugLog.join('\n'))
-      setError(`${error instanceof Error ? error.message : "An error occurred"}\n\nDebug info:\n${debugLog.join('\n')}`)
-      setShowLoadingScreen(false) // Stop loading screen on error
-    } finally {
+      setError('An unexpected error occurred. Please try again.')
       setIsLoading(false)
-      // Note: showLoadingScreen is not reset here as it should complete its animation
     }
   }
 
   return (
-    <>
-      {/* Fancy Loading Screen - shown after successful login, covers redirect transition */}
-      {showLoadingScreen && (
-        <InitialLoadingScreen onComplete={() => setShowLoadingScreen(false)} />
-      )}
+    <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
+          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+        </div>
 
-      <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
-        <div className="w-full max-w-sm">
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
-            <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">Login</CardTitle>
-              <CardDescription>Sign in to your account</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isWrongSubdomain && (
-                <div className="mb-4 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
-                  <p className="font-medium">Note for local development:</p>
-                  <p>Please log in directly on the correct subdomain (e.g., admin.localhost:3000 or tenant.localhost:3000). Cookies don't share across localhost subdomains.</p>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Login</CardTitle>
+            <CardDescription>
+              Enter your email below to login to your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              {error && (
+                <div className="space-y-2">
+                  <p className="text-sm text-red-500 font-medium">{error.split('\n')[0]}</p>
+                  {error.includes('[DEBUG]') && (
+                    <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto">
+                      <summary className="cursor-pointer font-medium">Debug Details</summary>
+                      <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
+                    </details>
+                  )}
                 </div>
               )}
-              <form onSubmit={handleLogin}>
-                <div className="flex flex-col gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="m@example.com"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                  {error && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-red-500 font-medium">{error.split('\n')[0]}</p>
-                      {error.includes('[DEBUG]') && (
-                        <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto">
-                          <summary className="cursor-pointer font-medium">Debug Details</summary>
-                          <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                  <Button type="submit" className={`w-full rounded-[25px] ${isSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
-                    {isLoading ? "Logging in..." : "Login"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+              <Button type="submit" className={`w-full rounded-[25px] ${isSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
+                {isLoading ? "Logging in..." : "Login"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -282,59 +227,62 @@ export function LoginForm({ currentHost }: LoginFormProps) {
  */
 async function determineUserRedirect(userId: string, supabase: any, host: string, debugLog: string[] = []): Promise<string | null> {
 
-  // DEBUG: Log function call - only in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[REDIRECT] determineUserRedirect called with host:', host)
-  }
-
   // CONTEXT-BASED REDIRECT LOGIC
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  const isLocalhost = host.includes('localhost')
-  const port = host.includes(':') ? host.split(':')[1] : '3000'
 
-  debugLog.push(`[REDIRECT] Host: ${host}`)
-  debugLog.push(`[REDIRECT] Is development: ${isDevelopment}`)
-  debugLog.push(`[REDIRECT] Is localhost: ${isLocalhost}`)
-  debugLog.push(`[REDIRECT] Port: ${port}`)
+  // 1. System Admin Context (admin.brandassets.space or admin.localhost*)
+  if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')) {
+    debugLog.push(`[REDIRECT] System admin context detected`)
 
-  // 1. System Admin Context
-  if (isSystemAdminSubdomain(host)) {
-    debugLog.push(`[REDIRECT] Checking superadmin context...`)
+    // Check if user has superadmin role
+    debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
+    const { data: superadminCheck, error: superadminError } = await supabase
+      .from('client_users')
+      .select(`
+        id,
+        roles!inner(key)
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .eq('roles.key', 'superadmin')
+      .limit(1)
 
-    // Check if user has superadmin role using the is_superadmin function
-    const { data: isSuperAdmin, error: superAdminError } = await supabase.rpc('is_superadmin', {
-      p_user_id: userId
-    })
-
-    if (superAdminError) {
-      debugLog.push(`[REDIRECT] Superadmin check error: ${superAdminError.message}`)
+    if (superadminError) {
+      debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
     }
 
-    debugLog.push(`[REDIRECT] Superadmin result: ${isSuperAdmin ? 'true' : 'false'}`)
-
-    if (isSuperAdmin) {
+    if (superadminCheck && superadminCheck.length > 0) {
       debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
-      return "/system-admin/dashboard"
+      return '/system-admin/dashboard'
     } else {
-      // Not a superadmin on admin subdomain - no access
-      debugLog.push(`[REDIRECT] User is not a superadmin on admin subdomain`)
+      debugLog.push(`[REDIRECT] User is not a superadmin`)
       return null
     }
   }
 
-  // 2. Tenant Context
-  if (isTenantSubdomain(host)) {
-    const subdomain = extractTenantSubdomain(host)
+  // 2. Tenant Context (*.brandassets.space or *.localhost)
+  const isDevelopment = host.includes('localhost')
+  const port = isDevelopment ? host.split(':')[1] || '3000' : null
+  const isLocalhost = host.includes('localhost')
 
-    debugLog.push(`[REDIRECT] Checking tenant context...`)
-    debugLog.push(`[REDIRECT] Extracted subdomain: ${subdomain}`)
-
-    // DEBUG: Log at tenant context check - only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[REDIRECT] Tenant context check - host:', host, 'subdomain:', subdomain)
+  let subdomain = ''
+  if (isDevelopment && !isLocalhost) {
+    // Development subdomain: subdomain.localhost:port
+    subdomain = host.split('.')[0]
+  } else if (!isDevelopment) {
+    // Production subdomain: subdomain.brandassets.space
+    if (host.endsWith('.brandassets.space')) {
+      subdomain = host.replace('.brandassets.space', '')
     }
+  } else {
+    // Plain localhost - no subdomain
+    subdomain = ''
+  }
 
-    // Find the tenant
+  debugLog.push(`[REDIRECT] Tenant context detected, subdomain: "${subdomain}"`)
+
+  if (subdomain) {
+    // Specific tenant requested
+    debugLog.push(`[REDIRECT] Checking tenant access for subdomain: ${subdomain}...`)
     const { data: tenant, error: tenantError } = await supabase
       .from("clients")
       .select("id, slug, name")
@@ -349,7 +297,31 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     debugLog.push(`[REDIRECT] Tenant result: ${tenant ? `found (id: ${tenant.id}, name: ${tenant.name})` : 'not found'}`)
 
     if (tenant) {
-      // Check if user has access to this specific tenant
+      // Check if user is superadmin (they have access to all tenants)
+      debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
+      const { data: superadminCheck, error: superadminError } = await supabase
+        .from("client_users")
+        .select(`
+          id,
+          roles!inner(key)
+        `)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .eq("roles.key", "superadmin")
+        .limit(1)
+
+      if (superadminError) {
+        debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
+      }
+
+      const isSuperAdmin = superadminCheck && superadminCheck.length > 0
+
+      if (isSuperAdmin) {
+        debugLog.push(`[REDIRECT] User is superadmin, has access to all tenants, redirecting to /dashboard`)
+        return "/dashboard"
+      }
+
+      // Not a superadmin, check explicit tenant access
       debugLog.push(`[REDIRECT] Checking client_users access for tenant ${tenant.id}...`)
       const { data: accessCheck, error: accessError } = await supabase
         .from("client_users")
@@ -373,79 +345,74 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
       }
     } else {
       debugLog.push(`[REDIRECT] Tenant not found with slug: ${subdomain}`)
-      // DEBUG: Log when tenant not found - only in development
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[REDIRECT] Tenant not found, returning null for error on same page')
-      }
     }
-    // No access to this tenant - show error on same page, don't redirect to other tenants
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[REDIRECT] No access to tenant, returning null for error on same page')
-    }
+    // No access to this tenant
     return null
   }
 
   // 3. Public Context (brandassets.space) or other domains
-  // When not on a specific tenant subdomain, redirect to first available tenant
+  // Check what access the user has and redirect accordingly
 
-  debugLog.push(`[REDIRECT] Checking public context - finding available tenant`)
+  debugLog.push(`[REDIRECT] Checking public context...`)
 
-  try {
-    // Check if user is superadmin using the is_superadmin function
-    const { data: isSuperAdmin, error: superAdminError } = await supabase.rpc('is_superadmin', {
-      p_user_id: userId
-    })
+  // Priority: Superadmin > Any Tenant Access
+  debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
+  const { data: superadminCheck, error: superadminError } = await supabase
+    .from('client_users')
+    .select(`
+      id,
+      roles!inner(key)
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .eq('roles.key', 'superadmin')
+    .limit(1)
 
-    if (superAdminError) {
-      debugLog.push(`[REDIRECT] Superadmin check error: ${superAdminError.message}`)
-    }
+  if (superadminError) {
+    debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
+  }
 
-    debugLog.push(`[REDIRECT] Superadmin result: ${isSuperAdmin ? 'true' : 'false'}`)
+  if (superadminCheck && superadminCheck.length > 0) {
+    debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
+    return '/system-admin/dashboard'
+  }
 
-    // Check if user is superadmin
-    if (isSuperAdmin) {
-      debugLog.push(`[REDIRECT] User is superadmin, redirecting to admin dashboard`)
-      if (isDevelopment && isLocalhost) {
-        return `http://admin.localhost:${port}/system-admin/dashboard`
-      }
-      return "https://admin.brandassets.space/system-admin/dashboard"
-    }
-
-    // Single optimized query to get user access (only for non-superadmins)
-    const { data: userAccess, error: accessError } = await supabase
-      .from("client_users")
-      .select(`
+  // Check for any tenant access
+  debugLog.push(`[REDIRECT] Checking for any tenant access...`)
+  const { data: clientUsers, error: clientUsersError } = await supabase
+    .from("client_users")
+    .select(`
+      id,
+      clients!inner (
         id,
-        role_id,
-        clients!inner(slug, domain, name, status)
-      `)
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .eq("clients.status", "active")
-      .order("updated_at", { ascending: false }) // Most recently used first
-      .limit(1)
-      .single()
+        slug,
+        name,
+        status
+      )
+    `)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .eq("clients.status", "active")
 
-    if (accessError && accessError.code !== 'PGRST116') { // PGRST116 = no rows
-      debugLog.push(`[REDIRECT] Access query error: ${accessError.message}`)
-      return null
+  if (clientUsersError) {
+    debugLog.push(`[REDIRECT] Client users query error: ${clientUsersError.message}`)
+  }
+
+  debugLog.push(`[REDIRECT] Client users result: ${clientUsers && clientUsers.length > 0 ? `found ${clientUsers.length} access(es)` : 'not found'}`)
+
+  if (clientUsers && clientUsers.length > 0) {
+    const client = clientUsers[0].clients
+    debugLog.push(`[REDIRECT] User has access to tenant: ${client.slug} (${client.name})`)
+    // Redirect to tenant subdomain
+    if (isDevelopment && isLocalhost) {
+      return `http://${client.slug}.localhost:${port}/dashboard`
     }
-
-    // Redirect to most recent tenant
-    if (userAccess?.clients) {
-      const client = userAccess.clients
-      debugLog.push(`[REDIRECT] Redirecting to most recent tenant: ${client.slug}`)
-      if (isDevelopment && isLocalhost) {
-        return `http://${client.slug}.localhost:${port}/dashboard`
-      }
-      return `https://${client.slug}.brandassets.space/dashboard`
-    }
-
-  } catch (error) {
-    debugLog.push(`[REDIRECT] Public context error: ${error}`)
+    return `https://${client.slug}.brandassets.space/dashboard`
   }
 
   // No valid access found
   debugLog.push(`[REDIRECT] No valid access found for user`)
   return null
 }
+
+export { LoginForm }

@@ -5,11 +5,9 @@ import Head from "next/head"
 import { Sidebar } from "@/components/layout/sidebar"
 import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
 import { createClient } from "@/lib/supabase/server"
-import { extractTenantSubdomain } from "@/lib/utils/hostname"
 import { BrandProvider } from "@/lib/context/brand-context"
 import { TenantProvider } from "@/lib/context/tenant-context"
-import { TenantLayoutClient } from "./layout-client"
-import { AuthBridge } from "./auth-bridge"
+import { SessionSyncProvider } from "@/components/session-sync-provider"
 
 export default async function AuthenticatedLayout({
   children
@@ -23,7 +21,10 @@ export default async function AuthenticatedLayout({
   const headersList = await headers()
   const host = headersList.get('host') || ''
   const protocol = headersList.get('x-forwarded-proto') || 'http'
-  const hostWithoutPort = host.split(':')[0]
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/layout.tsx:entry',message:'Tenant layout started',data:{host:host,protocol:protocol},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
 
   debugLog.push(`[TENANT-LAYOUT] Host: ${host}`)
   debugLog.push(`[TENANT-LAYOUT] Protocol: ${protocol}`)
@@ -53,30 +54,40 @@ export default async function AuthenticatedLayout({
   debugLog.push(`[TENANT-LAYOUT] Checking user authentication...`)
   const { data: { user }, error: userError } = await supabase.auth.getUser()
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/layout.tsx:auth-check',message:'Auth check result',data:{userFound:!!user,userId:user?.id?.substring(0,8)||null,userError:userError?.message||null,host:host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
+  // #endregion
+
   if (userError) {
     debugLog.push(`[TENANT-LAYOUT] Get user error: ${userError.message}`)
   }
 
-  console.log('[TENANT-LAYOUT] Checking authentication...')
-  console.log('[TENANT-LAYOUT] User result:', { hasUser: !!user, userId: user?.id })
-
   debugLog.push(`[TENANT-LAYOUT] User: ${user ? `found (id: ${user.id})` : 'not found'}`)
 
   if (!user) {
-    console.log('[TENANT-LAYOUT] No authenticated user - should redirect to login')
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/layout.tsx:redirect-to-login',message:'No user found, redirecting to login',data:{host:host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
+    // #endregion
     debugLog.push(`[TENANT-LAYOUT] No user - redirecting to login`)
     console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/login")
-  } else {
-    console.log('[TENANT-LAYOUT] User authenticated - proceeding with tenant layout')
   }
 
   // TENANT IDENTIFICATION: Parse hostname and lookup tenant in database
 
   // Extract potential tenant subdomain from hostname
-  const potentialSubdomain = extractTenantSubdomain(host)
+  // First, remove port if present
+  const hostWithoutPort = host.split(':')[0]
+  let potentialSubdomain = null
 
-  debugLog.push(`[TENANT-LAYOUT] Host: ${host}`)
+  if (hostWithoutPort.endsWith('.brandassets.space')) {
+    potentialSubdomain = hostWithoutPort.replace('.brandassets.space', '')
+  } else if (hostWithoutPort.endsWith('.localhost')) {
+    // Development fallback for localhost subdomains (handles any port)
+    potentialSubdomain = hostWithoutPort.replace('.localhost', '')
+  }
+
+  debugLog.push(`[TENANT-LAYOUT] Host without port: ${hostWithoutPort}`)
   debugLog.push(`[TENANT-LAYOUT] Potential subdomain: ${potentialSubdomain || 'null'}`)
 
   // Skip invalid subdomains (empty, admin, www, etc.)
@@ -124,20 +135,38 @@ export default async function AuthenticatedLayout({
     redirect("https://brandassets.space/")
   }
 
-  // TENANT ACCESS VALIDATION: Always check client_users table
-  // System admins do NOT get automatic tenant access
-  // Tenant access must be explicitly granted via client_users membership
-  const { data: accessCheck } = await supabase
+  // TENANT ACCESS VALIDATION: Check if user has access to this tenant
+  // Superadmins get automatic access to all tenants (via superadmin role in any client)
+  // Other users need explicit client_users membership for this specific tenant
+  
+  // First check if user is superadmin
+  const { data: superadminCheck } = await supabase
     .from("client_users")
-    .select("id, role_id")
+    .select(`
+      id,
+      roles!inner(key)
+    `)
     .eq("user_id", user.id)
-    .eq("client_id", tenant.id)
     .eq("status", "active")
-    .single()
+    .eq("roles.key", "superadmin")
+    .limit(1)
 
-  if (!accessCheck) {
-    // No access to this tenant - redirect to login
-    redirect("/login")
+  const isSuperAdmin = superadminCheck && superadminCheck.length > 0
+
+  if (!isSuperAdmin) {
+    // Not a superadmin, check explicit tenant access
+    const { data: accessCheck } = await supabase
+      .from("client_users")
+      .select("id, role_id")
+      .eq("user_id", user.id)
+      .eq("client_id", tenant.id)
+      .eq("status", "active")
+      .single()
+
+    if (!accessCheck) {
+      // No access to this tenant - redirect to login
+      redirect("/login")
+    }
   }
 
   // Get user data
@@ -164,22 +193,28 @@ export default async function AuthenticatedLayout({
   console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
 
   // Get user role within this tenant
-  // System admin status does not affect tenant roles
-  // Roles are always determined by explicit client_users membership
-  const { data: clientUsers } = await supabase
-    .from("client_users")
-    .select(`
-      role_id,
-      roles!inner(key)
-    `)
-    .eq("user_id", user.id)
-    .eq("client_id", tenant.id)
-    .eq("status", "active")
-    .limit(1)
+  // Superadmins always get "superadmin" role
+  // Other users get their role from explicit client_users membership
+  let role: string | null = null
+  
+  if (isSuperAdmin) {
+    role = "superadmin"
+  } else {
+    const { data: clientUsers } = await supabase
+      .from("client_users")
+      .select(`
+        role_id,
+        roles!inner(key)
+      `)
+      .eq("user_id", user.id)
+      .eq("client_id", tenant.id)
+      .eq("status", "active")
+      .limit(1)
 
-  const roleEntry = clientUsers?.[0]?.roles as { key?: string } | { key?: string }[] | null | undefined
-  const roleKey = Array.isArray(roleEntry) ? roleEntry[0]?.key : roleEntry?.key
-  const role = roleKey?.toLowerCase() || null
+    const roleEntry = clientUsers?.[0]?.roles as { key?: string } | { key?: string }[] | null | undefined
+    const roleKey = Array.isArray(roleEntry) ? roleEntry[0]?.key : roleEntry?.key
+    role = roleKey?.toLowerCase() || null
+  }
 
   // Apply tenant branding
   // Note: This sets CSS variables that BrandContext will use
@@ -192,27 +227,31 @@ export default async function AuthenticatedLayout({
   return (
     <TenantProvider tenant={tenant}>
       <BrandProvider>
-        <AuthBridge />
-        <Head>
-          <title>{tenant.name} - Digital Asset Management</title>
-          {tenant.logo_url ? (
-            <>
-              <link rel="icon" type="image/png" sizes="32x32" href={tenant.logo_url} />
-              <link rel="icon" type="image/svg+xml" href={tenant.logo_url} />
-              <link rel="apple-touch-icon" href={tenant.logo_url} />
-            </>
-          ) : (
-            <>
-              <link rel="icon" href="/icon-light-32x32.png" media="(prefers-color-scheme: light)" />
-              <link rel="icon" href="/icon-dark-32x32.png" media="(prefers-color-scheme: dark)" />
-              <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-              <link rel="apple-touch-icon" href="/apple-icon.png" />
-            </>
-          )}
-        </Head>
-        <TenantLayoutClient tenant={tenant} userData={userData} role={role}>
-          {children}
-        </TenantLayoutClient>
+        <SessionSyncProvider>
+          <Head>
+            <title>{tenant.name} - Digital Asset Management</title>
+            {tenant.logo_url ? (
+              <>
+                <link rel="icon" type="image/png" sizes="32x32" href={tenant.logo_url} />
+                <link rel="icon" type="image/svg+xml" href={tenant.logo_url} />
+                <link rel="apple-touch-icon" href={tenant.logo_url} />
+              </>
+            ) : (
+              <>
+                <link rel="icon" href="/icon-light-32x32.png" media="(prefers-color-scheme: light)" />
+                <link rel="icon" href="/icon-dark-32x32.png" media="(prefers-color-scheme: dark)" />
+                <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+                <link rel="apple-touch-icon" href="/apple-icon.png" />
+              </>
+            )}
+          </Head>
+          <div className="flex h-screen overflow-hidden bg-gray-50">
+            <SidebarVisibility>
+              <Sidebar user={userData} role={role || undefined} />
+            </SidebarVisibility>
+            <main className="flex-1 overflow-y-auto">{children}</main>
+          </div>
+        </SessionSyncProvider>
       </BrandProvider>
     </TenantProvider>
   )

@@ -1,54 +1,118 @@
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 import { Sidebar } from "@/components/layout/sidebar"
 import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
 
-export default async function SystemAdminLayout({
+interface UserData {
+  id: string
+  email: string
+  full_name: string
+  // Add other user properties as needed
+}
+
+export default function SystemAdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
+  const [user, setUser] = useState<UserData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const router = useRouter()
 
-  // Debug logging
-  const debugLog: string[] = []
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Starting layout check`)
-  
-  // Verify system admin authentication
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Getting user...`)
-  const { data: { user }, error: getUserError } = await supabase.auth.getUser()
+  useEffect(() => {
+    checkAuth()
+  }, [])
 
-  if (getUserError) {
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Get user error: ${getUserError.message}`)
-    console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
+  const checkAuth = async () => {
+    try {
+      const supabase = createClient()
+
+      // Get current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.info('[SYSTEM-ADMIN-LAYOUT] Session error, redirecting to login')
+        router.push('/login')
+        return
+      }
+
+      if (!session?.user) {
+        console.info('[SYSTEM-ADMIN-LAYOUT] No session, redirecting to login')
+        router.push('/login')
+        return
+      }
+
+      // Check if user has superadmin role in any client
+      const { data: superadminCheck, error: adminError } = await supabase
+        .from("client_users")
+        .select(`
+          id,
+          roles!inner(key)
+        `)
+        .eq("user_id", session.user.id)
+        .eq("status", "active")
+        .eq("roles.key", "superadmin")
+        .limit(1)
+
+      if (adminError || !superadminCheck || superadminCheck.length === 0) {
+        console.info('[SYSTEM-ADMIN-LAYOUT] User is not superadmin')
+        setIsAuthorized(false)
+        setIsLoading(false)
+        return
+      }
+
+      // Get user data
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", session.user.id)
+        .single()
+
+      if (userError || !userData) {
+        console.info('[SYSTEM-ADMIN-LAYOUT] User data not found, redirecting to login')
+        router.push('/login')
+        return
+      }
+
+      // Ensure required fields are present
+      const formattedUser: UserData = {
+        id: userData.id,
+        email: userData.email || session.user.email,
+        full_name: userData.full_name || session.user.user_metadata?.full_name || 'Unknown User'
+      }
+
+      setUser(formattedUser)
+      setIsAuthorized(true)
+
+    } catch (error) {
+      console.error('[SYSTEM-ADMIN-LAYOUT] Auth check failed:', error)
+      router.push('/login')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User: ${user ? `found (id: ${user.id}, email: ${user.email})` : 'not found'}`)
-
-  if (!user) {
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] No user found, redirecting to login`)
-    console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
-    redirect("/login")
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-white p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">Loading...</h1>
+            <p className="mt-2 text-sm text-gray-600">Setting up your session.</p>
+          </div>
+          <div className="flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-black border-t-transparent" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  // SYSTEM ADMIN CONTEXT: Check if user has superadmin role on any client
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Checking superadmin role for user ${user.id}...`)
-
-  // Check if user has superadmin role using the is_superadmin function
-  const { data: isSuperAdmin, error } = await supabase.rpc('is_superadmin', {
-    p_user_id: user.id
-  })
-
-  if (error) {
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Superadmin check error: ${error.message}`)
-  }
-
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Superadmin result: ${isSuperAdmin ? 'true' : 'false'}`)
-
-  if (error || !isSuperAdmin) {
-    // Not a superadmin - show access denied page instead of redirecting to login
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User is not a superadmin, showing access denied`)
-    console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
+  if (!isAuthorized) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-white p-6">
         <div className="w-full max-w-sm">
@@ -60,50 +124,26 @@ export default async function SystemAdminLayout({
             <p className="text-sm text-gray-500 mb-4">
               If you believe this is an error, please contact your system administrator.
             </p>
-            <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto mb-4">
-              <summary className="cursor-pointer font-medium">Debug Details</summary>
-              <pre className="mt-2 whitespace-pre-wrap">{debugLog.join('\n')}</pre>
-            </details>
-            <a
-              href="/login"
+            <button
+              onClick={() => router.push('/login')}
               className="inline-block px-4 py-2 bg-black text-white rounded-[25px] hover:bg-gray-800 transition-colors"
             >
               Go to Login
-            </a>
+            </button>
           </div>
         </div>
       </div>
     )
   }
 
-  // Get user data
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] Getting user data from users table...`)
-  const { data: userData, error: userDataError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", user.id)
-    .single()
-
-  if (userDataError) {
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User data query error: ${userDataError.message}`)
+  if (!user) {
+    return null // This shouldn't happen, but just in case
   }
 
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] User data result: ${userData ? 'found' : 'not found'}`)
-
-  if (!userData) {
-    debugLog.push(`[SYSTEM-ADMIN-LAYOUT] No user data found, redirecting to login`)
-    console.error('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
-    redirect("/login")
-  }
-
-  debugLog.push(`[SYSTEM-ADMIN-LAYOUT] All checks passed, rendering layout`)
-  console.log('[SYSTEM-ADMIN-LAYOUT DEBUG]', debugLog.join('\n'))
-
-  // System admin confirmed - render system admin layout
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       <SidebarVisibility>
-        <Sidebar user={userData} role="superadmin" />
+        <Sidebar user={user} role="superadmin" />
       </SidebarVisibility>
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>

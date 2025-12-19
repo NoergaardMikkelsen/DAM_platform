@@ -54,12 +54,20 @@ async function checkDatabase() {
       console.log(`  - ${user.email} (${user.id}) - ${user.created_at}`)
     })
 
-    // Check system admins
-    console.log("\n=== SYSTEM ADMINS ===")
-    const systemAdminsResult = await client.query("SELECT id FROM system_admins")
-    console.log(`Found ${systemAdminsResult.rows.length} system admins:`)
-    systemAdminsResult.rows.forEach((admin: any) => {
-      console.log(`  - ${admin.id}`)
+    // Check superadmins (users with superadmin role in any client)
+    console.log("\n=== SUPERADMINS ===")
+    const superadminsResult = await client.query(`
+      SELECT DISTINCT cu.user_id, u.email, u.full_name
+      FROM client_users cu
+      JOIN roles r ON cu.role_id = r.id
+      JOIN users u ON cu.user_id = u.id
+      WHERE cu.status = 'active'
+        AND r.key = 'superadmin'
+      ORDER BY u.email
+    `)
+    console.log(`Found ${superadminsResult.rows.length} superadmins:`)
+    superadminsResult.rows.forEach((admin: any) => {
+      console.log(`  - ${admin.email}${admin.full_name ? ` (${admin.full_name})` : ''} (${admin.user_id})`)
     })
 
     // Check client_users

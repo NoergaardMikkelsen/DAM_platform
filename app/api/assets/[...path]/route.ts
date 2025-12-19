@@ -104,20 +104,27 @@ export async function GET(
     debugLog.push(`[ASSETS-API] Checking user access to client ${clientId}...`)
 
     // First check if user is a superadmin (they have access to all clients)
-    const { data: isSuperAdmin, error: superAdminError } = await supabase.rpc('is_superadmin', {
-      p_user_id: user.id
-    })
+    const { data: superadminCheck, error: superadminError } = await supabase
+      .from('client_users')
+      .select(`
+        id,
+        roles!inner(key)
+      `)
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .eq('roles.key', 'superadmin')
+      .limit(1)
 
-    if (superAdminError) {
-      debugLog.push(`[ASSETS-API] Superadmin check error: ${superAdminError.message}`)
+    if (superadminError) {
+      debugLog.push(`[ASSETS-API] Superadmin check error: ${superadminError.message}`)
     }
 
-    debugLog.push(`[ASSETS-API] Superadmin check: ${isSuperAdmin ? 'is superadmin' : 'not superadmin'}`)
+    debugLog.push(`[ASSETS-API] Superadmin check: ${superadminCheck && superadminCheck.length > 0 ? 'is superadmin' : 'not superadmin'}`)
 
-    if (isSuperAdmin) {
-      debugLog.push(`[ASSETS-API] Access granted - user is system admin`)
+    if (superadminCheck && superadminCheck.length > 0) {
+      debugLog.push(`[ASSETS-API] Access granted - user is superadmin`)
     } else {
-      // Not a system admin, check regular client access
+      // Not a superadmin, check regular client access
       const { data: accessCheck, error: accessError } = await supabase
         .from('client_users')
         .select('id')

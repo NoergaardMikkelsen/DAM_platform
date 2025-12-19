@@ -124,19 +124,36 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get cookies that were set
+    // Get cookies that were set and re-set them with correct domain
     const cookieStore = await cookies()
+    const cookieDomain = process.env.NODE_ENV === 'production' ? '.brandassets.space' : '.localhost'
+    
     const authCookies = cookieStore.getAll().filter(c => 
       c.name.includes('auth') || 
       c.name.includes('supabase') || 
       c.name.includes('sb-')
     )
 
-    return NextResponse.json({
+    // Create response with cookies set with correct domain
+    const response = NextResponse.json({
       success: true,
       user: data.user,
       cookiesSet: authCookies.length,
     })
+
+    // Re-set all auth cookies with correct domain
+    authCookies.forEach(cookie => {
+      response.cookies.set(cookie.name, cookie.value, {
+        domain: cookieDomain,
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      })
+    })
+
+    return response
   } catch (error) {
     console.error('[SYNC-SESSION] Error:', error)
     return NextResponse.json(

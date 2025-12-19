@@ -8,6 +8,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
 import { DashboardHeaderSkeleton, StatsGridSkeleton } from "@/components/skeleton-loaders"
+import { syncSessionAcrossSubdomains } from "@/lib/utils/session-sync"
 
 interface SystemStats {
   totalClients: number
@@ -26,6 +27,7 @@ export default function SystemAdminDashboard() {
   const [tenants, setTenants] = useState<Array<{id: string, name: string, slug: string}> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingTenants, setIsLoadingTenants] = useState(true)
+  const [tenantError, setTenantError] = useState<string | null>(null)
   const supabase = createClient()
 
   // Determine the base domain for tenant URLs
@@ -33,9 +35,9 @@ export default function SystemAdminDashboard() {
     if (typeof window !== 'undefined') {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname.endsWith('.localhost')
       const protocol = window.location.protocol
+      const port = window.location.port ? `:${window.location.port}` : ''
       if (isLocalhost) {
-        const port = window.location.port || '3000'
-        return `${protocol}//${slug}.localhost:${port}`
+        return `${protocol}//${slug}.localhost${port}`
       }
     }
     return `https://${slug}.brandassets.space`
@@ -48,11 +50,38 @@ export default function SystemAdminDashboard() {
 
   const loadTenants = async () => {
     setIsLoadingTenants(true)
+    setTenantError(null)
     try {
+      // Try server action first
       const tenantData = await getAllTenantsForSuperAdmin()
-      setTenants(tenantData)
-    } catch (error) {
+      console.log('[DASHBOARD] Server action result:', tenantData)
+      
+      // If server action returns empty, try direct query as fallback
+      if (!tenantData || tenantData.length === 0) {
+        console.log('[DASHBOARD] Server action returned empty, trying direct query...')
+        const { data: directClients, error: directError } = await supabase
+          .from("clients")
+          .select("id, name, slug")
+          .eq("status", "active")
+          .order("name")
+        
+        if (directError) {
+          console.error('[DASHBOARD] Direct query error:', directError)
+          setTenantError(`Database error: ${directError.message}`)
+        } else {
+          console.log('[DASHBOARD] Direct query result:', directClients)
+          setTenants(directClients || [])
+          if (!directClients || directClients.length === 0) {
+            setTenantError('No active clients found in database')
+          }
+        }
+      } else {
+        setTenants(tenantData)
+      }
+    } catch (error: any) {
       console.error("Error loading tenants:", error)
+      setTenantError(error?.message || 'Failed to load clients')
+      setTenants([]) // Set empty array on error so UI can show message
     } finally {
       setIsLoadingTenants(false)
     }
@@ -100,54 +129,92 @@ export default function SystemAdminDashboard() {
           <p className="text-gray-600 mt-1">Complete system administration and monitoring</p>
         </div>
         <div className="flex items-center space-x-4">
-          <Button variant="outline">
-            <Settings className="h-4 w-4 mr-2" />
-            System Settings
-          </Button>
+          <Link href="/system-admin/settings">
+            <Button variant="outline">
+              <Settings className="h-4 w-4 mr-2" />
+              System Settings
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* Tenant Access for SuperAdmin */}
-      {tenants && tenants.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ExternalLink className="h-5 w-5" />
-              Client Navigation
-            </CardTitle>
-            <p className="text-sm text-gray-600">
-              Navigate to client tenant interfaces. Access within each tenant is still controlled by tenant membership and authorization rules.
-            </p>
-          </CardHeader>
-          <CardContent>
-            {isLoadingTenants ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-16 bg-gray-100 animate-pulse rounded-lg"></div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {tenants.map((tenant) => (
-                  <a
-                    key={tenant.id}
-                    href={`${getTenantBaseUrl(tenant.slug)}/dashboard`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors group"
-                  >
-                    <div>
-                      <h3 className="font-medium text-gray-900">{tenant.name}</h3>
-                      <p className="text-sm text-gray-500">{getTenantBaseUrl(tenant.slug).replace('https://', '').replace('http://', '')}</p>
+      {/* Tenant Access for SuperAdmin - Prominent placement */}
+      <Card className="border-2 border-gray-200">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <ExternalLink className="h-6 w-6 text-gray-700" />
+            Client Navigation
+          </CardTitle>
+          <p className="text-sm text-gray-600 mt-2">
+            Navigate directly to client tenant interfaces. As a superadmin, you have automatic access to all tenants.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {isLoadingTenants ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-20 bg-gray-100 animate-pulse rounded-lg"></div>
+              ))}
+            </div>
+          ) : tenants && tenants.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tenants.map((tenant) => {
+                  const tenantUrl = `${getTenantBaseUrl(tenant.slug)}/dashboard`
+                  return (
+                    <Button
+                      key={tenant.id}
+                      variant="outline"
+                      className="h-auto p-4 justify-start hover:bg-gray-50 hover:border-gray-300 transition-colors group"
+                      onClick={async () => {
+                        // Get current session tokens for cross-subdomain transfer
+                        const { data: { session } } = await supabase.auth.getSession()
+                        if (session) {
+                          // Pass tokens via URL for cross-subdomain auth (localhost workaround)
+                          const params = new URLSearchParams({
+                            access_token: session.access_token,
+                            refresh_token: session.refresh_token,
+                          })
+                          window.location.href = `${tenantUrl}?auth_transfer=true&${params.toString()}`
+                        } else {
+                          window.location.href = tenantUrl
+                        }
+                      }}
+                    >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="text-left">
+                        <h3 className="font-medium text-gray-900">{tenant.name}</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {getTenantBaseUrl(tenant.slug).replace('https://', '').replace('http://', '')}
+                        </p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors ml-4 flex-shrink-0" />
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                  </a>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  </Button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p className="font-medium text-gray-900 mb-2">
+                {tenantError ? 'Error loading clients' : 'No active clients found'}
+              </p>
+              {tenantError ? (
+                <p className="text-sm text-red-600">{tenantError}</p>
+              ) : (
+                <>
+                  <p>No active clients found.</p>
+                  <p className="text-sm mt-2">Clients will appear here once they are created and active.</p>
+                  <Link href="/system-admin/clients/create" className="mt-4 inline-block">
+                    <Button variant="outline" size="sm">
+                      Create First Client
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* System stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

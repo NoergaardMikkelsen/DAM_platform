@@ -1,46 +1,63 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { isTenantSubdomain, isSystemAdminSubdomain } from '@/lib/utils/hostname'
+import { updateSession } from '@/lib/supabase/proxy'
 
 export async function middleware(request: NextRequest) {
+  // Update Supabase session to sync cookies across subdomains
+  const response = await updateSession(request)
+  
   const hostname = request.headers.get('host') || ''
   const pathname = request.nextUrl.pathname
 
   // Remove port if present
   const [host] = hostname.split(':')
 
-  // Debug logging - only in development for important paths
-  if (process.env.NODE_ENV === 'development' &&
-      (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/dashboard'))) {
-    console.log('[MIDDLEWARE] Request:', { host, pathname })
-  }
+  // Debug logging
+  console.log('[MIDDLEWARE] Request:', { hostname, host, pathname })
 
   // CONTEXT DETECTION AND ROUTING
 
-  // Tenant context: redirect root to dashboard
-  if (isTenantSubdomain(host)) {
-    console.log('[MIDDLEWARE] Tenant subdomain detected:', host)
+  // Tenant context: localhost subdomains for development (e.g., tenant.localhost)
+  if (host.endsWith('.localhost') && !host.startsWith('admin.')) {
+    console.log('[MIDDLEWARE] Tenant localhost detected:', host)
+    // If root route on tenant subdomain, redirect to dashboard
     if (pathname === '/') {
       console.log('[MIDDLEWARE] Redirecting root route to /dashboard')
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
-    return NextResponse.next()
+    return response
   }
 
-  // System admin context
-  if (isSystemAdminSubdomain(host)) {
-    console.log('[MIDDLEWARE] System admin subdomain detected:', host)
-    return NextResponse.next()
+  // Tenant context: any subdomain of brandassets.space (excluding admin)
+  if (host.endsWith('.brandassets.space') && !host.startsWith('admin.')) {
+    // If root route on tenant subdomain, redirect to dashboard
+    if (pathname === '/') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+    return response
   }
 
   // Public context: main domain
-  console.log('[MIDDLEWARE] Public/main domain detected:', host)
-  return NextResponse.next()
+  if (host === 'brandassets.space' || host === 'localhost') {
+    return response
+  }
+
+  // System admin context: admin subdomain (production)
+  if (host === 'admin.brandassets.space') {
+    return response
+  }
+
+  // System admin context: localhost development (admin.localhost)
+  if (host === 'admin.localhost') {
+    return response
+  }
 
   // Default: allow all other routes
-  return NextResponse.next()
+  return response
 }
 
 

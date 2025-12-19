@@ -9,7 +9,7 @@ import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton } from "@/components/skeleton-loaders"
@@ -48,8 +48,6 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(false)
   const [maxCollections, setMaxCollections] = useState(3)
-  const [loadedAssets, setLoadedAssets] = useState(0)
-  const [totalAssets, setTotalAssets] = useState(0)
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -61,28 +59,53 @@ export default function DashboardPage() {
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
-  const handleAssetLoaded = useCallback(() => {
-    setLoadedAssets(prev => {
-      const newCount = prev + 1
-      // When all assets are loaded, hide the skeleton
-      if (newCount >= totalAssets && totalAssets > 0) {
-        setIsLoading(false)
+  useEffect(() => {
+    // Handle cross-subdomain auth transfer (localhost workaround)
+    const handleAuthTransfer = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const isAuthTransfer = params.get('auth_transfer') === 'true'
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+
+      if (isAuthTransfer && accessToken && refreshToken) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/dashboard:auth-transfer',message:'Processing auth transfer',data:{host:window.location.host,hasTokens:!!(accessToken&&refreshToken)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX'})}).catch(()=>{});
+        // #endregion
+
+        try {
+          const supabase = supabaseRef.current
+          // Set the session using transferred tokens
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (error) {
+            console.error('[AUTH-TRANSFER] Error setting session:', error)
+          } else {
+            console.log('[AUTH-TRANSFER] Session established successfully')
+            // Remove auth params from URL to clean up
+            const cleanUrl = window.location.pathname
+            window.history.replaceState({}, '', cleanUrl)
+          }
+        } catch (err) {
+          console.error('[AUTH-TRANSFER] Unexpected error:', err)
+        }
       }
-      return newCount
-    })
-  }, [totalAssets])
+    }
+
+    handleAuthTransfer()
+  }, [])
 
   useEffect(() => {
-    // Check if we should show initial loading screen as fallback
+    // Show initial loading screen only on first login in this session
     const hasSeenInitialLoading = sessionStorage.getItem('hasSeenInitialLoading')
+
     if (!hasSeenInitialLoading) {
       setIsInitialLoading(true)
-      // Small delay to ensure layout loading screen has time to show
-      setTimeout(() => {
-        setIsInitialLoading(false)
-        loadDashboardData()
-      }, 100)
+      sessionStorage.setItem('hasSeenInitialLoading', 'true')
     } else {
+      // If already seen, just load data directly
       loadDashboardData()
     }
   }, [])
@@ -235,17 +258,6 @@ export default function DashboardPage() {
     setFilteredCollections(collectionsData)
     setAssets(allAssetsData || [])
     setFilteredAssets(allAssetsData || [])
-
-    // Count total assets that need to be loaded (only recent uploads shown on dashboard)
-    const totalAssetsToLoad = (recentUploadsData || []).filter(asset =>
-      asset.mime_type?.startsWith("image/") ||
-      asset.mime_type?.startsWith("video/") ||
-      asset.mime_type === "application/pdf"
-    ).length
-
-    setTotalAssets(totalAssetsToLoad)
-    setLoadedAssets(0) // Reset counter
-
     setStats({
       totalAssets: totalAssetsCount || 0,
       recentUploads: recentUploadsData || [],
@@ -253,12 +265,7 @@ export default function DashboardPage() {
       storagePercentage,
       userName: userData?.full_name || ""
     })
-
-    // If no assets need to be loaded, hide skeleton immediately
-    if (totalAssetsToLoad === 0) {
-      setIsLoading(false)
-    }
-    // Otherwise, wait for all assets to load
+    setIsLoading(false)
   }
 
   const handleApplyFilters = async (filters: {
@@ -317,7 +324,6 @@ export default function DashboardPage() {
     setFilteredCollections(filteredCollectionsResult)
     setIsFilterOpen(false)
   }
-
 
   if (isInitialLoading) {
     return <InitialLoadingScreen onComplete={() => {
@@ -474,8 +480,6 @@ export default function DashboardPage() {
                         mimeType={asset.mime_type}
                         alt={asset.title}
                         className={asset.mime_type === "application/pdf" ? "w-full h-auto" : "w-full h-full object-cover"}
-                        showLoading={false}
-                        onAssetLoaded={handleAssetLoaded}
                       />
                     )}
                     <Button
