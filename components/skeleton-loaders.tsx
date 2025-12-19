@@ -172,12 +172,23 @@ export function StatsCardsSkeleton({ count = 4 }: { count?: number }) {
 // Table skeleton
 export function TableSkeleton({ rows = 8, columns = 4 }: { rows?: number; columns?: number }) {
   return (
-    <div className="space-y-4">
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex items-center space-x-4">
+    <div className="rounded-lg border bg-white">
+      {/* Table Header */}
+      <div className="border-b bg-gray-50 px-6 py-3">
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
           {Array.from({ length: columns }, (_, j) => (
-            <Skeleton key={j} className={`h-4 ${j === 0 ? 'w-32' : j === columns - 1 ? 'w-16' : 'w-24'}`} />
+            <Skeleton key={j} className="h-4 w-full max-w-32" />
           ))}
+        </div>
+      </div>
+      {/* Table Rows */}
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="border-b px-6 py-4 last:border-b-0">
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+            {Array.from({ length: columns }, (_, j) => (
+              <Skeleton key={j} className={`h-4 ${j === columns - 1 ? 'w-20 justify-self-end' : 'w-full max-w-48'}`} />
+            ))}
+          </div>
         </div>
       ))}
     </div>
