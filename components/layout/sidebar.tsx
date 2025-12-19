@@ -14,15 +14,16 @@ type SidebarProps = {
     email: string
   }
   role?: string
+  isSystemAdminContext?: boolean // True when on admin.* subdomain
 }
 
-export function Sidebar({ user, role }: SidebarProps) {
+export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  console.log("Sidebar role:", role)
+  console.log("Sidebar role:", role, "isSystemAdminContext:", isSystemAdminContext)
 
   const handleLogout = async () => {
     try {
@@ -56,39 +57,38 @@ export function Sidebar({ user, role }: SidebarProps) {
     }
   }
 
-  // Different main navigation based on role type
+  // Different main navigation based on context and role
   const getMainNavItems = () => {
-    // Don't show main navigation for superadmin
-    if (role === "superadmin") {
+    // System admin context (admin.* subdomain) - no main nav for superadmins
+    if (isSystemAdminContext && role === "superadmin") {
       return []
     }
 
+    // Tenant context - always show tenant navigation (even for superadmins)
     const baseItems = [
       { href: "/dashboard", label: "Dashboard", icon: Home },
+      { href: "/assets", label: "Asset Library", icon: BookOpen },
     ]
-
-    // Only show Asset Library for non-superadmin users
-    if (role !== "superadmin") {
-      baseItems.push({ href: "/assets", label: "Asset Library", icon: BookOpen })
-    }
 
     return baseItems
   }
 
   const mainNavItems = getMainNavItems()
 
-  // Different admin items based on role type
+  // Different admin items based on context and role type
   const getAdminNavItems = () => {
-    if (role === "superadmin") {
-      // System admin navigation
+    // System admin context (admin.* subdomain) - show system admin navigation
+    if (isSystemAdminContext && role === "superadmin") {
       return [
         { href: "/system-admin/dashboard", label: "System Overview", icon: BarChart3 },
         { href: "/system-admin/clients", label: "Client Management", icon: Briefcase },
         { href: "/system-admin/users", label: "System Users", icon: Shield },
         { href: "/system-admin/settings", label: "System Settings", icon: Settings },
       ]
-    } else if (role === "admin") {
-      // Client admin navigation
+    }
+    
+    // Tenant context - show client admin navigation for admins/superadmins
+    if (role === "admin" || role === "superadmin") {
       return [
         { href: "/users", label: "Users", icon: Users },
         { href: "/tagging", label: "Tagging", icon: Tag },
@@ -165,7 +165,7 @@ export function Sidebar({ user, role }: SidebarProps) {
       <div className="relative z-10 flex h-full flex-col">
         {/* Logo */}
         <div className={`flex items-center border-b transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
-          {role === "superadmin" ? (
+          {isSystemAdminContext && role === "superadmin" ? (
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
               <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-black text-white font-bold text-sm`}>
                 SA
@@ -353,8 +353,8 @@ export function Sidebar({ user, role }: SidebarProps) {
           </div>
         </div>
 
-        {/* Upload Button - Only show for non-superadmin users */}
-        {role !== "superadmin" && (
+        {/* Upload Button - Only show in tenant context (not in system admin context) */}
+        {!isSystemAdminContext && (
           <div className={`border-t transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
             <Link href="/assets/upload" className="block" title={isCollapsed ? "Upload" : undefined}>
               <Button
@@ -377,7 +377,7 @@ export function Sidebar({ user, role }: SidebarProps) {
         {/* User Profile - positioned ABOVE indentation */}
         <div className={`border-t pb-6 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
-            <Link href={role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
+            <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
                 {(user.full_name || user.email)
                   .split(" ")

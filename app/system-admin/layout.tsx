@@ -143,7 +143,7 @@ export default function SystemAdminLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       <SidebarVisibility>
-        <Sidebar user={user} role="superadmin" />
+        <Sidebar user={user} role="superadmin" isSystemAdminContext={true} />
       </SidebarVisibility>
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>

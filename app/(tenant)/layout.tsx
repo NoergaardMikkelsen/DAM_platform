@@ -247,7 +247,7 @@ export default async function AuthenticatedLayout({
           </Head>
           <div className="flex h-screen overflow-hidden bg-gray-50">
             <SidebarVisibility>
-              <Sidebar user={userData} role={role || undefined} />
+              <Sidebar user={userData} role={role || undefined} isSystemAdminContext={false} />
             </SidebarVisibility>
             <main className="flex-1 overflow-y-auto">{children}</main>
           </div>
