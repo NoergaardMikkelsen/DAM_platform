@@ -16,7 +16,7 @@ interface SystemUser {
   full_name: string | null
   email: string
   created_at: string
-  is_system_admin: boolean
+  is_superadmin: boolean
   client_count: number
   last_active?: string
 }
@@ -61,12 +61,17 @@ export default function SystemUsersPage() {
       return
     }
 
-    // Get system admin status for each user
-    const { data: systemAdmins } = await supabase
-      .from("system_admins")
-      .select("id")
+    // Get superadmin status for each user (users with superadmin role in any client)
+    const { data: superadmins } = await supabase
+      .from("client_users")
+      .select(`
+        user_id,
+        roles!inner(key)
+      `)
+      .eq("status", "active")
+      .eq("roles.key", "superadmin")
 
-    const systemAdminIds = new Set(systemAdmins?.map(sa => sa.id) || [])
+    const superadminIds = new Set(superadmins?.map((sa: { user_id: string }) => sa.user_id) || [])
 
     // Get client user counts for each user
     const { data: clientUsers } = await supabase
@@ -88,12 +93,12 @@ export default function SystemUsersPage() {
     })
 
     // Combine the data
-    const usersWithDetails: SystemUser[] = users?.map(user => ({
+    const usersWithDetails: SystemUser[] = users?.map((user: { id: string; full_name: string | null; email: string; created_at: string }) => ({
       id: user.id,
       full_name: user.full_name,
       email: user.email,
       created_at: user.created_at,
-      is_system_admin: systemAdminIds.has(user.id),
+      is_superadmin: superadminIds.has(user.id),
       client_count: clientCountMap.get(user.id) || 0
     })) || []
 
@@ -116,40 +121,21 @@ export default function SystemUsersPage() {
     // Apply user type filter
     if (userTypeFilter !== "all") {
       if (userTypeFilter === "system-admin") {
-        filtered = filtered.filter((user) => user.is_system_admin)
+        filtered = filtered.filter((user) => user.is_superadmin)
       } else if (userTypeFilter === "client-users") {
-        filtered = filtered.filter((user) => !user.is_system_admin && user.client_count > 0)
+        filtered = filtered.filter((user) => !user.is_superadmin && user.client_count > 0)
       } else if (userTypeFilter === "no-clients") {
-        filtered = filtered.filter((user) => !user.is_system_admin && user.client_count === 0)
+        filtered = filtered.filter((user) => !user.is_superadmin && user.client_count === 0)
       }
     }
 
     setFilteredUsers(filtered)
   }
 
-  const toggleSystemAdmin = async (userId: string, currentStatus: boolean) => {
-    const supabase = supabaseRef.current
-
-    try {
-      if (currentStatus) {
-        // Remove system admin status
-        await supabase
-          .from("system_admins")
-          .delete()
-          .eq("id", userId)
-      } else {
-        // Add system admin status
-        await supabase
-          .from("system_admins")
-          .insert({ id: userId })
-      }
-
-      // Reload users to reflect changes
-      await loadUsers()
-    } catch (error) {
-      console.error("Error updating system admin status:", error)
-    }
-  }
+  // Note: Superadmin status is now managed via client_users table
+  // To grant superadmin access, add a client_users entry with superadmin role_id
+  // This UI no longer provides direct toggle functionality
+  // Superadmin management should be done through client management interface
 
   if (isLoading) {
     return (
@@ -190,7 +176,7 @@ export default function SystemUsersPage() {
       <Tabs value={userTypeFilter} onValueChange={setUserTypeFilter} className="mb-6">
         <TabsList suppressHydrationWarning>
           <TabsTrigger value="all">All users</TabsTrigger>
-          <TabsTrigger value="system-admin">System Admins</TabsTrigger>
+          <TabsTrigger value="system-admin">Superadmins</TabsTrigger>
           <TabsTrigger value="client-users">Client Users</TabsTrigger>
           <TabsTrigger value="no-clients">No Clients</TabsTrigger>
         </TabsList>
@@ -216,10 +202,10 @@ export default function SystemUsersPage() {
                 <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    {user.is_system_admin ? (
+                    {user.is_superadmin ? (
                       <Badge variant="secondary" className="bg-red-100 text-red-800">
                         <Shield className="w-3 h-3 mr-1" />
-                        System Admin
+                        Superadmin
                       </Badge>
                     ) : user.client_count > 0 ? (
                       <Badge variant="secondary" className="bg-blue-100 text-blue-800">
@@ -249,19 +235,6 @@ export default function SystemUsersPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleSystemAdmin(user.id, user.is_system_admin)}
-                      className={`h-8 ${
-                        user.is_system_admin
-                          ? "text-red-600 hover:text-red-700"
-                          : "text-green-600 hover:text-green-700"
-                      }`}
-                    >
-                      <Shield className="h-4 w-4 mr-1" />
-                      {user.is_system_admin ? "Remove Admin" : "Make Admin"}
-                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <Pencil className="h-4 w-4 text-gray-600" />
                     </Button>

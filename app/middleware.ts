@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { updateSession } from '@/lib/supabase/proxy'
 
 export async function middleware(request: NextRequest) {
+  // Update Supabase session to sync cookies across subdomains
+  const response = await updateSession(request)
+  
   const hostname = request.headers.get('host') || ''
   const pathname = request.nextUrl.pathname
 
@@ -23,7 +27,7 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
-    return NextResponse.next()
+    return response
   }
 
   // Tenant context: any subdomain of brandassets.space (excluding admin)
@@ -34,26 +38,26 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
-    return NextResponse.next()
+    return response
   }
 
   // Public context: main domain
   if (host === 'brandassets.space' || host === 'localhost') {
-    return NextResponse.next()
+    return response
   }
 
   // System admin context: admin subdomain (production)
   if (host === 'admin.brandassets.space') {
-    return NextResponse.next()
+    return response
   }
 
   // System admin context: localhost development (admin.localhost)
   if (host === 'admin.localhost') {
-    return NextResponse.next()
+    return response
   }
 
   // Default: allow all other routes
-  return NextResponse.next()
+  return response
 }
 
 

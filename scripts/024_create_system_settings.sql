@@ -13,21 +13,27 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- RLS Policies for system_settings
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
--- Only system admins can read system settings
+-- Only superadmins can read system settings
 CREATE POLICY "system_settings_read" ON system_settings
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM system_admins
-      WHERE id = auth.uid()
+      SELECT 1 FROM client_users cu
+      JOIN roles r ON cu.role_id = r.id
+      WHERE cu.user_id = auth.uid()
+        AND cu.status = 'active'
+        AND r.key = 'superadmin'
     )
   );
 
--- Only system admins can modify system settings
+-- Only superadmins can modify system settings
 CREATE POLICY "system_settings_write" ON system_settings
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM system_admins
-      WHERE id = auth.uid()
+      SELECT 1 FROM client_users cu
+      JOIN roles r ON cu.role_id = r.id
+      WHERE cu.user_id = auth.uid()
+        AND cu.status = 'active'
+        AND r.key = 'superadmin'
     )
   );
 

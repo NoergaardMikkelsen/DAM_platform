@@ -25,6 +25,14 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
 
+      // Check what's in localStorage
+      const localStorageKeys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-') || k.includes('auth'))
+      const localStorageData = localStorageKeys.map(k => ({ key: k, hasValue: !!localStorage.getItem(k) }))
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:checkSession',message:'Checking existing session on page load',data:{hasSession:!!session,hasUser:!!session?.user,host:window.location.host,localStorageKeys:localStorageKeys,localStorageData:localStorageData,documentCookies:document.cookie.split(';').map(c=>c.trim().split('=')[0]).filter(n=>n.includes('sb-')||n.includes('auth'))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,G'})}).catch(()=>{});
+      // #endregion
+
       if (session?.user) {
         // User is already logged in, redirect based on context
         const redirectUrl = await determineUserRedirect(session.user.id, supabase, window.location.host)
@@ -71,43 +79,65 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
     }
 
     try {
-      debugLog.push(`[DEBUG] Attempting to sign in with password...`)
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      debugLog.push(`[DEBUG] Attempting to sign in via API route...`)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:before-api-call',message:'About to call login API',data:{host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      // Use API route to login and set cookies with correct domain
+      const loginResponse = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include', // Important: include cookies
       })
 
-      if (signInError) {
-        debugLog.push(`[DEBUG] Sign in error: ${signInError.message}`)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login-form.tsx:after-api-call',message:'Login API response received',data:{status:loginResponse.status,ok:loginResponse.ok,host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
+      if (!loginResponse.ok) {
+        const errorData = await loginResponse.json()
+        debugLog.push(`[DEBUG] API login error: ${errorData.error}`)
         console.error('[LOGIN DEBUG]', debugLog.join('\n'))
 
-        if (signInError.message.includes('Invalid login credentials')) {
+        if (errorData.error.includes('Invalid login credentials') || errorData.error.includes('Invalid')) {
           setError('Invalid email or password. Please check your credentials and try again.')
-        } else if (signInError.message.includes('Email not confirmed')) {
+        } else if (errorData.error.includes('Email not confirmed')) {
           setError('Please check your email and click the confirmation link before logging in.')
         } else {
-          setError(signInError.message)
+          setError(errorData.error)
         }
         setIsLoading(false)
         return
       }
 
-      if (signInData?.user) {
-        debugLog.push(`[DEBUG] Sign in successful, user: ${signInData.user.id}`)
+      const loginData = await loginResponse.json()
+      
+      if (loginData?.user) {
+        debugLog.push(`[DEBUG] API login successful, user: ${loginData.user.id}`)
+
+        // Set session in Supabase client
+        if (loginData.session) {
+          await supabase.auth.setSession({
+            access_token: loginData.session.access_token,
+            refresh_token: loginData.session.refresh_token,
+          })
+        }
 
         // Determine redirect URL based on user context
-        const redirectUrl = await determineUserRedirect(signInData.user.id, supabase, window.location.host)
+        const redirectUrl = await determineUserRedirect(loginData.user.id, supabase, window.location.host)
         debugLog.push(`[DEBUG] Redirect URL determined: ${redirectUrl}`)
 
         console.log('[LOGIN DEBUG]', debugLog.join('\n'))
 
         if (redirectUrl) {
-          // Use window.location.href for system admin redirects to ensure cookies are sent
-          if (redirectUrl.startsWith('/system-admin')) {
-            window.location.href = redirectUrl
-          } else {
-            router.push(redirectUrl)
-          }
+          // Small delay to ensure cookies are set
+          await new Promise(resolve => setTimeout(resolve, 300))
+          window.location.href = redirectUrl
         } else {
           // No valid access found, stay on login page with error
           setError('You do not have access to any tenants. Please contact your administrator.')
@@ -115,7 +145,7 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
           await supabase.auth.signOut()
         }
       } else {
-        debugLog.push(`[DEBUG] Sign in successful but no user data`)
+        debugLog.push(`[DEBUG] API login successful but no user data`)
         console.error('[LOGIN DEBUG]', debugLog.join('\n'))
         setError('Login failed. Please try again.')
         setIsLoading(false)
@@ -203,23 +233,28 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')) {
     debugLog.push(`[REDIRECT] System admin context detected`)
 
-    // Check if user is a system admin
-    debugLog.push(`[REDIRECT] Checking if user is system admin...`)
-    const { data: systemAdminCheck, error: systemAdminError } = await supabase
-      .from('system_admins')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle()
+    // Check if user has superadmin role
+    debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
+    const { data: superadminCheck, error: superadminError } = await supabase
+      .from('client_users')
+      .select(`
+        id,
+        roles!inner(key)
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .eq('roles.key', 'superadmin')
+      .limit(1)
 
-    if (systemAdminError) {
-      debugLog.push(`[REDIRECT] System admin check error: ${systemAdminError.message}`)
+    if (superadminError) {
+      debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
     }
 
-    if (systemAdminCheck) {
-      debugLog.push(`[REDIRECT] User is system admin, redirecting to /system-admin/dashboard`)
+    if (superadminCheck && superadminCheck.length > 0) {
+      debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
       return '/system-admin/dashboard'
     } else {
-      debugLog.push(`[REDIRECT] User is not a system admin`)
+      debugLog.push(`[REDIRECT] User is not a superadmin`)
       return null
     }
   }
@@ -262,7 +297,31 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     debugLog.push(`[REDIRECT] Tenant result: ${tenant ? `found (id: ${tenant.id}, name: ${tenant.name})` : 'not found'}`)
 
     if (tenant) {
-      // Check if user has access to this specific tenant
+      // Check if user is superadmin (they have access to all tenants)
+      debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
+      const { data: superadminCheck, error: superadminError } = await supabase
+        .from("client_users")
+        .select(`
+          id,
+          roles!inner(key)
+        `)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .eq("roles.key", "superadmin")
+        .limit(1)
+
+      if (superadminError) {
+        debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
+      }
+
+      const isSuperAdmin = superadminCheck && superadminCheck.length > 0
+
+      if (isSuperAdmin) {
+        debugLog.push(`[REDIRECT] User is superadmin, has access to all tenants, redirecting to /dashboard`)
+        return "/dashboard"
+      }
+
+      // Not a superadmin, check explicit tenant access
       debugLog.push(`[REDIRECT] Checking client_users access for tenant ${tenant.id}...`)
       const { data: accessCheck, error: accessError } = await supabase
         .from("client_users")
@@ -296,20 +355,25 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
 
   debugLog.push(`[REDIRECT] Checking public context...`)
 
-  // Priority: System Admin > Any Tenant Access
-  debugLog.push(`[REDIRECT] Checking if user is system admin...`)
-  const { data: systemAdminCheck, error: systemAdminError } = await supabase
-    .from('system_admins')
-    .select('id')
-    .eq('id', userId)
-    .maybeSingle()
+  // Priority: Superadmin > Any Tenant Access
+  debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
+  const { data: superadminCheck, error: superadminError } = await supabase
+    .from('client_users')
+    .select(`
+      id,
+      roles!inner(key)
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .eq('roles.key', 'superadmin')
+    .limit(1)
 
-  if (systemAdminError) {
-    debugLog.push(`[REDIRECT] System admin check error: ${systemAdminError.message}`)
+  if (superadminError) {
+    debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
   }
 
-  if (systemAdminCheck) {
-    debugLog.push(`[REDIRECT] User is system admin, redirecting to /system-admin/dashboard`)
+  if (superadminCheck && superadminCheck.length > 0) {
+    debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
     return '/system-admin/dashboard'
   }
 

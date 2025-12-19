@@ -60,6 +60,44 @@ export default function DashboardPage() {
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
+    // Handle cross-subdomain auth transfer (localhost workaround)
+    const handleAuthTransfer = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const isAuthTransfer = params.get('auth_transfer') === 'true'
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+
+      if (isAuthTransfer && accessToken && refreshToken) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/624209aa-5708-4f59-be04-d36ef34603e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tenant/dashboard:auth-transfer',message:'Processing auth transfer',data:{host:window.location.host,hasTokens:!!(accessToken&&refreshToken)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX'})}).catch(()=>{});
+        // #endregion
+
+        try {
+          const supabase = supabaseRef.current
+          // Set the session using transferred tokens
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (error) {
+            console.error('[AUTH-TRANSFER] Error setting session:', error)
+          } else {
+            console.log('[AUTH-TRANSFER] Session established successfully')
+            // Remove auth params from URL to clean up
+            const cleanUrl = window.location.pathname
+            window.history.replaceState({}, '', cleanUrl)
+          }
+        } catch (err) {
+          console.error('[AUTH-TRANSFER] Unexpected error:', err)
+        }
+      }
+    }
+
+    handleAuthTransfer()
+  }, [])
+
+  useEffect(() => {
     // Show initial loading screen only on first login in this session
     const hasSeenInitialLoading = sessionStorage.getItem('hasSeenInitialLoading')
 

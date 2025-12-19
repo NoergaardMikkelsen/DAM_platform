@@ -43,7 +43,7 @@ export async function getUserRole(clientId: string) {
   if (!user) return null
 
   // TENANT ROLE ONLY: Always check client_users table
-  // System admin status does not affect tenant roles
+  // Superadmin role is checked separately via isUserSystemAdmin()
   const { data } = await supabase
     .from("client_users")
     .select(`
@@ -57,6 +57,10 @@ export async function getUserRole(clientId: string) {
   return data?.roles?.[0]?.key || null
 }
 
+/**
+ * Check if user has superadmin role in any client
+ * Superadmins have access to system-admin area and all tenants
+ */
 export async function isUserSystemAdmin(): Promise<boolean> {
   const supabase = await createClient()
   const {
@@ -65,13 +69,19 @@ export async function isUserSystemAdmin(): Promise<boolean> {
 
   if (!user) return false
 
-  const { data: systemAdmin } = await supabase
-    .from("system_admins")
-    .select("id")
-    .eq("id", user.id)
-    .single()
+  // Check if user has superadmin role in any client
+  const { data: superadminCheck } = await supabase
+    .from("client_users")
+    .select(`
+      id,
+      roles!inner(key)
+    `)
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .eq("roles.key", "superadmin")
+    .limit(1)
 
-  return !!systemAdmin
+  return !!superadminCheck && superadminCheck.length > 0
 }
 
 export async function getAllTenantsForSuperAdmin() {
@@ -82,8 +92,9 @@ export async function getAllTenantsForSuperAdmin() {
 
   if (!user) return []
 
-  const isSystemAdmin = await isUserSystemAdmin()
-  if (!isSystemAdmin) return []
+  // Check if user has superadmin role
+  const isSuperAdmin = await isUserSystemAdmin()
+  if (!isSuperAdmin) return []
 
   const { data: tenants } = await supabase
     .from("clients")
