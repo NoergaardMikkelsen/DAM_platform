@@ -422,8 +422,8 @@ export default function DashboardPage() {
         </div>
 
         {!shouldAnimate ? (
-          // Show skeleton while waiting for animation to start
-          <CollectionGridSkeleton count={Math.min(maxCollections, collections.length || 3)} />
+          // Show skeleton while waiting for animation to start - match the actual number that will be shown
+          <CollectionGridSkeleton count={Math.min(maxCollections, filteredCollections.length || maxCollections)} />
         ) : filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
