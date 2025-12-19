@@ -5,8 +5,8 @@ export default function Loading() {
     <div className="p-8">
       <ListPageHeaderSkeleton showCreateButton={true} />
       <SearchSkeleton />
-      <TabsSkeleton count={3} />
-      <TableSkeleton rows={10} columns={4} />
+      <TabsSkeleton count={4} />
+      <TableSkeleton rows={10} columns={5} />
     </div>
   )
 }

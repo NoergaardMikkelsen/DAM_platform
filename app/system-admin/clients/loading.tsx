@@ -5,7 +5,7 @@ export default function Loading() {
     <div className="p-8">
       <ListPageHeaderSkeleton showCreateButton={true} />
       <SearchSkeleton />
-      <TabsSkeleton count={2} />
+      <TabsSkeleton count={4} />
       <TableSkeleton rows={10} columns={7} />
     </div>
   )
