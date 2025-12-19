@@ -11,7 +11,7 @@ import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
+import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton, AssetGridSkeleton } from "@/components/skeleton-loaders"
 
 interface Collection {
   id: string
@@ -428,15 +428,18 @@ export default function DashboardPage() {
               <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
             </Link>
           </div>
+        ) : !shouldAnimate ? (
+          // Show skeleton while waiting for animation to start
+          <CollectionGridSkeleton count={maxCollections} />
         ) : (
           <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className={shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}
-                style={shouldAnimate ? {
+                className="animate-stagger-fade-in"
+                style={{
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                } : {}}
+                }}
               >
                 <CollectionCard
                   id={collection.id}
@@ -469,16 +472,19 @@ export default function DashboardPage() {
               <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
             </Link>
           </div>
+        ) : !shouldAnimate ? (
+          // Show skeleton while waiting for animation to start
+          <AssetGridSkeleton count={10} />
         ) : (
           <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {stats.recentUploads.map((asset, index) => (
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
-                className={`block mb-6 break-inside-avoid ${shouldAnimate ? 'animate-stagger-fade-in' : 'opacity-0'}`}
-                style={shouldAnimate ? {
+                className="block mb-6 break-inside-avoid animate-stagger-fade-in"
+                style={{
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                } : {}}
+                }}
               >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
                   <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">

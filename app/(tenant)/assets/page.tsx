@@ -10,6 +10,7 @@ import { Card, CardHeader } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
+import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 
@@ -463,16 +464,17 @@ export default function AssetsPage() {
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
+        ) : !shouldAnimate ? (
+          // Show skeleton while waiting for animation to start
+          <CollectionGridSkeleton count={maxCollections} />
         ) : (
           <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className={shouldAnimate ? 'animate-stagger-fade-in' : ''}
-                style={shouldAnimate ? {
+                className="animate-stagger-fade-in"
+                style={{
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                } : {
-                  opacity: 0,
                 }}
               >
                 <CollectionCard
@@ -518,6 +520,9 @@ export default function AssetsPage() {
               <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
             </Link>
           </div>
+        ) : !shouldAnimate ? (
+          // Show skeleton while waiting for animation to start
+          <AssetGridSkeleton count={12} />
         ) : (
           <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
             {filteredAssets.map((asset, index) => {
@@ -527,11 +532,9 @@ export default function AssetsPage() {
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
-                className={`block mb-6 break-inside-avoid ${shouldAnimate ? 'animate-stagger-fade-in' : ''}`}
-                style={shouldAnimate ? {
+                className="block mb-6 break-inside-avoid animate-stagger-fade-in"
+                style={{
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
-                } : {
-                  opacity: 0,
                 }}
               >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">

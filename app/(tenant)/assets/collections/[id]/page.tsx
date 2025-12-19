@@ -9,6 +9,7 @@ import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
+import { AssetGridSkeleton } from "@/components/skeleton-loaders"
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
 
@@ -326,6 +327,9 @@ export default function CollectionDetailPage() {
             <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload assets to this collection</Button>
           </Link>
         </div>
+      ) : !shouldAnimate ? (
+        // Show skeleton while waiting for animation to start
+        <AssetGridSkeleton count={15} />
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           {filteredAssets.map((asset, index) => {
@@ -334,11 +338,9 @@ export default function CollectionDetailPage() {
             <Link 
               key={asset.id} 
               href={`/assets/${asset.id}?context=collection&collectionId=${id}`}
-              className={shouldAnimate ? 'animate-stagger-fade-in' : ''}
-              style={shouldAnimate ? {
+              className="animate-stagger-fade-in"
+              style={{
                 animationDelay: `${Math.min(index * 40, 600)}ms`,
-              } : {
-                opacity: 0,
               }}
             >
               <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
