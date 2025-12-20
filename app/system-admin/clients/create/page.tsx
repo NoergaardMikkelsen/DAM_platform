@@ -23,6 +23,8 @@ export default function CreateClientPage() {
   const [generatedDomain, setGeneratedDomain] = useState("")
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [faviconFile, setFaviconFile] = useState<File | null>(null)
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null)
   const [slugError, setSlugError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -89,6 +91,46 @@ export default function CreateClientPage() {
     setLogoPreview(null)
   }
 
+  // Handle favicon file selection
+  const handleFaviconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type - only PNG and SVG supported for favicons
+      if (!file.type.startsWith('image/') || file.type.includes('icon')) {
+        setError("Please select a PNG or SVG file for favicon. ICO files are not supported by our storage system.")
+        return
+      }
+
+      // Reject ICO files explicitly
+      if (file.name.toLowerCase().endsWith('.ico')) {
+        setError("ICO files are not supported. Please convert your favicon to PNG format using an online converter.")
+        return
+      }
+
+      // Validate file size (2MB limit for favicons)
+      if (file.size > 2 * 1024 * 1024) {
+        setError("Favicon file size must be less than 2MB")
+        return
+      }
+
+      setFaviconFile(file)
+
+      // Create preview for image files
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setFaviconPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+      setError(null)
+    }
+  }
+
+  // Remove favicon
+  const removeFavicon = () => {
+    setFaviconFile(null)
+    setFaviconPreview(null)
+  }
+
   // Update domain when slug changes
   const handleSlugChange = async (value: string) => {
     const cleanSlug = value.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-|-$/g, "")
@@ -140,6 +182,7 @@ export default function CreateClientPage() {
 
     try {
       let logoUrl = null
+      let faviconUrl = null
 
       // Upload logo if selected
       if (logoFile) {
@@ -161,21 +204,59 @@ export default function CreateClientPage() {
         logoUrl = publicUrl
       }
 
+      // Upload favicon if selected (PNG/SVG only)
+      if (faviconFile) {
+        const fileExt = faviconFile.name.split('.').pop()
+        const fileName = `${slug}-favicon-${Date.now()}.${fileExt}`
+        const filePath = `client-favicons/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(filePath, faviconFile)
+
+        if (uploadError) throw uploadError
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('logos')
+          .getPublicUrl(filePath)
+
+        faviconUrl = publicUrl
+      }
+
       // Ensure colors have # prefix
       const finalPrimaryColor = primaryColor.startsWith('#') ? primaryColor : '#' + primaryColor
       const finalSecondaryColor = secondaryColor.startsWith('#') ? secondaryColor : '#' + secondaryColor
 
-      const { error: insertError } = await supabase.from("clients").insert({
+      // Insert client
+      const { data: clientData, error: insertError } = await supabase.from("clients").insert({
         name,
         slug,
         logo_url: logoUrl,
+        favicon_url: faviconUrl,
         status,
         primary_color: finalPrimaryColor,
         secondary_color: finalSecondaryColor,
         storage_limit_mb: Number.parseInt(storageLimit),
-      })
+      }).select().single()
 
       if (insertError) throw insertError
+
+      // Create client_users relation for superadmin
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && clientData) {
+        const { error: userRelationError } = await supabase.from("client_users").insert({
+          client_id: clientData.id,
+          user_id: user.id,
+          role_id: '73e573da-7906-4027-bdaa-a89d70dd8550', // superadmin role
+          status: "active"
+        })
+
+        if (userRelationError) {
+          console.error("Failed to create client-user relation:", userRelationError)
+          // Don't throw error - client is created, just log the relation issue
+        }
+      }
 
       router.push("/system-admin/clients")
     } catch (error: unknown) {
@@ -188,7 +269,7 @@ export default function CreateClientPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <Link href="/system-admin/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+        <Link href="/system-admin/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 cursor-pointer">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to clients
         </Link>
@@ -225,7 +306,7 @@ export default function CreateClientPage() {
                   type="file"
                   accept="image/*"
                   onChange={handleLogoChange}
-                  className="flex-1"
+                  className="flex-1 cursor-pointer file:cursor-pointer"
                 />
                 {logoPreview && (
                   <div className="relative">
@@ -237,7 +318,7 @@ export default function CreateClientPage() {
                     <button
                       type="button"
                       onClick={removeLogo}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 cursor-pointer"
                     >
                       ×
                     </button>
@@ -245,6 +326,36 @@ export default function CreateClientPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500">Upload a logo for this client (max 5MB, image files only)</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="favicon">Client Favicon</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="favicon"
+                  type="file"
+                  accept="image/png,image/svg+xml"
+                  onChange={handleFaviconChange}
+                  className="flex-1 cursor-pointer file:cursor-pointer"
+                />
+                {faviconPreview && (
+                  <div className="relative">
+                    <img
+                      src={faviconPreview}
+                      alt="Favicon preview"
+                      className="w-8 h-8 object-contain border rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeFavicon}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">Upload a favicon for this client (max 2MB, PNG/SVG files only)</p>
             </div>
 
             <div className="space-y-2">
@@ -360,7 +471,7 @@ export default function CreateClientPage() {
 
             <div className="flex justify-end gap-4">
               <Link href="/system-admin/clients">
-                <Button type="button" variant="outline" disabled={isLoading}>
+                <Button type="button" variant="outline" disabled={isLoading} className="cursor-pointer">
                   Cancel
                 </Button>
               </Link>

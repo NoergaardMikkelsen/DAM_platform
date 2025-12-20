@@ -20,11 +20,13 @@ interface Client {
   secondary_color: string
   storage_limit_mb: number
   created_at: string
-  user_count: number
-  asset_count: number
+  user_count?: number
+  asset_count?: number
   storage_used_bytes: number
   storage_percentage?: number
 }
+
+type ClientData = Omit<Client, 'user_count' | 'asset_count' | 'storage_percentage'>
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
@@ -48,10 +50,94 @@ export default function ClientsPage() {
     // Authentication and authorization is already handled by system-admin layout
     // No need to check user authentication or roles here
 
-    const { data: clientsData } = await supabase.from("client_storage_stats").select("*").order("name", { ascending: true })
+    // TEMP: Fetch ALL clients to debug BHJ issue
+    console.log('[CLIENTS] Starting to fetch ALL clients (debugging)...')
+    const { data: allClientsData, error: allError } = await supabase
+      .from("clients")
+      .select(`
+        id,
+        name,
+        slug,
+        domain,
+        status,
+        primary_color,
+        secondary_color,
+        storage_limit_mb,
+        created_at,
+        storage_used_bytes
+      `)
+      .order("name", { ascending: true })
 
-    setClients(clientsData || [])
-    setFilteredClients(clientsData || [])
+    console.log('[CLIENTS] ALL clients result:', {
+      allClientsData,
+      allError,
+      count: allClientsData?.length,
+      clientNames: allClientsData?.map((c: any) => `${c.name} (${c.status})`)
+    })
+
+    // Try to fetch BHJ specifically
+    const { data: bhjClient, error: bhjError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("slug", "bhj")
+      .single()
+
+    console.log('[CLIENTS] BHJ specific query:', { bhjClient, bhjError })
+
+    // Then fetch only active clients as normal
+    const { data: clientsData, error } = await supabase
+      .from("clients")
+      .select(`
+        id,
+        name,
+        slug,
+        domain,
+        status,
+        primary_color,
+        secondary_color,
+        storage_limit_mb,
+        created_at,
+        storage_used_bytes
+      `)
+      .eq("status", "active")
+      .order("name", { ascending: true })
+
+    console.log('[CLIENTS] Query result:', {
+      clientsData,
+      error,
+      count: clientsData?.length,
+      clientNames: clientsData?.map((c: any) => c.name)
+    })
+
+    if (error) {
+      console.error("Error loading clients:", error)
+      setClients([])
+      setFilteredClients([])
+      setIsLoading(false)
+      return
+    }
+
+    // Get asset and user counts for each client
+    const clientsWithStats = await Promise.all(
+      (clientsData || []).map(async (client: ClientData) => {
+        const [assetResult, userResult] = await Promise.all([
+          supabase.from("assets").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active"),
+          supabase.from("client_users").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active")
+        ])
+
+        return {
+          ...client,
+          asset_count: assetResult.count || 0,
+          user_count: userResult.count || 0,
+          storage_percentage: client.storage_limit_mb > 0
+            ? Math.round((client.storage_used_bytes / (client.storage_limit_mb * 1024 * 1024)) * 100)
+            : 0
+        } as Client
+      })
+    )
+
+    setClients(clientsWithStats)
+    setFilteredClients(clientsWithStats)
     setIsLoading(false)
   }
 
