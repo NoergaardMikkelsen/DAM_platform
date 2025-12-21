@@ -11,6 +11,7 @@ import { ArrowLeft, Tag, Settings, Trash2, Database } from "lucide-react"
 import Link from "next/link"
 import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface Tag {
   id: string
@@ -28,6 +29,7 @@ interface Tag {
 }
 
 export default function TagDetailPage() {
+  const { tenant } = useTenant()
   const paramsPromise = useParams()
   const [id, setId] = useState<string>("")
   const [tag, setTag] = useState<Tag | null>(null)
@@ -56,31 +58,11 @@ export default function TagDetailPage() {
   }, [id])
 
   const loadTag = async () => {
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
     const supabase = supabaseRef.current
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) {
-      router.push("/login")
-      return
-    }
-
-    // Check if user is admin or superadmin
-    const { data: userRole } = await supabase
-      .from("client_users")
-      .select(`roles(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .single()
-
-    const role = userRole?.roles?.key
-    if (role !== "admin" && role !== "superadmin") {
-      router.push("/dashboard")
-      return
-    }
-
-    // Get tag details
+    // Get tag details for this tenant
     const { data: tagData } = await supabase
       .from("tags")
       .select(`
@@ -88,6 +70,7 @@ export default function TagDetailPage() {
         users (full_name)
       `)
       .eq("id", id)
+      .eq("client_id", clientId)
       .single()
 
     if (!tagData) {
@@ -95,11 +78,14 @@ export default function TagDetailPage() {
       return
     }
 
-    // Get asset count for this tag
+    // Get asset count for this tag (only counting assets from this tenant)
     const { count: assetCount } = await supabase
       .from("asset_tags")
-      .select("*", { count: "exact", head: true })
+      .select(`
+        assets!inner(client_id)
+      `, { count: "exact", head: true })
       .eq("tag_id", id)
+      .eq("assets.client_id", clientId)
 
     const tagWithStats: Tag = {
       ...tagData,

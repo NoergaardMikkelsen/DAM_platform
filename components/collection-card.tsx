@@ -20,8 +20,8 @@ interface CollectionCardProps {
 
 export function CollectionCard({ id, label, assetCount, previewAssets }: CollectionCardProps) {
   const [isLiked, setIsLiked] = useState(false)
-  const [imageUrls, setImageUrls] = useState<string[]>(["/placeholder.jpg", "/placeholder.jpg", "/placeholder.jpg", "/placeholder.jpg"])
-  const [assetTypes, setAssetTypes] = useState<string[]>(["unknown", "unknown", "unknown", "unknown"])
+  const [imageUrls, setImageUrls] = useState<string[]>(["", "", "", ""])
+  const [assetTypes, setAssetTypes] = useState<string[]>(["placeholder", "placeholder", "placeholder", "placeholder"])
   const [videoUrls, setVideoUrls] = useState<string[]>(["", "", "", ""])
 
   useEffect(() => {
@@ -90,9 +90,9 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
       for (const data of assetData) {
         if (data.type === "placeholder") {
-          urlPromises.push(Promise.resolve("/placeholder.jpg"))
+          urlPromises.push(Promise.resolve("")) // Empty string for gray background
           videoUrlPromises.push(Promise.resolve(""))
-          types.push("unknown")
+          types.push("placeholder")
         } else {
           types.push(data.type)
 
@@ -132,7 +132,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
   return (
     <Link href={`/assets/collections/${id}`}>
-      <div className="relative w-full min-w-[200px] aspect-[239/200] overflow-hidden" style={{ containerType: 'inline-size' }}>
+      <div className="relative w-full max-w-[280px] aspect-[239/200] overflow-hidden" style={{ containerType: 'inline-size' }}>
         {/* SVG with mask for the exact shape */}
         <svg viewBox="0 0 239 200" className="w-full h-full absolute inset-0" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -151,46 +151,6 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
               />
             </clipPath>
 
-            {/* Dynamic image patterns */}
-            <pattern id={`img1-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
-              <image
-                href={imageUrls[0] || "/placeholder.jpg"}
-                width="1"
-                height="1"
-                preserveAspectRatio="xMidYMid slice"
-                crossOrigin="anonymous"
-              />
-            </pattern>
-
-            <pattern id={`img2-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
-              <image
-                href={imageUrls[1] || "/placeholder.jpg"}
-                width="1"
-                height="1"
-                preserveAspectRatio="xMidYMid slice"
-                crossOrigin="anonymous"
-              />
-            </pattern>
-
-            <pattern id={`img3-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
-              <image
-                href={imageUrls[2] || "/placeholder.jpg"}
-                width="1"
-                height="1"
-                preserveAspectRatio="xMidYMid slice"
-                crossOrigin="anonymous"
-              />
-            </pattern>
-
-            <pattern id={`img4-${id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
-              <image
-                href={imageUrls[3] || "/placeholder.jpg"}
-                width="1"
-                height="1"
-                preserveAspectRatio="xMidYMid slice"
-                crossOrigin="anonymous"
-              />
-            </pattern>
 
             {/* Gradient overlays */}
             <linearGradient id={`topGradient-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
@@ -229,8 +189,22 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   title="PDF Preview"
                 />
               </foreignObject>
+            ) : assetTypes[0] === "image" ? (
+              <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+                <img
+                  src={imageUrls[0]}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none'
+                  }}
+                  alt="Asset preview"
+                  crossOrigin="anonymous"
+                />
+              </foreignObject>
             ) : (
-              <rect x="0" y="0" width="119.5" height="95" fill={`url(#img1-${id})`} />
+              <rect x="0" y="0" width="119.5" height="95" fill="#f3f4f6" />
             )}
 
             {assetTypes[1] === "video" && videoUrls[1] ? (
@@ -256,8 +230,22 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   title="PDF Preview"
                 />
               </foreignObject>
+            ) : assetTypes[1] === "image" ? (
+              <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+                <img
+                  src={imageUrls[1]}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none'
+                  }}
+                  alt="Asset preview"
+                  crossOrigin="anonymous"
+                />
+              </foreignObject>
             ) : (
-              <rect x="119.5" y="0" width="119.5" height="95" fill={`url(#img2-${id})`} />
+              <rect x="119.5" y="0" width="119.5" height="95" fill="#f3f4f6" />
             )}
 
             {assetTypes[2] === "video" && videoUrls[2] ? (
@@ -283,8 +271,22 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   title="PDF Preview"
                 />
               </foreignObject>
+            ) : assetTypes[2] === "image" ? (
+              <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+                <img
+                  src={imageUrls[2]}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none'
+                  }}
+                  alt="Asset preview"
+                  crossOrigin="anonymous"
+                />
+              </foreignObject>
             ) : (
-              <rect x="0" y="95" width="119.5" height="105" fill={`url(#img3-${id})`} />
+              <rect x="0" y="95" width="119.5" height="105" fill="#f3f4f6" />
             )}
 
             {assetTypes[3] === "video" && videoUrls[3] ? (
@@ -310,8 +312,22 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                   title="PDF Preview"
                 />
               </foreignObject>
+            ) : assetTypes[3] === "image" ? (
+              <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+                <img
+                  src={imageUrls[3]}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none'
+                  }}
+                  alt="Asset preview"
+                  crossOrigin="anonymous"
+                />
+              </foreignObject>
             ) : (
-              <rect x="119.5" y="95" width="119.5" height="105" fill={`url(#img4-${id})`} />
+              <rect x="119.5" y="95" width="119.5" height="105" fill="#f3f4f6" />
             )}
 
             {/* Top gradient overlay */}

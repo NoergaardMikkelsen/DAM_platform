@@ -12,36 +12,17 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
+import { useTenant } from "@/lib/context/tenant-context"
 
 export default function CreateTagPage() {
+  const { tenant } = useTenant()
   const [label, setLabel] = useState("")
   const [tagType, setTagType] = useState("")
-  const [clientId, setClientId] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
-  useEffect(() => {
-    async function getClient() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: clientUsers } = await supabase
-        .from("client_users")
-        .select("client_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-
-      if (clientUsers?.[0]?.client_id) {
-        setClientId(clientUsers[0].client_id)
-      }
-    }
-    getClient()
-  }, [supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,7 +42,7 @@ export default function CreateTagPage() {
         .replace(/^-|-$/g, "")
 
       const { error: insertError } = await supabase.from("tags").insert({
-        client_id: clientId,
+        client_id: tenant.id,
         created_by: user.id,
         tag_type: tagType,
         label,
@@ -130,7 +111,7 @@ export default function CreateTagPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]" disabled={isLoading}>
+              <Button type="submit" className="rounded-[25px]" style={{ backgroundColor: tenant.primary_color }} disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create tag"}
               </Button>
             </div>

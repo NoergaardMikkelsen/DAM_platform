@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useTenant } from "@/lib/context/tenant-context"
 
 type SidebarProps = {
   user: {
@@ -22,6 +23,10 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   const router = useRouter()
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
+
+  // Only use tenant context in tenant layout, not in system-admin
+  const tenant = isSystemAdminContext ? null : useTenant().tenant
+
 
   const handleLogout = async () => {
     try {
@@ -182,8 +187,8 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             </div>
           ) : (
             <img
-              src={isCollapsed ? "/logo/logo_collapsed.png" : "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png"}
-              alt="Nørgård Mikkelsen Logo"
+              src={isCollapsed ? (tenant?.logo_collapsed_url || "/logo/logo_collapsed.png") : (tenant?.logo_url || "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png")}
+              alt={`${tenant?.name || 'Nørgård Mikkelsen'} Logo`}
               className={`transition-all duration-300 ${isCollapsed ? 'w-8 h-auto' : 'h-12 w-auto'}`}
             />
           )}
@@ -363,7 +368,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
               <Button
                 className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
                 style={{
-                  background: '#DF475C',
+                  backgroundColor: tenant?.primary_color || '#DF475C',
                   borderRadius: isCollapsed ? '50%' : '25px',
                   padding: isCollapsed ? '0' : '24px 16px',
                   fontSize: '14px',

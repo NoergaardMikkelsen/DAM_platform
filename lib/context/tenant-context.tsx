@@ -6,9 +6,12 @@ export type Tenant = {
   id: string
   name: string
   slug: string
-  primaryColor: string
-  secondaryColor: string
+  primary_color: string
+  secondary_color: string
   domain: string | null
+  logo_url?: string
+  favicon_url?: string
+  logo_collapsed_url?: string
 }
 
 type TenantContextType = {

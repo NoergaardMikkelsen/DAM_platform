@@ -11,6 +11,7 @@ import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton, AssetGridSkeleton } from "@/components/skeleton-loaders"
 
 interface Collection {
@@ -52,11 +53,14 @@ export default function DashboardPage() {
     recentUploads: [] as Asset[],
     downloadsLastWeek: 0,
     storagePercentage: 0,
+    storageUsedGB: 0,
+    storageLimitGB: 10,
     userName: ""
   })
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+  const { tenant } = useTenant()
 
   useEffect(() => {
     // Handle cross-subdomain auth transfer (localhost workaround)
@@ -94,7 +98,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboardData()
-  }, [])
+  }, [tenant]) // Add tenant as dependency
 
   useEffect(() => {
     const updateMaxCollections = () => {
@@ -116,14 +120,19 @@ export default function DashboardPage() {
   }, [])
 
   const loadDashboardData = async () => {
+    // Guard: ensure tenant is available
+    if (!tenant || !tenant.id) {
+      return
+    }
+
     setIsLoading(true)
     const supabase = supabaseRef.current
-    
+
     // Server-side layout already verified auth, so we get user for data queries
     // Use getSession instead of getUser since cookies might be httpOnly
     const { data: { session } } = await supabase.auth.getSession()
     const user = session?.user
-    
+
     if (!user) {
       // Session not found client-side, but server verified - likely httpOnly cookie issue
       // Reload page to let server handle it
@@ -132,45 +141,19 @@ export default function DashboardPage() {
       return
     }
 
-    // Check if user is superadmin
-    const { data: userRole } = await supabase
-      .from("client_users")
-      .select(`roles(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .maybeSingle()
-
-    const isSuperAdmin = userRole?.roles?.key === "superadmin"
-
-    let clientIds: string[] = []
-
-    if (isSuperAdmin) {
-      // Superadmin can see all clients
-      const { data: allClients } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("status", "active")
-      clientIds = allClients?.map((c: any) => c.id) || []
-    } else {
-      // Regular users see only their clients
-      const { data: clientUsers } = await supabase
-        .from("client_users")
-        .select(`client_id`)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-      clientIds = clientUsers?.map((cu: any) => cu.client_id) || []
-    }
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
 
     // Get stats
     const { count: totalAssetsCount } = await supabase
       .from("assets")
       .select("*", { count: "exact", head: true })
-      .in("client_id", clientIds)
+      .eq("client_id", clientId)
 
     const { data: recentUploadsData } = await supabase
       .from("assets")
       .select("id, title, storage_path, mime_type, category_tag_id")
-      .in("client_id", clientIds)
+      .eq("client_id", clientId)
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(10)
@@ -179,28 +162,18 @@ export default function DashboardPage() {
       .from("asset_events")
       .select("*")
       .eq("event_type", "download")
-      .in("client_id", clientIds)
+      .eq("client_id", clientId)
       .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
 
     const downloadsLastWeek = recentEvents?.length || 0
 
-    // Get storage usage
-    const { data: assetsData } = await supabase.from("assets").select(`
-      file_size,
-      id,
-      title,
-      storage_path,
-      mime_type,
-      category_tag_id,
-      current_version:asset_versions!current_version_id (
-        thumbnail_path
-      )
-    `).in("client_id", clientIds)
+    // Get storage usage - same method as system-admin dashboard
+    const { data: assetsData } = await supabase.from("assets").select("file_size").eq("client_id", clientId)
 
     const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
-    const storageUsedMB = Math.round(storageUsedBytes / (1024 * 1024))
-    const storageLimitMB = 10000
-    const storagePercentage = Math.round((storageUsedMB / storageLimitMB) * 100)
+    const storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
+    const storageLimitGB = 10 // Default limit in GB, could be made configurable per tenant later
+    const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100) // Cap at 100%
 
     const { data: userData } = await supabase.from("users").select("full_name").eq("id", user.id).single()
 
@@ -208,7 +181,7 @@ export default function DashboardPage() {
       .from("tags")
       .select("id, label, slug")
       .eq("tag_type", "category")
-      .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
+      .or(`client_id.is.null,client_id.eq.${clientId}`)
       .order("sort_order", { ascending: true })
 
     // Get all assets to build collection previews
@@ -224,7 +197,7 @@ export default function DashboardPage() {
           thumbnail_path
         )
       `)
-      .in("client_id", clientIds)
+      .eq("client_id", clientId)
       .eq("status", "active")
       .order("created_at", { ascending: false })
 
@@ -254,6 +227,8 @@ export default function DashboardPage() {
       recentUploads: recentUploadsData || [],
       downloadsLastWeek,
       storagePercentage,
+      storageUsedGB,
+      storageLimitGB,
       userName: userData?.full_name || ""
     })
     setIsLoading(false)
@@ -342,7 +317,7 @@ export default function DashboardPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Velkommen {stats.userName}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Welcome {stats.userName}</h1>
           <p className="mt-2 text-gray-600">
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse varius enim
           </p>
@@ -361,9 +336,10 @@ export default function DashboardPage() {
             <Package className="h-5 w-5 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats.storagePercentage}%</div>
+            <div className="text-2xl font-bold text-gray-900">{stats.storageUsedGB.toFixed(2).replace('.', ',')} GB</div>
+            <p className="text-xs text-gray-500 mt-1">of {stats.storageLimitGB} GB limit</p>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div className="h-full bg-[#dc3545]" style={{ width: `${stats.storagePercentage}%` }} />
+              <div className="h-full" style={{ width: `${stats.storagePercentage}%`, backgroundColor: tenant.primary_color || '#dc3545' }} />
             </div>
           </CardContent>
         </Card>
@@ -403,9 +379,18 @@ export default function DashboardPage() {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-900">{filteredCollections.length} Collections</h2>
-            <Link href="/assets" className="text-sm text-gray-500 hover:text-gray-700">
+            <button
+              onClick={() => {
+                // Use full URL with tenant subdomain to ensure proper routing
+                const currentUrl = window.location.href
+                const url = new URL(currentUrl)
+                url.pathname = '/assets/collections'
+                router.push(url.pathname)
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+            >
               See all collections →
-            </Link>
+            </button>
           </div>
           <span className="text-sm text-gray-500">Sort collection by Newest</span>
         </div>
@@ -417,12 +402,16 @@ export default function DashboardPage() {
         ) : filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
-            <Link href="/assets/upload">
-              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
-            </Link>
+            <Button
+              onClick={() => router.push('/assets/upload')}
+              className="mt-4 bg-transparent hover:bg-transparent border-0"
+              style={{ backgroundColor: tenant.primary_color, color: 'white' }}
+            >
+              Upload your first asset
+            </Button>
           </div>
         ) : (
-          <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
@@ -448,9 +437,12 @@ export default function DashboardPage() {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-900">{stats.totalAssets} Assets</h2>
-            <Link href="/assets" className="text-sm text-gray-500 hover:text-gray-700">
+            <button
+              onClick={() => router.push('/assets')}
+              className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+            >
               See all assets →
-            </Link>
+            </button>
           </div>
           <span className="text-sm text-gray-500">Sort assets by Newest</span>
         </div>
@@ -461,12 +453,16 @@ export default function DashboardPage() {
         ) : stats.recentUploads.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No assets uploaded yet.</p>
-            <Link href="/assets/upload">
-              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
-            </Link>
+            <Button
+              onClick={() => router.push('/assets/upload')}
+              className="mt-4 bg-transparent hover:bg-transparent border-0"
+              style={{ backgroundColor: tenant.primary_color, color: 'white' }}
+            >
+              Upload your first asset
+            </Button>
           </div>
         ) : (
-          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
+          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
             {stats.recentUploads.map((asset, index) => (
               <Link 
                 key={asset.id} 

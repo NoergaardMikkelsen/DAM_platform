@@ -51,14 +51,14 @@ export default async function LandingPage() {
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-start">
           <a href="https://www.nmic.dk/" target="_blank" rel="noopener noreferrer">
-            <Image
-              src="/logo/NM_LOGO_ONE_2025_WhiteRed_RGB.svg"
-              alt="Nørgård Mikkelsen"
+          <Image 
+            src="/logo/NM_LOGO_ONE_2025_WhiteRed_RGB.svg" 
+            alt="Nørgård Mikkelsen" 
               width={128}
               height={32}
               className="h-auto w-24 md:w-32"
-              priority
-            />
+            priority
+          />
           </a>
         </div>
       </header>
@@ -85,7 +85,7 @@ export default async function LandingPage() {
           {/* DAM System Section */}
           <div className="mt-12 mb-16">
             <p className="text-base md:text-lg text-white mb-6 max-w-2xl">
-              Nørgård Mikkelsen tilbyder et professionelt DAM system til administration af jeres digitale aktiver.
+              Nørgård Mikkelsen tilbyder et professionelt DAM system til administration af jeres digitale aktiver. 
               Systemet er udviklet af os og hjælper jer med at organisere, finde og dele jeres digitale indhold effektivt.
             </p>
             <p className="text-base md:text-lg text-white mb-6 max-w-2xl">
@@ -142,7 +142,7 @@ export default async function LandingPage() {
               <div className="text-center md:text-left">
                 <h3 className="text-lg md:text-xl font-bold mb-4">Følg os</h3>
                 <div className="flex items-center justify-center space-x-6">
-                  <a
+                  <a 
                     href="https://www.facebook.com/nmic.dk"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -153,7 +153,7 @@ export default async function LandingPage() {
                       <path d="M76.7 512V283H0v-91h76.7v-71.7C76.7 42.4 124.3 0 193.8 0c33.3 0 61.9 2.5 70.2 3.6V85h-48.2c-37.8 0-45.1 18-45.1 44.3V192H256l-11.7 91h-73.6v229"></path>
                     </svg>
                   </a>
-                  <a
+                  <a 
                     href="https://www.linkedin.com/company/norgard-mikkelsen/"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -164,7 +164,7 @@ export default async function LandingPage() {
                       <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z"></path>
                     </svg>
                   </a>
-                  <a
+                  <a 
                     href="https://www.instagram.com/noergaardmikkelsen/"
                     target="_blank"
                     rel="noopener noreferrer"

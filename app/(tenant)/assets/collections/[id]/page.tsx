@@ -12,6 +12,7 @@ import { FilterPanel } from "@/components/filter-panel"
 import { AssetGridSkeleton } from "@/components/skeleton-loaders"
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface Asset {
   id: string
@@ -32,6 +33,7 @@ type ClientUserRow = { client_id: string }
 type AssetTagRow = { asset_id: string }
 
 export default function CollectionDetailPage() {
+  const { tenant } = useTenant()
   const params = useParams() as { id: string }
   const id = params.id
 
@@ -41,6 +43,7 @@ export default function CollectionDetailPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("newest")
+  const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadedAssets, setLoadedAssets] = useState(0)
   const [totalAssets, setTotalAssets] = useState(0)
@@ -101,26 +104,14 @@ export default function CollectionDetailPage() {
       return
     }
 
-    // Parallelliser: Fetch tag and client data simultaneously
-    const [tagResult, clientUsersResult, allClientsResult] = await Promise.all([
-      supabase
-        .from("tags")
-        .select("id, label, slug")
-        .eq("id", id)
-        .eq("tag_type", "category")
-        .single(),
-      supabase
-        .from("client_users")
-        .select(`roles!inner(key), client_id`)
-        .eq("user_id", user.id)
-        .eq("status", "active"),
-      supabase
-        .from("clients")
-        .select("id")
-        .eq("status", "active")
-    ])
+    // Fetch collection tag
+    const { data: tag } = await supabase
+      .from("tags")
+      .select("id, label, slug")
+      .eq("id", id)
+      .eq("tag_type", "category")
+      .single()
 
-    const tag = tagResult.data
     if (!tag) {
       router.push("/assets")
       return
@@ -128,22 +119,47 @@ export default function CollectionDetailPage() {
 
     setCollectionName(tag.label)
 
-    const isSuperAdmin =
-      (clientUsersResult.data as ClientUserRoleRow[] | null)?.some((cu) => cu.roles?.key === "superadmin") || false
+    // Try to get client ID from tenant context, fallback to lookup
+    let clientId: string
 
-    let clientIds: string[] = []
-
-    if (isSuperAdmin) {
-      clientIds = (allClientsResult.data as ClientIdRow[] | null)?.map((c) => c.id) || []
+    if (tenant?.id) {
+      clientId = tenant.id
     } else {
-      clientIds = (clientUsersResult.data as ClientUserRow[] | null)?.map((cu) => cu.client_id) || []
+      // Fallback: lookup client_id from client_users table
+      const supabase = supabaseRef.current
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        setError("Authentication required")
+        setIsLoading(false)
+        return
+      }
+
+      const { data: clientUsers, error: clientError } = await supabase
+        .from("client_users")
+        .select("client_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .limit(1)
+        .single()
+
+      if (clientError || !clientUsers?.client_id) {
+        setError("No active client found")
+        setIsLoading(false)
+        return
+      }
+
+      clientId = clientUsers.client_id
     }
 
     // Get all assets in this collection (with this category tag)
     const { data: assetsData } = await supabase
       .from("assets")
       .select("id, title, storage_path, mime_type, created_at, file_size, category_tag_id")
-      .in("client_id", clientIds)
+      .eq("client_id", clientId)
       .eq("category_tag_id", id)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -268,14 +284,36 @@ export default function CollectionDetailPage() {
     setIsFilterOpen(false)
   }
 
+  // Show error if tenant is not available
+  if (error) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center p-8">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button
+            onClick={() => router.push('/assets')}
+            variant="outline"
+            className="rounded-[25px]"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Assets
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       {/* Header with back button */}
       <div className="mb-8">
-        <Link href="/assets" className="mb-4 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+        <button
+          onClick={() => router.push('/assets')}
+          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to Assets Library
-        </Link>
+        </button>
 
         <div className="flex items-center justify-between">
           <div>
@@ -326,9 +364,12 @@ export default function CollectionDetailPage() {
       ) : filteredAssets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No assets found in this collection</p>
-          <Link href="/assets/upload">
-            <Button className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">Upload assets to this collection</Button>
-          </Link>
+          <Button
+            onClick={() => router.push('/assets/upload')}
+            className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]"
+          >
+            Upload assets to this collection
+          </Button>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface UserData {
   id: string
@@ -19,6 +20,7 @@ interface UserData {
 }
 
 export default function ProfilePage() {
+  const { tenant } = useTenant()
   const [user, setUser] = useState<any>(null)
   const [userData, setUserData] = useState<UserData | null>(null)
   const [role, setRole] = useState<string>("User")
@@ -112,7 +114,7 @@ export default function ProfilePage() {
   return (
             <div className="flex min-h-[400px] items-center justify-center">
               <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dc3545] border-t-transparent" />
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: tenant.primary_color, borderTopColor: 'transparent' }} />
                 <p className="text-gray-600">Loading profile...</p>
               </div>
             </div>
@@ -122,7 +124,7 @@ export default function ProfilePage() {
     return (
             <div className="flex items-start gap-8">
               <div className="flex flex-col items-center gap-4">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#dc3545] text-2xl font-bold text-white">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-bold text-white" style={{ backgroundColor: tenant.primary_color }}>
                   {initials}
                 </div>
                 <div className="text-center">
@@ -167,7 +169,7 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={() => setIsEditing(true)}>
+                      <Button style={{ backgroundColor: tenant.primary_color }} onClick={() => setIsEditing(true)}>
                         Edit Profile
                       </Button>
                     </div>
@@ -228,7 +230,7 @@ export default function ProfilePage() {
                       <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
                         Cancel
                       </Button>
-                      <Button className="bg-[#dc3545] hover:bg-[#c82333]" onClick={handleEdit} disabled={isLoading}>
+                      <Button style={{ backgroundColor: tenant.primary_color }} onClick={handleEdit} disabled={isLoading}>
                         {isLoading ? "Saving..." : "Save Changes"}
                       </Button>
                 </div>

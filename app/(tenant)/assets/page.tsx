@@ -13,6 +13,7 @@ import { CollectionCard } from "@/components/collection-card"
 import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface Asset {
   id: string
@@ -36,6 +37,7 @@ interface Collection {
 }
 
 export default function AssetsPage() {
+  const { tenant } = useTenant()
   const [assets, setAssets] = useState<Asset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
@@ -107,63 +109,12 @@ export default function AssetsPage() {
   const loadData = async () => {
     const debugLog: string[] = []
     debugLog.push(`[ASSETS-PAGE] Starting loadData`)
-    
+
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
+    debugLog.push(`[ASSETS-PAGE] Using tenant client ID: ${clientId}`)
+
     const supabase = supabaseRef.current
-    const {
-      data: { user },
-      error: userError
-    } = await supabase.auth.getUser()
-
-    if (userError) {
-      debugLog.push(`[ASSETS-PAGE] Get user error: ${userError.message}`)
-      console.error('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
-    }
-
-    debugLog.push(`[ASSETS-PAGE] User: ${user ? `found (id: ${user.id}, email: ${user.email})` : 'not found'}`)
-
-    if (!user) {
-      debugLog.push(`[ASSETS-PAGE] No user, redirecting to login`)
-      console.error('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
-      router.push("/login")
-      return
-    }
-
-    // Parallelliser: Check role and get client IDs in one query
-    debugLog.push(`[ASSETS-PAGE] Checking user role and fetching client data...`)
-    const [clientUsersResult, allClientsResult] = await Promise.all([
-      // Get user's client_users with roles
-      supabase
-        .from("client_users")
-        .select(`roles!inner(key), client_id`)
-        .eq("user_id", user.id)
-        .eq("status", "active"),
-      // Pre-fetch all clients (we'll use this if superadmin)
-      supabase
-        .from("clients")
-        .select("id")
-        .eq("status", "active")
-    ])
-
-    if (clientUsersResult.error) {
-      debugLog.push(`[ASSETS-PAGE] Client users query error: ${clientUsersResult.error.message}`)
-    }
-
-    const isSuperAdmin =
-      clientUsersResult.data?.some((cu: { roles?: { key?: string } }) => cu.roles?.key === "superadmin") || false
-
-    debugLog.push(`[ASSETS-PAGE] Is superadmin: ${isSuperAdmin}`)
-
-    let clientIds: string[] = []
-
-    if (isSuperAdmin) {
-      clientIds = allClientsResult.data?.map((c: { id: string }) => c.id) || []
-      debugLog.push(`[ASSETS-PAGE] Found ${clientIds.length} clients for superadmin`)
-    } else {
-      clientIds = clientUsersResult.data?.map((cu: { client_id: string }) => cu.client_id) || []
-      debugLog.push(`[ASSETS-PAGE] Found ${clientIds.length} clients for user`)
-    }
-
-    debugLog.push(`[ASSETS-PAGE] Client IDs: ${clientIds.join(', ')}`)
 
     // Parallelliser: Fetch assets and category tags simultaneously
     debugLog.push(`[ASSETS-PAGE] Fetching assets and category tags in parallel...`)
@@ -182,14 +133,14 @@ export default function AssetsPage() {
             thumbnail_path
           )
         `)
-        .in("client_id", clientIds)
+        .eq("client_id", clientId)
         .eq("status", "active")
         .order("created_at", { ascending: false }),
       supabase
         .from("tags")
         .select("id, label, slug")
         .eq("tag_type", "category")
-        .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
+        .or(`client_id.is.null,client_id.eq.${clientId}`)
         .order("sort_order", { ascending: true })
     ])
 
@@ -444,9 +395,12 @@ export default function AssetsPage() {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-900">{filteredCollections.length} Collections</h2>
-            <Link href="/assets/collections" className="text-sm text-gray-500 hover:text-gray-700">
+            <button
+              onClick={() => router.push('/assets/collections')}
+              className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+            >
               See all collections →
-            </Link>
+            </button>
           </div>
           <Select value={collectionSort} onValueChange={setCollectionSort}>
             <SelectTrigger className="w-[200px]" suppressHydrationWarning>
@@ -469,7 +423,7 @@ export default function AssetsPage() {
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
         ) : (
-          <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 280px))' }}>
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
@@ -497,9 +451,6 @@ export default function AssetsPage() {
             <h2 className="text-xl font-semibold text-gray-900">
               {filteredAssets.length} Asset{filteredAssets.length !== 1 ? "s" : ""}
             </h2>
-            <Link href="/assets" className="text-sm text-gray-500 hover:text-gray-700">
-              See all assets →
-            </Link>
           </div>
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-[200px]" suppressHydrationWarning>
@@ -520,12 +471,16 @@ export default function AssetsPage() {
         ) : filteredAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-gray-600">No assets found</p>
-            <Link href="/assets/upload">
-              <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload your first asset</Button>
-            </Link>
+            <Button
+              onClick={() => router.push('/assets/upload')}
+              className="mt-4 bg-transparent hover:bg-transparent border-0"
+              style={{ backgroundColor: tenant.primary_color, color: 'white' }}
+            >
+              Upload your first asset
+            </Button>
           </div>
         ) : (
-          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
+          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
             {filteredAssets.map((asset, index) => {
               // Always render assets, but control animation timing
               // Use inline style for opacity to ensure it works with animation

@@ -6,8 +6,8 @@ import { ArrowRight } from 'lucide-react'
 // Individual asset card skeleton
 export function AssetCardSkeleton() {
   return (
-    <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6 break-inside-avoid">
-      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse" style={{ aspectRatio: '4/5' }}>
+    <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
+      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
         <Button
           variant="ghost"
           size="icon"
@@ -23,7 +23,7 @@ export function AssetCardSkeleton() {
 // Asset grid skeleton with dynamic count
 export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
   return (
-    <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-4 gap-6">
+    <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
       {Array.from({ length: count }, (_, i) => (
         <AssetCardSkeleton key={i} />
       ))}
@@ -53,7 +53,7 @@ export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
 // Collection grid skeleton with dynamic count
 export function CollectionGridSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+    <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
       {Array.from({ length: count }, (_, i) => (
         <CollectionCardSkeleton key={i} index={i} />
       ))}

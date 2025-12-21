@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTenant } from '@/lib/context/tenant-context'
 
 export function InitialLoadingScreen({
   onComplete,
@@ -9,6 +10,7 @@ export function InitialLoadingScreen({
   onComplete: () => void
   tenantLogo?: string
 }) {
+  const { tenant } = useTenant()
   const [isVisible, setIsVisible] = useState(true)
 
   useEffect(() => {
@@ -20,13 +22,15 @@ export function InitialLoadingScreen({
       setIsVisible(false)
       document.body.classList.remove('loading-screen-active')
       onComplete()
-    }, 3000)
+    }, 2500) // 2.5 sekunder
 
     return () => {
       clearTimeout(timer)
       document.body.classList.remove('loading-screen-active')
     }
   }, [onComplete])
+
+  console.log('[LOADING] Rendering loading screen, isVisible:', isVisible)
 
   if (!isVisible) return null
 
@@ -88,15 +92,18 @@ export function InitialLoadingScreen({
       <div style={{
         width: '200px',
         height: '4px',
-        backgroundColor: '#f0f0f0',
+        backgroundColor: '#f0f0f0', // Lys grå baggrund for ufyldt del
         borderRadius: '2px',
         overflow: 'hidden',
         marginBottom: '2rem'
       }}>
         <div style={{
           height: '100%',
-          backgroundColor: 'white',
-          animation: 'progressFill 2.5s ease-in-out'
+          width: '100%', // Start fyldt for at vise animation
+          backgroundColor: tenant?.primary_color || '#007bff', // Client primary color for fyldt del (fallback blue)
+          transform: 'scaleX(0)',
+          transformOrigin: 'left center',
+          animation: 'progressFill 2.5s ease-in-out forwards'
         }} />
       </div>
 
@@ -107,8 +114,8 @@ export function InitialLoadingScreen({
         }
 
         @keyframes progressFill {
-          0% { transform: scaleX(0); transform-origin: left center; }
-          100% { transform: scaleX(1); transform-origin: left center; }
+          0% { transform: scaleX(0); }
+          100% { transform: scaleX(1); }
         }
       `}</style>
     </div>

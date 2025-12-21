@@ -11,6 +11,7 @@ import { ArrowLeft, User, Mail, Phone, Building, Settings, Trash2 } from "lucide
 import Link from "next/link"
 import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface UserProfile {
   id: string
@@ -28,6 +29,7 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
+  const { tenant } = useTenant()
   const paramsPromise = useParams()
   const [id, setId] = useState<string>("")
   const [user, setUser] = useState<UserProfile | null>(null)
@@ -58,31 +60,11 @@ export default function UserDetailPage() {
   }, [id])
 
   const loadUser = async () => {
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
     const supabase = supabaseRef.current
-    const {
-      data: { currentUser },
-    } = await supabase.auth.getUser()
 
-    if (!currentUser) {
-      router.push("/login")
-      return
-    }
-
-    // Check if current user is admin or superadmin
-    const { data: userRole } = await supabase
-      .from("client_users")
-      .select(`roles(key)`)
-      .eq("user_id", currentUser.id)
-      .eq("status", "active")
-      .single()
-
-    const role = userRole?.roles?.key
-    if (role !== "admin" && role !== "superadmin") {
-      router.push("/dashboard")
-      return
-    }
-
-    // Get user details with client and role info
+    // Get user details with client and role info - only for this tenant
     const { data: userData } = await supabase
       .from("client_users")
       .select(`
@@ -109,6 +91,7 @@ export default function UserDetailPage() {
         )
       `)
       .eq("user_id", id)
+      .eq("client_id", clientId)
       .single()
 
     if (!userData) {

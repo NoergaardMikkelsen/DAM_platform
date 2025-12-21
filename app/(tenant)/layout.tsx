@@ -2,11 +2,66 @@ import type React from "react"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import Head from "next/head"
+import { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { BrandProvider } from "@/lib/context/brand-context"
 import { TenantProvider } from "@/lib/context/tenant-context"
 import { SessionSyncProvider } from "@/components/session-sync-provider"
 import TenantLayoutClient from "./layout-client"
+
+export async function generateMetadata({ params }: { params: { tenant?: string } }): Promise<Metadata> {
+  // Get tenant from URL params or extract from hostname
+  const headersList = await headers()
+  const host = headersList.get('host') || ''
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  const isLocalhost = host.includes('localhost')
+
+  let tenantSlug = params.tenant
+
+  // Extract tenant slug from hostname if not in params
+  if (!tenantSlug) {
+    const hostWithoutPort = host.split(':')[0]
+    if (hostWithoutPort.endsWith('.brandassets.space')) {
+      tenantSlug = hostWithoutPort.replace('.brandassets.space', '')
+    } else if (hostWithoutPort.endsWith('.localhost')) {
+      tenantSlug = hostWithoutPort.replace('.localhost', '')
+    }
+  }
+
+  // Fetch tenant data for metadata
+  if (tenantSlug && tenantSlug !== 'admin') {
+    try {
+      const supabase = await createClient()
+      const { data: tenant } = await supabase
+        .from("clients")
+        .select("name, logo_url, favicon_url, logo_collapsed_url")
+        .eq("slug", tenantSlug)
+        .eq("status", "active")
+        .single()
+
+      if (tenant) {
+        return {
+          title: `${tenant.name} - Digital Asset Management`,
+          icons: {
+            icon: tenant.favicon_url || tenant.logo_url || "/logo/favicon/favicon-16x16.png",
+            apple: tenant.favicon_url || tenant.logo_url || "/apple-icon.png",
+          },
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching tenant metadata:', error)
+    }
+  }
+
+  // Fallback metadata
+  return {
+    title: "Digital Asset Management",
+    icons: {
+      icon: "/logo/favicon/favicon-16x16.png",
+      apple: "/apple-icon.png",
+    },
+  }
+}
 
 export default async function AuthenticatedLayout({
   children
@@ -218,20 +273,6 @@ export default async function AuthenticatedLayout({
         <SessionSyncProvider>
           <Head>
             <title>{tenant.name} - Digital Asset Management</title>
-            {tenant.logo_url ? (
-              <>
-                <link rel="icon" type="image/png" sizes="32x32" href={tenant.logo_url} />
-                <link rel="icon" type="image/svg+xml" href={tenant.logo_url} />
-                <link rel="apple-touch-icon" href={tenant.logo_url} />
-              </>
-            ) : (
-              <>
-                <link rel="icon" href="/icon-light-32x32.png" media="(prefers-color-scheme: light)" />
-                <link rel="icon" href="/icon-dark-32x32.png" media="(prefers-color-scheme: dark)" />
-                <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-                <link rel="apple-touch-icon" href="/apple-icon.png" />
-              </>
-            )}
           </Head>
           <TenantLayoutClient
             tenant={tenant}

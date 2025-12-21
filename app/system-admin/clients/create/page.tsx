@@ -25,6 +25,8 @@ export default function CreateClientPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [faviconFile, setFaviconFile] = useState<File | null>(null)
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null)
+  const [logoCollapsedFile, setLogoCollapsedFile] = useState<File | null>(null)
+  const [logoCollapsedPreview, setLogoCollapsedPreview] = useState<string | null>(null)
   const [slugError, setSlugError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -131,6 +133,40 @@ export default function CreateClientPage() {
     setFaviconPreview(null)
   }
 
+  // Handle collapsed logo file selection
+  const handleLogoCollapsedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError("Please select an image file")
+        return
+      }
+
+      // Validate file size (2MB limit for collapsed logos)
+      if (file.size > 2 * 1024 * 1024) {
+        setError("Collapsed logo file size must be less than 2MB")
+        return
+      }
+
+      setLogoCollapsedFile(file)
+
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setLogoCollapsedPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+      setError(null)
+    }
+  }
+
+  // Remove collapsed logo
+  const removeLogoCollapsed = () => {
+    setLogoCollapsedFile(null)
+    setLogoCollapsedPreview(null)
+  }
+
   // Update domain when slug changes
   const handleSlugChange = async (value: string) => {
     const cleanSlug = value.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-|-$/g, "")
@@ -165,6 +201,11 @@ export default function CreateClientPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Prevent multiple submissions
+    if (isLoading) {
+      return
+    }
+
     // Validate slug
     if (!slug.trim()) {
       setError("Subdomain is required")
@@ -186,6 +227,7 @@ export default function CreateClientPage() {
 
       // Upload logo if selected
       if (logoFile) {
+        console.log('[CREATE-CLIENT] Uploading logo...')
         const fileExt = logoFile.name.split('.').pop()
         const fileName = `${slug}-logo-${Date.now()}.${fileExt}`
         const filePath = `client-logos/${fileName}`
@@ -206,6 +248,7 @@ export default function CreateClientPage() {
 
       // Upload favicon if selected (PNG/SVG only)
       if (faviconFile) {
+        console.log('[CREATE-CLIENT] Uploading favicon...')
         const fileExt = faviconFile.name.split('.').pop()
         const fileName = `${slug}-favicon-${Date.now()}.${fileExt}`
         const filePath = `client-favicons/${fileName}`
@@ -224,6 +267,27 @@ export default function CreateClientPage() {
         faviconUrl = publicUrl
       }
 
+      // Upload collapsed logo if selected
+      let logoCollapsedUrl = null
+      if (logoCollapsedFile) {
+        const fileExt = logoCollapsedFile.name.split('.').pop()
+        const fileName = `${slug}-logo-collapsed-${Date.now()}.${fileExt}`
+        const filePath = `client-logos-collapsed/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(filePath, logoCollapsedFile)
+
+        if (uploadError) throw uploadError
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('logos')
+          .getPublicUrl(filePath)
+
+        logoCollapsedUrl = publicUrl
+      }
+
       // Ensure colors have # prefix
       const finalPrimaryColor = primaryColor.startsWith('#') ? primaryColor : '#' + primaryColor
       const finalSecondaryColor = secondaryColor.startsWith('#') ? secondaryColor : '#' + secondaryColor
@@ -234,6 +298,7 @@ export default function CreateClientPage() {
         slug,
         logo_url: logoUrl,
         favicon_url: faviconUrl,
+        logo_collapsed_url: logoCollapsedUrl,
         status,
         primary_color: finalPrimaryColor,
         secondary_color: finalSecondaryColor,
@@ -356,6 +421,36 @@ export default function CreateClientPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500">Upload a favicon for this client (max 2MB, PNG/SVG files only)</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="logoCollapsed">Collapsed Sidebar Logo</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="logoCollapsed"
+                  type="file"
+                  accept="image/png,image/svg+xml"
+                  onChange={handleLogoCollapsedChange}
+                  className="flex-1 cursor-pointer file:cursor-pointer"
+                />
+                {logoCollapsedPreview && (
+                  <div className="relative">
+                    <img
+                      src={logoCollapsedPreview}
+                      alt="Collapsed logo preview"
+                      className="w-8 h-8 object-contain border rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeLogoCollapsed}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">Upload a collapsed logo for sidebar (max 2MB, PNG/SVG files only)</p>
             </div>
 
             <div className="space-y-2">

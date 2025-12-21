@@ -10,6 +10,7 @@ import { CollectionCard } from "@/components/collection-card"
 import { CollectionGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface Asset {
   id: string
@@ -28,6 +29,7 @@ interface Collection {
 }
 
 export default function CollectionsPage() {
+  const { tenant } = useTenant()
   const [collections, setCollections] = useState<Collection[]>([])
   const [filteredCollections, setFilteredCollections] = useState<Collection[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -35,6 +37,8 @@ export default function CollectionsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [maxCollections, setMaxCollections] = useState(3)
   const router = useRouter()
+
+  console.log('[COLLECTIONS PAGE] Rendering with tenant:', tenant, 'window.location:', typeof window !== 'undefined' ? window.location.href : 'server')
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -70,33 +74,8 @@ export default function CollectionsPage() {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      router.push("/login")
-      return
-    }
-
-    // Parallelliser: Check role and get client IDs
-    const [clientUsersResult, allClientsResult] = await Promise.all([
-      supabase
-        .from("client_users")
-        .select(`roles!inner(key), client_id`)
-        .eq("user_id", user.id)
-        .eq("status", "active"),
-      supabase
-        .from("clients")
-        .select("id")
-        .eq("status", "active")
-    ])
-
-    const isSuperAdmin = clientUsersResult.data?.some((cu: any) => cu.roles?.key === "superadmin") || false
-
-    let clientIds: string[] = []
-
-    if (isSuperAdmin) {
-      clientIds = allClientsResult.data?.map((c: any) => c.id) || []
-    } else {
-      clientIds = clientUsersResult.data?.map((cu: any) => cu.client_id) || []
-    }
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
 
     // Parallelliser: Fetch assets and category tags simultaneously
     const [assetsResult, categoryTagsResult] = await Promise.all([
@@ -112,13 +91,13 @@ export default function CollectionsPage() {
             thumbnail_path
           )
         `)
-        .in("client_id", clientIds)
+        .eq("client_id", clientId)
         .eq("status", "active"),
       supabase
         .from("tags")
         .select("id, label, slug")
         .eq("tag_type", "category")
-        .or(`is_system.eq.true,client_id.in.(${clientIds.join(",")})`)
+        .or(`client_id.is.null,client_id.eq.${clientId}`)
         .order("sort_order", { ascending: true })
     ])
 
@@ -184,13 +163,16 @@ export default function CollectionsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-8 min-h-screen bg-gray-50">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/assets" className="mb-4 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+        <button
+          onClick={() => router.push('/assets')}
+          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to Assets Library
-        </Link>
+        </button>
 
         <div className="flex items-center justify-between">
           <div>
@@ -232,11 +214,11 @@ export default function CollectionsPage() {
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No collections found</p>
           <Link href="/assets/upload">
-            <Button className="mt-4 bg-[#dc3545] hover:bg-[#c82333]">Upload assets to create collections</Button>
+            <Button className="mt-4 bg-transparent hover:bg-transparent border-0" style={{ backgroundColor: tenant.primary_color, color: 'white' }}>Upload assets to create collections</Button>
           </Link>
         </div>
       ) : (
-        <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
           {filteredCollections.map((collection) => (
             <CollectionCard
               key={collection.id}

@@ -38,6 +38,8 @@ export default function TenantLayoutClient({ tenant, userData, role, children }:
     setShowContent(true)
   }
 
+  console.log('[TENANT-LAYOUT-CLIENT] Rendering with children:', !!children, 'showContent:', showContent, 'pathname:', typeof window !== 'undefined' ? window.location.pathname : 'server')
+
   return (
     <>
       {/* Show loading screen overlay until it completes */}
@@ -55,7 +57,9 @@ export default function TenantLayoutClient({ tenant, userData, role, children }:
             <SidebarVisibility>
               <Sidebar user={userData} role={role || undefined} />
             </SidebarVisibility>
-            <main className="flex-1 overflow-y-auto">{children}</main>
+            <main className="flex-1 overflow-y-auto">
+              {children}
+            </main>
           </div>
         </div>
       )}

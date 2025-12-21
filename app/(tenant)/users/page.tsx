@@ -1,6 +1,7 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
+import { getTenantUsers } from "./actions"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +11,7 @@ import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 
 interface UserWithRole {
@@ -28,6 +30,7 @@ interface UserWithRole {
 }
 
 export default function UsersPage() {
+  const { tenant } = useTenant()
   const [allUsers, setAllUsers] = useState<UserWithRole[]>([])
   const [filteredUsers, setFilteredUsers] = useState<UserWithRole[]>([])
   const [roleFilter, setRoleFilter] = useState("all")
@@ -45,105 +48,24 @@ export default function UsersPage() {
   }, [allUsers, roleFilter, searchQuery])
 
   const loadUsers = async () => {
-    const supabase = supabaseRef.current
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
 
-    if (!user) {
-      setIsLoading(false)
-      router.push("/login")
-      return
-    }
+    // Use server action to bypass RLS and get all tenant users
+    const usersData = await getTenantUsers(clientId)
 
-    // Check if user is admin or superadmin (check all client_users entries)
-    const { data: clientUsersCheck } = await supabase
-      .from("client_users")
-      .select(`roles(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-
-    const hasAdminOrSuperadminRole = clientUsersCheck?.some((cu: any) => 
-      cu.roles?.key === "admin" || cu.roles?.key === "superadmin"
-    ) || false
-
-    if (!hasAdminOrSuperadminRole) {
-      setIsLoading(false)
-      router.push("/dashboard")
-      return
-    }
-
-    // Check if user is superadmin
-    const isSuperAdmin = clientUsersCheck?.some((cu: any) => cu.roles?.key === "superadmin") || false
-
-    let usersData: UserWithRole[] = []
-
-    if (isSuperAdmin) {
-      // Superadmin sees all users from all clients
-      const { data: allClientUsers } = await supabase
-        .from("client_users")
-        .select(
-          `
-          id,
-          status,
-          created_at,
-          roles (
-            name,
-            key
-          ),
-          users (
-            id,
-            full_name,
-            email
-          ),
-          clients (
-            name
-          )
-        `,
-        )
-        .order("created_at", { ascending: false })
-
-      usersData = allClientUsers || []
-    } else {
-      // Regular admin sees only users from their client
-      const { data: clientUsers } = await supabase
-        .from("client_users")
-        .select(`client_id`)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-
-      const clientId = clientUsers?.[0]?.client_id
-
-      if (!clientId) {
-        setIsLoading(false)
-        router.push("/dashboard")
-        return
-      }
-
-      const { data: clientUsersData } = await supabase
-        .from("client_users")
-        .select(
-          `
-          id,
-          status,
-          created_at,
-          roles (
-            name,
-            key
-          ),
-          users (
-            id,
-            full_name,
-            email
-          )
-        `,
-        )
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-
-      usersData = clientUsersData || []
-    }
+    console.log('[USERS DEBUG] Received', usersData.length, 'users from server action')
+    usersData.forEach((user, index) => {
+      console.log(`[USERS DEBUG] User ${index}:`, {
+        id: user.id,
+        status: user.status,
+        hasUser: !!user.users,
+        hasRole: !!user.roles,
+        userName: user.users?.full_name || 'MISSING',
+        userEmail: user.users?.email || 'MISSING',
+        roleName: user.roles?.name || 'MISSING'
+      })
+    })
 
     setAllUsers(usersData)
     setFilteredUsers(usersData)
@@ -186,7 +108,7 @@ export default function UsersPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Users</h1>
         <Link href="/users/create">
-          <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
+          <Button className="rounded-[25px]" style={{ backgroundColor: tenant.primary_color }}>
             <Plus className="mr-2 h-4 w-4" />
             Create new user
           </Button>
@@ -232,8 +154,12 @@ export default function UsersPage() {
           <tbody className="divide-y">
             {filteredUsers?.map((clientUser) => (
               <tr key={clientUser.id} className="hover:bg-gray-50 cursor-pointer">
-                <td className="px-6 py-4 text-sm text-gray-900">{clientUser.users?.full_name}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{clientUser.users?.email}</td>
+                <td className="px-6 py-4 text-sm text-gray-900">
+                  {clientUser.users?.full_name || 'N/A'}
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {clientUser.users?.email || 'N/A'}
+                </td>
                 <td className="px-6 py-4">
                   <Badge
                     variant="secondary"
@@ -241,9 +167,12 @@ export default function UsersPage() {
                       clientUser.roles?.key === "superadmin"
                         ? "bg-pink-100 text-pink-800"
                         : clientUser.roles?.key === "admin"
-                          ? "bg-red-100 text-red-800"
+                          ? "text-white"
                           : "bg-purple-100 text-purple-800"
                     }
+                    style={clientUser.roles?.key === "admin" ? {
+                      backgroundColor: tenant.primary_color
+                    } : {}}
                   >
                     {clientUser.roles?.name}
                   </Badge>

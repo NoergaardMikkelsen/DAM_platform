@@ -14,6 +14,7 @@ import { ArrowLeft, Upload, CheckCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface Tag {
   id: string
@@ -23,6 +24,7 @@ interface Tag {
 }
 
 export default function UploadAssetPage() {
+  const { tenant } = useTenant()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [title, setTitle] = useState("")
@@ -42,7 +44,7 @@ export default function UploadAssetPage() {
 
   useEffect(() => {
     initializeAndLoadTags()
-  }, [])
+  }, [tenant]) // Re-run when tenant changes
 
   const initializeAndLoadTags = async () => {
     try {
@@ -60,32 +62,23 @@ export default function UploadAssetPage() {
 
       setUserId(user.id)
 
-      const { data: clientUsers, error: clientError } = await supabase
-        .from("client_users")
-        .select("client_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-        .single()
-
-      if (clientError || !clientUsers?.client_id) {
-        console.error("No client found:", clientError)
-        setError("No active client found for your account")
-        setIsInitializing(false)
-        return
-      }
-
-      setClientId(clientUsers.client_id)
+      // Use tenant context for client ID instead of looking up client_users
+      // This ensures we get tags for the current tenant/subdomain
+      const clientId = tenant.id
+      setClientId(clientId)
 
       // Fetch tags (client-specific OR system tags)
       const { data: tags } = await supabase
         .from("tags")
         .select("id, tag_type, label, slug")
-        .or(`client_id.eq.${clientUsers.client_id},is_system.eq.true`)
+        .or(`client_id.eq.${clientId},client_id.is.null`)
         .order("tag_type")
         .order("sort_order")
 
       if (tags) {
+        console.log('[UPLOAD] Available tags:', tags.length)
+        console.log('[UPLOAD] Category tags:', tags.filter(t => t.tag_type === 'category'))
+        console.log('[UPLOAD] Client ID:', clientId)
         setAvailableTags(tags)
       }
     } catch (err) {
@@ -305,16 +298,29 @@ export default function UploadAssetPage() {
     }
   }
 
+  // Category tags - show ALL category tags (system + client-specific)
   const categoryTags = availableTags.filter((t) => t.tag_type === "category")
+
+  // Description tags - show ALL description tags (system + client-specific)
   const descriptionTags = availableTags.filter((t) => t.tag_type === "description")
+
+  // Usage tags - show ALL usage tags (system + client-specific)
   const usageTags = availableTags.filter((t) => t.tag_type === "usage")
+
+  // Visual style tags - show ALL visual_style tags (system + client-specific)
   const visualStyleTags = availableTags.filter((t) => t.tag_type === "visual_style")
+
+  console.log('[UPLOAD] Filtered arrays:')
+  console.log('Category tags:', categoryTags.length, categoryTags)
+  console.log('Description tags:', descriptionTags.length)
+  console.log('Usage tags:', usageTags.length)
+  console.log('Visual style tags:', visualStyleTags.length)
 
   if (isInitializing) {
     return (
       <div className="flex min-h-[400px] items-center justify-center p-8">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-[#DF475C]" />
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: tenant.primary_color }} />
           <p className="text-gray-600">Loading upload page...</p>
         </div>
       </div>
@@ -324,10 +330,13 @@ export default function UploadAssetPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <Link href="/assets" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+        <button
+          onClick={() => router.push('/assets')}
+          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to assets
-        </Link>
+        </button>
       </div>
 
       <Card className="mx-auto max-w-3xl">
@@ -340,14 +349,24 @@ export default function UploadAssetPage() {
             {/* File Upload */}
             <div className="space-y-2">
               <Label htmlFor="file">File *</Label>
-              <Input
-                id="file"
-                type="file"
-                required
-                onChange={handleFileChange}
-                accept="image/*,video/*,application/pdf"
-                disabled={isLoading}
-              />
+              <div className="flex">
+                <Input
+                  id="file"
+                  type="file"
+                  required
+                  onChange={handleFileChange}
+                  accept="image/*,video/*,application/pdf"
+                  disabled={isLoading}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="file"
+                  className="flex-1 cursor-pointer inline-flex items-center justify-start px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Choose file
+                </label>
+              </div>
               {file && (
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">
@@ -392,7 +411,7 @@ export default function UploadAssetPage() {
             {categoryTags.length > 0 && (
               <div className="space-y-2">
                 <Label>
-                  Category <span className="text-[#DF475C]">*</span>
+                  Category <span style={{ color: tenant.primary_color }}>*</span>
                 </Label>
                 <p className="text-sm text-gray-500">Select a category to organize this asset into a collection</p>
                 <div className="flex flex-wrap gap-2">
@@ -404,16 +423,17 @@ export default function UploadAssetPage() {
                       disabled={isLoading}
                       className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         categoryTag === tag.id
-                          ? "border-[#dc3545] bg-[#DF475C] text-white"
+                          ? `border-[${tenant.primary_color}] text-white`
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
+                      style={categoryTag === tag.id ? { backgroundColor: tenant.primary_color } : {}}
                     >
                       {tag.label}
                     </button>
                   ))}
                 </div>
                 {!categoryTag && error?.includes("category") && (
-                  <p className="text-sm text-[#dc3545]">Please select a category</p>
+                  <p className="text-sm" style={{ color: tenant.primary_color }}>Please select a category</p>
                 )}
               </div>
             )}
@@ -431,9 +451,13 @@ export default function UploadAssetPage() {
                       disabled={isLoading}
                       className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         selectedTags.includes(tag.id)
-                          ? "border-[#dc3545] bg-[#DF475C] text-white"
+                          ? "text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
+                      style={selectedTags.includes(tag.id) ? {
+                        backgroundColor: tenant.primary_color,
+                        borderColor: tenant.primary_color
+                      } : {}}
                     >
                       {tag.label}
                     </button>
@@ -455,9 +479,13 @@ export default function UploadAssetPage() {
                       disabled={isLoading}
                       className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         selectedTags.includes(tag.id)
-                          ? "border-[#dc3545] bg-[#DF475C] text-white"
+                          ? "text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
+                      style={selectedTags.includes(tag.id) ? {
+                        backgroundColor: tenant.primary_color,
+                        borderColor: tenant.primary_color
+                      } : {}}
                     >
                       {tag.label}
                     </button>
@@ -479,9 +507,13 @@ export default function UploadAssetPage() {
                       disabled={isLoading}
                       className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                         selectedTags.includes(tag.id)
-                          ? "border-[#dc3545] bg-[#DF475C] text-white"
+                          ? "text-white"
                           : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                       }`}
+                      style={selectedTags.includes(tag.id) ? {
+                        backgroundColor: tenant.primary_color,
+                        borderColor: tenant.primary_color
+                      } : {}}
                     >
                       {tag.label}
                     </button>
@@ -503,8 +535,8 @@ export default function UploadAssetPage() {
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
                   <div
-                    className="h-full bg-[#DF475C] transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
+                    className="h-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%`, backgroundColor: tenant.primary_color }}
                   />
                 </div>
               </div>
@@ -534,7 +566,11 @@ export default function UploadAssetPage() {
               </Link>
               <Button
                 type="submit"
-                className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]"
+                className="rounded-[25px]"
+                style={{
+                  backgroundColor: tenant.primary_color,
+                  borderColor: tenant.primary_color
+                }}
                 disabled={isLoading || success || !clientId}
               >
                 <Upload className="mr-2 h-4 w-4" />

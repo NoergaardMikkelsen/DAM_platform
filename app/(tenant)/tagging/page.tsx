@@ -9,6 +9,7 @@ import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 
 interface Tag {
@@ -29,6 +30,7 @@ interface Tag {
 }
 
 export default function TaggingPage() {
+  const { tenant } = useTenant()
   const [tags, setTags] = useState<Tag[]>([])
   const [filteredTags, setFilteredTags] = useState<Tag[]>([])
   const [tagTypeFilter, setTagTypeFilter] = useState("all")
@@ -46,105 +48,49 @@ export default function TaggingPage() {
   }, [tags, tagTypeFilter, searchQuery])
 
   const loadTags = async () => {
+    // Use tenant from context - tenant layout already verified access
+    const clientId = tenant.id
     const supabase = supabaseRef.current
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setIsLoading(false)
-      router.push("/login")
-      return
-    }
-
-    // Check if user is admin or superadmin (check all client_users entries)
-    const { data: clientUsersCheck } = await supabase
-      .from("client_users")
-      .select(`roles(key)`)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-
-    const hasAdminOrSuperadminRole = clientUsersCheck?.some((cu: any) => 
-      cu.roles?.key === "admin" || cu.roles?.key === "superadmin"
-    ) || false
-
-    if (!hasAdminOrSuperadminRole) {
-      setIsLoading(false)
-      router.push("/dashboard")
-      return
-    }
-
-    // Check if user is superadmin
-    const isSuperAdmin = clientUsersCheck?.some((cu: any) => cu.roles?.key === "superadmin") || false
-
-    let clientId: string | null = null
-
-    if (!isSuperAdmin) {
-      // Regular admin - get their client
-      const { data: clientUsers } = await supabase
-        .from("client_users")
-        .select(`client_id`)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-
-      clientId = clientUsers?.[0]?.client_id || null
-
-      if (!clientId) {
-        setIsLoading(false)
-        router.push("/dashboard")
-        return
-      }
-    }
 
     let tagsData: Tag[] = []
 
-    if (isSuperAdmin) {
-      // Superadmin sees all tags
-      const { data: allTags } = await supabase
-        .from("tags")
-        .select(
-          `
-          *,
-          users (full_name)
-        `,
-        )
-        .order("tag_type")
-        .order("sort_order")
+    // Get tags for this tenant (including system tags)
+    const { data: clientTags } = await supabase
+      .from("tags")
+      .select(
+        `
+        *,
+        users (full_name)
+      `,
+      )
+      .or(`client_id.eq.${tenant.id},client_id.is.null`)
+      .order("tag_type")
+      .order("sort_order")
 
-      tagsData = allTags || []
-    } else {
-      // Regular admin sees client tags + system tags
-      const { data: clientTags } = await supabase
-        .from("tags")
-        .select(
-          `
-          *,
-          users (full_name)
-        `,
-        )
-        .or(`client_id.eq.${clientId},is_system.eq.true`)
-        .order("tag_type")
-        .order("sort_order")
-
-      tagsData = clientTags || []
-    }
+    tagsData = clientTags || []
 
     // Get asset counts for each tag
     const tagCountsMap = new Map<string, number>()
 
     if (tagsData.length > 0) {
-      // Get all asset_tags for these tags
-      const { data: assetTags } = await supabase.from("asset_tags").select("tag_id").in(
-        "tag_id",
-        tagsData.map((t) => t.id),
-      )
+      // Get all asset_tags for assets belonging to this tenant
+      // Since RLS is disabled, we need to manually filter by client_id
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select(`
+          tag_id,
+          assets(client_id)
+        `)
+        .eq("assets.client_id", tenant.id)
 
-      // Count occurrences of each tag_id
+      // Count occurrences of each tag_id (only for tags we're displaying)
+      const relevantTagIds = new Set(tagsData.map(t => t.id))
       if (assetTags) {
         assetTags.forEach((at: any) => {
-          const currentCount = tagCountsMap.get(at.tag_id) || 0
-          tagCountsMap.set(at.tag_id, currentCount + 1)
+          if (relevantTagIds.has(at.tag_id)) {
+            const currentCount = tagCountsMap.get(at.tag_id) || 0
+            tagCountsMap.set(at.tag_id, currentCount + 1)
+          }
         })
       }
     }
@@ -196,7 +142,7 @@ export default function TaggingPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Tagging</h1>
         <Link href="/tagging/create">
-          <Button className="bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
+          <Button className="rounded-[25px]" style={{ backgroundColor: tenant.primary_color }}>
             <Plus className="mr-2 h-4 w-4" />
             Create new tag
           </Button>

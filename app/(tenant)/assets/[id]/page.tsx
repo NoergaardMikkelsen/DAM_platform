@@ -5,6 +5,7 @@ import type { ChangeEvent } from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { useTenant } from "@/lib/context/tenant-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +44,7 @@ import {
   Upload,
   RotateCcw,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,6 +81,7 @@ interface User {
 interface Tag {
   id: string
   label: string
+  tag_type: string
 }
 
 interface ActivityEvent {
@@ -134,6 +137,7 @@ export default function AssetDetailPage() {
   const id = params.id as string
 
   const router = useRouter()
+  const { tenant } = useTenant()
   const supabaseRef = useRef(createClient())
   const [isNavigating, startNavigation] = useTransition()
 
@@ -259,9 +263,10 @@ export default function AssetDetailPage() {
       }
 
       // 3. HENT ALT ANDET I PARALLEL (ikke kritisk for billedet)
-      const [favoriteResult, tagsResult, uploaderResult, activityResult, versionsResult] = await Promise.all([
+      const [favoriteResult, tagsResult, categoryTagResult, uploaderResult, activityResult, versionsResult] = await Promise.all([
         supabase.from("favorites").select("id").eq("user_id", user.id).eq("asset_id", targetId).maybeSingle(),
         supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId),
+        assetData.category_tag_id ? supabase.from("tags").select("*").eq("id", assetData.category_tag_id).single() : Promise.resolve({ data: null }),
         supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single(),
         supabase.from("asset_events").select("*").eq("asset_id", targetId).order("created_at", { ascending: false }).limit(20),
         supabase.from("asset_versions").select("*").eq("asset_id", targetId).order("created_at", { ascending: false })
@@ -270,7 +275,13 @@ export default function AssetDetailPage() {
       // Set all data
       setFavorite(favoriteResult.data)
       setIsFavorited(!!favoriteResult.data)
-      setTags(tagsResult.data?.map((at: any) => at.tags) || [])
+
+      // Combine regular tags with category tag
+      const regularTags = tagsResult.data?.map((at: any) => at.tags) || []
+      const categoryTag = categoryTagResult.data
+      const allTags = categoryTag ? [categoryTag, ...regularTags] : regularTags
+      setTags(allTags)
+
       setUploader(uploaderResult.data)
       setActivity(activityResult.data || [])
       setVersions(versionsResult.data || [])
@@ -779,6 +790,47 @@ export default function AssetDetailPage() {
     }
   }
 
+  const deleteAsset = async () => {
+    if (!asset) {
+      setErrorMessage("Asset not found")
+      return
+    }
+
+    if (!confirm("Are you sure you want to delete this asset? This action cannot be undone.")) {
+      return
+    }
+
+    const supabase = supabaseRef.current
+
+    try {
+      setErrorMessage(null)
+
+      // 1. Delete from storage
+      if (asset.storage_path) {
+        const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
+        await supabase.storage.from("assets").remove([cleanPath])
+      }
+
+      // 2. Delete asset_versions
+      await supabase.from("asset_versions").delete().eq("asset_id", id)
+
+      // 3. Delete asset_tags
+      await supabase.from("asset_tags").delete().eq("asset_id", id)
+
+      // 4. Delete asset_events
+      await supabase.from("asset_events").delete().eq("asset_id", id)
+
+      // 5. Delete asset record
+      await supabase.from("assets").delete().eq("id", id)
+
+      // Navigate back to assets list
+      router.push("/assets")
+    } catch (err) {
+      console.error("Delete error:", err)
+      setErrorMessage("Failed to delete asset")
+    }
+  }
+
   const handleDownloadPrevious = async () => {
     if (!asset || !previousPreviewUrl || !previousVersion) return
     const res = await fetch(previousPreviewUrl)
@@ -816,9 +868,9 @@ export default function AssetDetailPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
         <div className="rounded-xl bg-white px-8 py-10 text-center shadow-sm">
           <p className="text-gray-700">Asset not found</p>
-          <Link href="/assets">
-            <Button className="mt-4">Back to Assets</Button>
-          </Link>
+          <Button onClick={() => router.push('/assets')} className="mt-4">
+            Back to Assets
+          </Button>
         </div>
       </div>
     )
@@ -1058,39 +1110,53 @@ export default function AssetDetailPage() {
                     <span className="hidden sm:inline">Edit</span>
                   </Button>
                 </DropdownMenuTrigger>
-                {isImage && (
-                  <DropdownMenuContent
-                    align="center"
-                    side="top"
-                    className="w-72 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
+                <DropdownMenuContent
+                  align="center"
+                  side="top"
+                  className="w-72 rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur"
+                >
+                  {isImage && (
+                    <>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                        Crop / Transform
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                        onSelect={() => {
+                          handleCustomDownload()
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                          <span>Apply custom resize (download)</span>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                        onSelect={() => {
+                          handlePresetDownload()
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-gray-500" />
+                          <span>Apply current preset download</span>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem
+                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-red-600 focus:bg-red-50 focus:text-red-700"
+                    onSelect={() => {
+                      void deleteAsset()
+                    }}
                   >
-                    <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
-                      Crop / Transform
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                      onSelect={() => {
-                        handleCustomDownload()
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <SlidersHorizontal className="h-4 w-4 text-gray-500" />
-                        <span>Apply custom resize (download)</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                      onSelect={() => {
-                        handlePresetDownload()
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-gray-500" />
-                        <span>Apply current preset download</span>
-                      </div>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                )}
+                    <div className="flex items-center gap-2">
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <span>Delete asset</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
               </DropdownMenu>
 
               {/* Download dropup (right, primary) */}
@@ -1267,10 +1333,11 @@ export default function AssetDetailPage() {
         <div className="flex h-full min-h-0 flex-col p-6">
           <div className="flex h-full min-h-0 flex-col rounded-3xl bg-white p-6 shadow-sm">
             <div className="flex-1 space-y-4 overflow-y-auto">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="space-y-3">
                 <h1 className="text-base font-semibold text-gray-900">{asset.title}</h1>
                 <div className="flex flex-wrap gap-2">
-                  {tags.slice(0, 3).map((tag) => (
+                  {/* Show only category and file_type tags in top */}
+                  {tags.filter(tag => tag.tag_type === 'category' || tag.tag_type === 'file_type').map((tag) => (
                     <Badge key={tag.id} variant="secondary" className="rounded-full px-3 py-1 text-xs">
                       {tag.label}
                     </Badge>
@@ -1284,7 +1351,7 @@ export default function AssetDetailPage() {
                 </div>
               )}
 
-              <Accordion type="multiple" defaultValue={["file-info", "download-options"]} className="space-y-2">
+              <Accordion type="multiple" defaultValue={["file-info", "tags", "download-options"]} className="space-y-2">
                 <AccordionItem value="file-info">
                   <AccordionTrigger className="text-sm font-semibold text-gray-800">File info</AccordionTrigger>
                   <AccordionContent>
@@ -1308,16 +1375,16 @@ export default function AssetDetailPage() {
                 <AccordionItem value="tags">
                   <AccordionTrigger className="text-sm font-semibold text-gray-800">Tags</AccordionTrigger>
                   <AccordionContent>
-                    {tags.length ? (
+                    {tags.filter(tag => tag.tag_type !== 'category' && tag.tag_type !== 'file_type').length ? (
                       <div className="flex flex-wrap gap-2">
-                        {tags.map((tag) => (
+                        {tags.filter(tag => tag.tag_type !== 'category' && tag.tag_type !== 'file_type').map((tag) => (
                           <Badge key={tag.id} variant="secondary" className="rounded-full px-3 py-1 text-xs">
                             {tag.label}
                           </Badge>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500">Ingen tags tilknyttet.</p>
+                      <p className="text-sm text-gray-500">Ingen yderligere tags tilknyttet.</p>
                     )}
                   </AccordionContent>
                 </AccordionItem>
