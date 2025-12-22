@@ -542,7 +542,7 @@ export default function CreateClientPage() {
                   required
                   value={storageLimit}
                   onChange={(e) => setStorageLimit(e.target.value)}
-                  placeholder="10000"
+                  placeholder="10"
                   min="1"
                 />
               </div>

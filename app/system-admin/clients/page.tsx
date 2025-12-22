@@ -3,9 +3,11 @@
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Settings, Pencil, Plus, Search, Trash2, Building } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
@@ -24,6 +26,9 @@ interface Client {
   asset_count?: number
   storage_used_bytes: number
   storage_percentage?: number
+  logo_collapsed_url?: string
+  logo_url?: string
+  favicon_url?: string
 }
 
 type ClientData = Omit<Client, 'user_count' | 'asset_count' | 'storage_percentage'>
@@ -34,6 +39,22 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [editClientForm, setEditClientForm] = useState({
+    name: '',
+    primary_color: '',
+    secondary_color: '',
+    storage_limit_mb: 0
+  })
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoCollapsedFile, setLogoCollapsedFile] = useState<File | null>(null)
+  const [logoCollapsedPreview, setLogoCollapsedPreview] = useState<string | null>(null)
+  const [faviconFile, setFaviconFile] = useState<File | null>(null)
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null)
+  const [editClientLoading, setEditClientLoading] = useState(false)
+  const [editClientError, setEditClientError] = useState<string | null>(null)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -50,41 +71,7 @@ export default function ClientsPage() {
     // Authentication and authorization is already handled by system-admin layout
     // No need to check user authentication or roles here
 
-    // TEMP: Fetch ALL clients to debug BHJ issue
-    console.log('[CLIENTS] Starting to fetch ALL clients (debugging)...')
-    const { data: allClientsData, error: allError } = await supabase
-      .from("clients")
-      .select(`
-        id,
-        name,
-        slug,
-        domain,
-        status,
-        primary_color,
-        secondary_color,
-        storage_limit_mb,
-        created_at,
-        storage_used_bytes
-      `)
-      .order("name", { ascending: true })
-
-    console.log('[CLIENTS] ALL clients result:', {
-      allClientsData,
-      allError,
-      count: allClientsData?.length,
-      clientNames: allClientsData?.map((c: any) => `${c.name} (${c.status})`)
-    })
-
-    // Try to fetch BHJ specifically
-    const { data: bhjClient, error: bhjError } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("slug", "bhj")
-      .single()
-
-    console.log('[CLIENTS] BHJ specific query:', { bhjClient, bhjError })
-
-    // Then fetch only active clients as normal
+    // Fetch active clients
     const { data: clientsData, error } = await supabase
       .from("clients")
       .select(`
@@ -97,17 +84,14 @@ export default function ClientsPage() {
         secondary_color,
         storage_limit_mb,
         created_at,
-        storage_used_bytes
+        storage_used_bytes,
+        logo_collapsed_url,
+        logo_url,
+        favicon_url
       `)
       .eq("status", "active")
       .order("name", { ascending: true })
 
-    console.log('[CLIENTS] Query result:', {
-      clientsData,
-      error,
-      count: clientsData?.length,
-      clientNames: clientsData?.map((c: any) => c.name)
-    })
 
     if (error) {
       console.error("Error loading clients:", error)
@@ -117,20 +101,25 @@ export default function ClientsPage() {
       return
     }
 
-    // Get asset and user counts for each client
+    // Get asset and user counts and calculate actual storage used for each client
     const clientsWithStats = await Promise.all(
       (clientsData || []).map(async (client: ClientData) => {
-        const [assetResult, userResult] = await Promise.all([
+        const [assetResult, userResult, storageResult] = await Promise.all([
           supabase.from("assets").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active"),
-          supabase.from("client_users").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active")
+          supabase.from("client_users").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active"),
+          supabase.from("assets").select("file_size").eq("client_id", client.id).eq("status", "active")
         ])
+
+        // Calculate actual storage used by summing all asset file sizes
+        const actualStorageUsedBytes = storageResult.data?.reduce((total: number, asset: any) => total + (asset.file_size || 0), 0) || 0
 
         return {
           ...client,
           asset_count: assetResult.count || 0,
           user_count: userResult.count || 0,
+          storage_used_bytes: actualStorageUsedBytes, // Override with actual calculation
           storage_percentage: client.storage_limit_mb > 0
-            ? Math.round((client.storage_used_bytes / (client.storage_limit_mb * 1024 * 1024)) * 100)
+            ? Math.round((actualStorageUsedBytes / (client.storage_limit_mb * 1024 * 1024)) * 100)
             : 0
         } as Client
       })
@@ -160,21 +149,201 @@ export default function ClientsPage() {
     setFilteredClients(filtered)
   }
 
-  const handleNavigateToClient = async (clientSlug: string) => {
-    console.log('[ADMIN-NAV] Starting navigation to client:', clientSlug)
+  const handleEditClient = (client: Client) => {
+    // Reset all state first
+    setEditingClient(null)
+    setLogoPreview(null)
+    setLogoCollapsedPreview(null)
+    setFaviconPreview(null)
+    setLogoFile(null)
+    setLogoCollapsedFile(null)
+    setFaviconFile(null)
 
+    // Then set new values
+    setTimeout(() => {
+      setEditingClient(client)
+      setEditClientForm({
+        name: client.name,
+        primary_color: client.primary_color,
+        secondary_color: client.secondary_color,
+        storage_limit_mb: client.storage_limit_mb
+      })
+      setLogoPreview(client.logo_url || null)
+      setLogoCollapsedPreview(client.logo_collapsed_url || null)
+      setFaviconPreview(client.favicon_url || null)
+      setIsEditModalOpen(true)
+    }, 10)
+  }
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setLogoFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => setLogoPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleLogoCollapsedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setLogoCollapsedFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => setLogoCollapsedPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleFaviconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setFaviconFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => setFaviconPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(editingClient?.logo_url || null)
+  }
+
+  const removeLogoCollapsed = () => {
+    setLogoCollapsedFile(null)
+    setLogoCollapsedPreview(editingClient?.logo_collapsed_url || null)
+  }
+
+  const removeFavicon = () => {
+    setFaviconFile(null)
+    setFaviconPreview(editingClient?.favicon_url || null)
+  }
+
+  const handleEditClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingClient) return
+
+    const supabase = supabaseRef.current
+    setEditClientLoading(true)
+    setEditClientError(null)
+
+    try {
+      let logoUrl = editingClient.logo_url
+      let logoCollapsedUrl = editingClient.logo_collapsed_url
+      let faviconUrl = editingClient.favicon_url
+
+      // Upload new logo if provided
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop()
+        const fileName = `client-logo-${editingClient.id}-${Date.now()}.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(`client-logos/${fileName}`, logoFile)
+
+        if (uploadError) throw uploadError
+
+        logoUrl = supabase.storage.from('logos').getPublicUrl(`client-logos/${fileName}`).data.publicUrl
+
+        // Delete old logo if it exists
+        if (editingClient.logo_url) {
+          const oldPath = editingClient.logo_url.split('/').pop()
+          if (oldPath) {
+            await supabase.storage.from('logos').remove([`client-logos/${oldPath}`])
+          }
+        }
+      }
+
+      // Upload new collapsed logo if provided
+      if (logoCollapsedFile) {
+        const fileExt = logoCollapsedFile.name.split('.').pop()
+        const fileName = `client-logo-collapsed-${editingClient.id}-${Date.now()}.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(`client-collapsed-logos/${fileName}`, logoCollapsedFile)
+
+        if (uploadError) throw uploadError
+
+        logoCollapsedUrl = supabase.storage.from('logos').getPublicUrl(`client-collapsed-logos/${fileName}`).data.publicUrl
+
+        // Delete old collapsed logo if it exists
+        if (editingClient.logo_collapsed_url) {
+          const oldPath = editingClient.logo_collapsed_url.split('/').pop()
+          if (oldPath) {
+            await supabase.storage.from('logos').remove([`client-collapsed-logos/${oldPath}`])
+          }
+        }
+      }
+
+      // Upload new favicon if provided
+      if (faviconFile) {
+        const fileExt = faviconFile.name.split('.').pop()
+        const fileName = `client-favicon-${editingClient.id}-${Date.now()}.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(`client-favicons/${fileName}`, faviconFile)
+
+        if (uploadError) throw uploadError
+
+        faviconUrl = supabase.storage.from('logos').getPublicUrl(`client-favicons/${fileName}`).data.publicUrl
+
+        // Delete old favicon if it exists
+        if (editingClient.favicon_url) {
+          const oldPath = editingClient.favicon_url.split('/').pop()
+          if (oldPath) {
+            await supabase.storage.from('logos').remove([`client-favicons/${oldPath}`])
+          }
+        }
+      }
+
+      // Update client record
+      const { error: updateError } = await supabase
+        .from('clients')
+        .update({
+          name: editClientForm.name,
+          primary_color: editClientForm.primary_color,
+          secondary_color: editClientForm.secondary_color,
+          storage_limit_mb: editClientForm.storage_limit_mb,
+          logo_url: logoUrl,
+          logo_collapsed_url: logoCollapsedUrl,
+          favicon_url: faviconUrl
+        })
+        .eq('id', editingClient.id)
+
+      if (updateError) throw updateError
+
+      // Reset form and close modal
+      setIsEditModalOpen(false)
+      setEditingClient(null)
+      setEditClientForm({
+        name: '',
+        primary_color: '',
+        secondary_color: '',
+        storage_limit_mb: 0
+      })
+      setLogoFile(null)
+      setLogoPreview(null)
+      setLogoCollapsedFile(null)
+      setLogoCollapsedPreview(null)
+      setFaviconFile(null)
+      setFaviconPreview(null)
+
+      // Reload clients list
+      loadClients()
+
+    } catch (error: any) {
+      setEditClientError(error.message)
+    } finally {
+      setEditClientLoading(false)
+    }
+  }
+
+  const handleNavigateToClient = async (clientSlug: string) => {
     const supabase = createClient()
-    console.log('[ADMIN-NAV] Checking session...')
 
     const { data: { session }, error } = await supabase.auth.getSession()
-    console.log('[ADMIN-NAV] Session result:', {
-      hasSession: !!session,
-      userId: session?.user?.id,
-      error: error?.message
-    })
 
     if (!session) {
-      console.log('[ADMIN-NAV] No session, redirecting to login')
       window.location.href = '/login'
       return
     }
@@ -194,7 +363,6 @@ export default function ClientsPage() {
     })
 
     const finalUrl = `${targetUrl}?${params}`
-    console.log('[ADMIN-NAV] Navigating to:', finalUrl)
 
     window.location.href = finalUrl
   }
@@ -260,8 +428,8 @@ export default function ClientsPage() {
           </thead>
           <tbody className="divide-y">
             {filteredClients?.map((client) => {
-              const storageUsedGB = (client.storage_used_bytes / 1024 / 1024 / 1024).toFixed(0)
-              const storageLimitGB = (client.storage_limit_mb / 1024).toFixed(0)
+              const storageUsedGB = Math.round(client.storage_used_bytes / 1024 / 1024 / 1024)
+              const storageLimitGB = 10 // Fixed 10 GB limit per client
               const storagePercentage = client.storage_percentage || 0
 
               return (
@@ -269,9 +437,19 @@ export default function ClientsPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-600"
+                        className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden"
                       >
-                        <Building className="h-5 w-5 text-white" />
+                        {client.logo_collapsed_url ? (
+                          <img
+                            src={client.logo_collapsed_url}
+                            alt={`${client.name} logo`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gray-600">
+                            <Building className="h-5 w-5 text-white" />
+                          </div>
+                        )}
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">{client.name}</div>
@@ -282,7 +460,7 @@ export default function ClientsPage() {
                   <td className="px-6 py-4 text-sm text-gray-900">{client.user_count || 0} users</td>
                   <td className="px-6 py-4">
                     <div className="mb-1 text-sm font-medium text-gray-900">
-                      {storageUsedGB} GB / {storageLimitGB} GB
+                      {storageUsedGB} GB af {storageLimitGB} GB
                     </div>
                     <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-200">
                       <div
@@ -303,7 +481,15 @@ export default function ClientsPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditClient(client)
+                        }}
+                      >
                         <Pencil className="h-4 w-4 text-gray-600" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -354,6 +540,208 @@ export default function ClientsPage() {
           </Link>
         </div>
       )}
+
+      {/* Edit Client Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Client</DialogTitle>
+            <DialogDescription>
+              Update client information, colors, and branding assets for {editingClient?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditClientSubmit} className="space-y-6">
+            {/* Basic Info */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="editClientName">Client Name</Label>
+                <Input
+                  id="editClientName"
+                  required
+                  value={editClientForm.name}
+                  onChange={(e) => setEditClientForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="editPrimaryColor">Primary Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="editPrimaryColor"
+                      type="color"
+                      value={editClientForm.primary_color}
+                      onChange={(e) => setEditClientForm(prev => ({ ...prev, primary_color: e.target.value }))}
+                      className="w-16 h-10"
+                    />
+                    <Input
+                      value={editClientForm.primary_color}
+                      onChange={(e) => setEditClientForm(prev => ({ ...prev, primary_color: e.target.value }))}
+                      placeholder="#000000"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="editSecondaryColor">Secondary Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="editSecondaryColor"
+                      type="color"
+                      value={editClientForm.secondary_color}
+                      onChange={(e) => setEditClientForm(prev => ({ ...prev, secondary_color: e.target.value }))}
+                      className="w-16 h-10"
+                    />
+                    <Input
+                      value={editClientForm.secondary_color}
+                      onChange={(e) => setEditClientForm(prev => ({ ...prev, secondary_color: e.target.value }))}
+                      placeholder="#ffffff"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editStorageLimit">Storage Limit (GB)</Label>
+                <Input
+                  id="editStorageLimit"
+                  type="number"
+                  required
+                  min="1"
+                  value={editClientForm.storage_limit_mb / 1024}
+                  onChange={(e) => setEditClientForm(prev => ({ ...prev, storage_limit_mb: parseInt(e.target.value) * 1024 }))}
+                />
+              </div>
+            </div>
+
+            {/* Logo Upload */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Main Logo {logoPreview ? '(Current)' : '(None)'}</Label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                    className="hidden"
+                    id="logo-upload"
+                  />
+                  <label
+                    htmlFor="logo-upload"
+                    className="cursor-pointer bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Choose Logo
+                  </label>
+                  {logoPreview && (
+                    <div className="flex items-center gap-2">
+                      <img src={logoPreview} alt="Logo preview" className="h-8 w-auto max-w-32 object-contain" />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeLogo}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Collapsed Logo {logoCollapsedPreview ? '(Current)' : '(None)'}</Label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoCollapsedChange}
+                    className="hidden"
+                    id="logo-collapsed-upload"
+                  />
+                  <label
+                    htmlFor="logo-collapsed-upload"
+                    className="cursor-pointer bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Choose Collapsed Logo
+                  </label>
+                  {logoCollapsedPreview && (
+                    <div className="flex items-center gap-2">
+                      <img src={logoCollapsedPreview} alt="Collapsed logo preview" className="h-8 w-8 rounded object-cover" />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeLogoCollapsed}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Favicon {faviconPreview ? '(Current)' : '(None)'}</Label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFaviconChange}
+                    className="hidden"
+                    id="favicon-upload"
+                  />
+                  <label
+                    htmlFor="favicon-upload"
+                    className="cursor-pointer bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Choose Favicon
+                  </label>
+                  {faviconPreview && (
+                    <div className="flex items-center gap-2">
+                      <img src={faviconPreview} alt="Favicon preview" className="h-6 w-6 rounded object-cover" />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeFavicon}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {editClientError && (
+              <p className="text-sm text-red-500">{editClientError}</p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-black hover:bg-gray-800 text-white"
+                disabled={editClientLoading}
+              >
+                {editClientLoading ? "Updating..." : "Update Client"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

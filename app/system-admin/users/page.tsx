@@ -22,6 +22,7 @@ interface SystemUser {
   created_at: string
   is_superadmin: boolean
   client_count: number
+  highest_role: string | null  // 'superadmin' | 'admin' | 'user' | null
   last_active?: string
 }
 
@@ -48,6 +49,16 @@ export default function SystemUsersPage() {
     role: 'admin' // default to admin, can be changed to superadmin
   })
   const [createUserError, setCreateUserError] = useState<string | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<SystemUser | null>(null)
+  const [editUserForm, setEditUserForm] = useState({
+    fullName: '',
+    email: '',
+    role: 'admin'
+  })
+  const [editSelectedClients, setEditSelectedClients] = useState<string[]>([])
+  const [editUserLoading, setEditUserLoading] = useState(false)
+  const [editUserError, setEditUserError] = useState<string | null>(null)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -83,23 +94,12 @@ export default function SystemUsersPage() {
       return
     }
 
-    // Get superadmin status for each user (users with superadmin role in any client)
-    const { data: superadmins } = await supabase
+    // Get all user roles and client associations
+    const { data: userRoles } = await supabase
       .from("client_users")
       .select(`
         user_id,
-        roles!inner(key)
-      `)
-      .eq("status", "active")
-      .eq("roles.key", "superadmin")
-
-    const superadminIds = new Set(superadmins?.map((sa: { user_id: string }) => sa.user_id) || [])
-
-    // Get client user counts for each user
-    const { data: clientUsers } = await supabase
-      .from("client_users")
-      .select(`
-        user_id,
+        roles!inner(key),
         client_id,
         clients (
           name
@@ -107,22 +107,45 @@ export default function SystemUsersPage() {
       `)
       .eq("status", "active")
 
-    // Count clients per user
-    const clientCountMap = new Map<string, number>()
-    clientUsers?.forEach((cu: any) => {
-      const count = clientCountMap.get(cu.user_id) || 0
-      clientCountMap.set(cu.user_id, count + 1)
+    // Group roles by user and find highest role
+    const userRoleMap = new Map<string, { highest_role: string, client_count: number, is_superadmin: boolean }>()
+    userRoles?.forEach((ur: any) => {
+      const userId = ur.user_id
+      const roleKey = ur.roles.key
+
+      if (!userRoleMap.has(userId)) {
+        userRoleMap.set(userId, {
+          highest_role: roleKey,
+          client_count: 1,
+          is_superadmin: roleKey === 'superadmin'
+        })
+      } else {
+        const existing = userRoleMap.get(userId)!
+        existing.client_count += 1
+
+        // Update highest role (superadmin > admin > user)
+        if (roleKey === 'superadmin' ||
+            (roleKey === 'admin' && existing.highest_role !== 'superadmin') ||
+            (roleKey === 'user' && existing.highest_role === null)) {
+          existing.highest_role = roleKey
+          existing.is_superadmin = roleKey === 'superadmin'
+        }
+      }
     })
 
     // Combine the data
-    const usersWithDetails: SystemUser[] = users?.map((user: { id: string; full_name: string | null; email: string; created_at: string }) => ({
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email,
-      created_at: user.created_at,
-      is_superadmin: superadminIds.has(user.id),
-      client_count: clientCountMap.get(user.id) || 0
-    })) || []
+    const usersWithDetails: SystemUser[] = users?.map((user: { id: string; full_name: string | null; email: string; created_at: string }) => {
+      const userRoleData = userRoleMap.get(user.id) || { highest_role: null, client_count: 0, is_superadmin: false }
+      return {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        created_at: user.created_at,
+        is_superadmin: userRoleData.is_superadmin,
+        client_count: userRoleData.client_count,
+        highest_role: userRoleData.highest_role
+      }
+    }) || []
 
     setAllUsers(usersWithDetails)
     setFilteredUsers(usersWithDetails)
@@ -144,6 +167,152 @@ export default function SystemUsersPage() {
     }
 
     setClients(clients || [])
+  }
+
+  const handleEditUser = async (user: SystemUser) => {
+    const supabase = supabaseRef.current
+
+    // Get user's current client associations
+    const { data: userClientData, error } = await supabase
+      .from("client_users")
+      .select(`
+        client_id,
+        role_id,
+        roles(key)
+      `)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+
+    if (error) {
+      console.error("Error loading user client data:", error)
+      return
+    }
+
+    // Find the highest role for the default selection
+    let highestRole = 'admin'
+    const clientIds: string[] = []
+
+    userClientData?.forEach((ucd: any) => {
+      clientIds.push(ucd.client_id)
+      if (ucd.roles.key === 'superadmin') {
+        highestRole = 'superadmin'
+      } else if (ucd.roles.key === 'admin' && highestRole !== 'superadmin') {
+        highestRole = 'admin'
+      }
+    })
+
+    setEditingUser(user)
+    setEditUserForm({
+      fullName: user.full_name || '',
+      email: user.email,
+      role: highestRole
+    })
+    setEditSelectedClients(clientIds)
+    setIsEditModalOpen(true)
+  }
+
+  const handleEditUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingUser) return
+
+    const supabase = supabaseRef.current
+    setEditUserLoading(true)
+    setEditUserError(null)
+
+    try {
+      // Update user profile if name changed
+      if (editUserForm.fullName !== editingUser.full_name) {
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ full_name: editUserForm.fullName })
+          .eq('id', editingUser.id)
+
+        if (updateError) throw updateError
+      }
+
+      // Get the role ID for selected role
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('key', editUserForm.role)
+        .single()
+
+      if (roleError) throw roleError
+
+      // Get current client associations for this user
+      const { data: currentAssociations, error: currentError } = await supabase
+        .from('client_users')
+        .select('client_id')
+        .eq('user_id', editingUser.id)
+        .eq('status', 'active')
+
+      if (currentError) throw currentError
+
+      const currentClientIds = currentAssociations?.map((ca: any) => ca.client_id) || []
+
+      // Clients to remove (in current but not in selected)
+      const clientsToRemove = currentClientIds.filter((id: string) => !editSelectedClients.includes(id))
+
+      // Clients to add (in selected but not in current)
+      const clientsToAdd = editSelectedClients.filter(id => !currentClientIds.includes(id))
+
+      // Remove associations for clients no longer selected
+      if (clientsToRemove.length > 0) {
+        const { error: removeError } = await supabase
+          .from('client_users')
+          .update({ status: 'inactive' })
+          .eq('user_id', editingUser.id)
+          .in('client_id', clientsToRemove)
+
+        if (removeError) throw removeError
+      }
+
+      // Add new associations
+      if (clientsToAdd.length > 0) {
+        const newAssociations = clientsToAdd.map(clientId => ({
+          user_id: editingUser.id,
+          client_id: clientId,
+          role_id: roleData.id,
+          status: 'active'
+        }))
+
+        const { error: addError } = await supabase
+          .from('client_users')
+          .insert(newAssociations)
+
+        if (addError) throw addError
+      }
+
+      // Update existing associations (change role if needed)
+      if (editSelectedClients.length > 0) {
+        const { error: updateError } = await supabase
+          .from('client_users')
+          .update({ role_id: roleData.id })
+          .eq('user_id', editingUser.id)
+          .in('client_id', editSelectedClients)
+          .eq('status', 'active')
+
+        if (updateError) throw updateError
+      }
+
+      // Reset form and close modal
+      setIsEditModalOpen(false)
+      setEditingUser(null)
+      setEditUserForm({
+        fullName: '',
+        email: '',
+        role: 'admin'
+      })
+      setEditSelectedClients([])
+
+      // Reload users list
+      loadUsers()
+
+    } catch (error: any) {
+      setEditUserError(error.message)
+    } finally {
+      setEditUserLoading(false)
+    }
   }
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -378,6 +547,112 @@ export default function SystemUsersPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Edit User Modal */}
+        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>
+                Update user information and client access for {editingUser?.full_name || editingUser?.email}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleEditUserSubmit} className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="editFullName">Full Name</Label>
+                  <Input
+                    id="editFullName"
+                    required
+                    value={editUserForm.fullName}
+                    onChange={(e) => setEditUserForm(prev => ({ ...prev, fullName: e.target.value }))}
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editEmail">Email</Label>
+                  <Input
+                    id="editEmail"
+                    type="email"
+                    required
+                    value={editUserForm.email}
+                    disabled
+                    className="bg-gray-50"
+                    title="Email cannot be changed"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="editRole">System Role</Label>
+                  <Select
+                    value={editUserForm.role}
+                    onValueChange={(value) => setEditUserForm(prev => ({ ...prev, role: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="superadmin">Superadmin</SelectItem>
+                      <SelectItem value="user">User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Assign to Clients</Label>
+                <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+                  {clients.map((client) => (
+                    <div key={client.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`edit-client-${client.id}`}
+                        checked={editSelectedClients.includes(client.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setEditSelectedClients(prev => [...prev, client.id])
+                          } else {
+                            setEditSelectedClients(prev => prev.filter(id => id !== client.id))
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`edit-client-${client.id}`} className="text-sm">
+                        {client.name} ({client.slug})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                {clients.length === 0 && (
+                  <p className="text-sm text-gray-500">No active clients found</p>
+                )}
+              </div>
+
+              {editUserError && (
+                <p className="text-sm text-red-500">{editUserError}</p>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-black hover:bg-gray-800 text-white"
+                  disabled={editUserLoading}
+                >
+                  {editUserLoading ? "Updating..." : "Update User"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search */}
@@ -429,10 +704,15 @@ export default function SystemUsersPage() {
                         <Shield className="w-3 h-3 mr-1" />
                         Superadmin
                       </Badge>
-                    ) : user.client_count > 0 ? (
+                    ) : user.highest_role === 'admin' ? (
                       <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                         <Users className="w-3 h-3 mr-1" />
-                        Client User
+                        Admin
+                      </Badge>
+                    ) : user.highest_role === 'user' ? (
+                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        <Users className="w-3 h-3 mr-1" />
+                        User
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="bg-gray-100 text-gray-800">
@@ -457,7 +737,12 @@ export default function SystemUsersPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleEditUser(user)}
+                    >
                       <Pencil className="h-4 w-4 text-gray-600" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8">

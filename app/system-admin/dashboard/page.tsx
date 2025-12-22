@@ -54,22 +54,18 @@ export default function SystemAdminDashboard() {
     try {
       // Try server action first
       const tenantData = await getAllTenantsForSuperAdmin()
-      console.log('[DASHBOARD] Server action result:', tenantData)
-      
+
       // If server action returns empty, try direct query as fallback
       if (!tenantData || tenantData.length === 0) {
-        console.log('[DASHBOARD] Server action returned empty, trying direct query...')
         const { data: directClients, error: directError } = await supabase
           .from("clients")
           .select("id, name, slug")
           .eq("status", "active")
           .order("name")
-        
+
         if (directError) {
-          console.error('[DASHBOARD] Direct query error:', directError)
           setTenantError(`Database error: ${directError.message}`)
         } else {
-          console.log('[DASHBOARD] Direct query result:', directClients)
           setTenants(directClients || [])
           if (!directClients || directClients.length === 0) {
             setTenantError('No active clients found in database')
@@ -90,22 +86,64 @@ export default function SystemAdminDashboard() {
   const loadSystemStats = async () => {
     setIsLoading(true)
     try {
-      // Get system statistics
-      const [clientsResult, usersResult, storageResult] = await Promise.all([
+      // Get system statistics and recent activities
+      const [clientsResult, usersResult, storageResult, recentClientsResult, recentUsersResult] = await Promise.all([
         supabase.from("clients").select("id, status"),
         supabase.from("users").select("id"),
-        supabase.from("assets").select("file_size")
+        supabase.from("assets").select("file_size"),
+        supabase.from("clients").select("id, name, created_at").order("created_at", { ascending: false }).limit(3),
+        supabase.from("users").select("id, full_name, created_at").order("created_at", { ascending: false }).limit(3)
       ])
+
+      const recentClients = recentClientsResult.data || []
+      const recentUsers = recentUsersResult.data || []
+
+      // Build recent activities
+      const activities: Array<{ id: string, action: string, timestamp: string }> = []
+
+      // Add recent client creations
+      if (recentClients && Array.isArray(recentClients)) {
+        recentClients.forEach((client: any) => {
+          activities.push({
+            id: `client-${client.id}`,
+            action: `Created client "${client.name}"`,
+            timestamp: client.created_at
+          })
+        })
+      }
+
+      // Add recent user creations
+      if (recentUsers && Array.isArray(recentUsers)) {
+        recentUsers.forEach((user: any) => {
+          activities.push({
+            id: `user-${user.id}`,
+            action: `Created user "${user.full_name || 'Unknown'}"`,
+            timestamp: user.created_at
+          })
+        })
+      }
+
+      // Sort by timestamp and take the 5 most recent
+      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      const recentActivities = activities.slice(0, 5)
 
       setStats({
         totalClients: clientsResult.data?.length || 0,
         activeClients: clientsResult.data?.filter((c: { status: string }) => c.status === 'active').length || 0,
         totalUsers: usersResult.data?.length || 0,
         totalStorageGB: Math.round((storageResult.data?.reduce((sum: number, asset: { file_size: number | null }) => sum + (asset.file_size || 0), 0) || 0) / 1024 / 1024 / 1024 * 100) / 100,
-        recentActivity: [] // Could be populated with actual activity data
+        recentActivity: recentActivities
       })
     } catch (error) {
       console.error("Error loading system stats:", error)
+      // Set fallback empty activities on error
+      setStats({
+        totalClients: 0,
+        activeClients: 0,
+        totalUsers: 0,
+        totalStorageGB: 0,
+        recentActivity: []
+      })
     } finally {
       setIsLoading(false)
     }
@@ -250,11 +288,11 @@ export default function SystemAdminDashboard() {
 
         <Card className="relative overflow-hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Storage</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Total System Storage</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats?.totalStorageGB || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">GB used across all clients</p>
+            <div className="text-2xl font-bold text-gray-900">{stats?.totalStorageGB?.toFixed(2).replace('.', ',') || '0,00'} GB</div>
+            <p className="text-xs text-gray-500 mt-1">Total storage used across all clients</p>
           </CardContent>
         </Card>
       </div>
@@ -316,10 +354,31 @@ export default function SystemAdminDashboard() {
           <CardTitle>System Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <p>Activity monitoring coming soon...</p>
-            <p className="text-sm mt-2">Track client registrations, user activity, and system events</p>
-          </div>
+          {stats?.recentActivity && stats.recentActivity.length > 0 ? (
+            <div className="space-y-3">
+              {stats.recentActivity.map((activity) => (
+                <div key={activity.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{activity.action}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(activity.timestamp).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>No recent activity</p>
+              <p className="text-sm mt-2">System activity will appear here as events occur</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

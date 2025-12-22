@@ -19,10 +19,20 @@ interface SystemAdminData {
   created_at: string
 }
 
+interface SystemActivity {
+  id: string
+  action: string
+  details: string
+  timestamp: string
+  type: 'client' | 'user' | 'asset' | 'system'
+}
+
 export default function SystemAdminProfilePage() {
   const [user, setUser] = useState<any>(null)
   const [userData, setUserData] = useState<SystemAdminData | null>(null)
+  const [activities, setActivities] = useState<SystemActivity[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
     full_name: "",
@@ -32,6 +42,7 @@ export default function SystemAdminProfilePage() {
 
   useEffect(() => {
     loadProfile()
+    loadActivities()
   }, [])
 
   const loadProfile = async () => {
@@ -57,6 +68,97 @@ export default function SystemAdminProfilePage() {
     })
 
     setIsLoading(false)
+  }
+
+  const loadActivities = async () => {
+    const supabase = createClient()
+    setIsLoadingActivities(true)
+
+    try {
+      // Get recent client creation activities
+      const { data: clients } = await supabase
+        .from("clients")
+        .select("id, name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      // Get recent user creation activities
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, full_name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      // Get recent client-user associations (admin assignments)
+      const { data: clientUsers } = await supabase
+        .from("client_users")
+        .select(`
+          id,
+          created_at,
+          clients (name),
+          roles (key)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      // Combine and format activities
+      const allActivities: SystemActivity[] = []
+
+      // Client creation activities
+      clients?.forEach((client: any) => {
+        allActivities.push({
+          id: `client-${client.id}`,
+          action: "Created new client",
+          details: client.name,
+          timestamp: client.created_at,
+          type: 'client'
+        })
+      })
+
+      // User creation activities
+      users?.forEach((user: any) => {
+        allActivities.push({
+          id: `user-${user.id}`,
+          action: "Created new user",
+          details: user.full_name || "Unknown user",
+          timestamp: user.created_at,
+          type: 'user'
+        })
+      })
+
+      // Admin assignment activities
+      clientUsers?.forEach((cu: any) => {
+        if (cu.roles?.key === 'admin' || cu.roles?.key === 'superadmin') {
+          allActivities.push({
+            id: `assignment-${cu.id}`,
+            action: `Assigned ${cu.roles.key} role`,
+            details: `${cu.clients?.name || 'Unknown client'}`,
+            timestamp: cu.created_at,
+            type: 'user'
+          })
+        }
+      })
+
+      // Sort by timestamp and take the most recent 10
+      allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      const recentActivities = allActivities.slice(0, 10)
+
+      setActivities(recentActivities)
+    } catch (error) {
+      console.error("Error loading activities:", error)
+      // Set some fallback activities if error occurs
+      setActivities([
+        {
+          id: 'fallback-1',
+          action: 'System initialized',
+          details: 'DAM platform ready',
+          timestamp: new Date().toISOString(),
+          type: 'system'
+        }
+      ])
+    } finally {
+      setIsLoadingActivities(false)
+    }
   }
 
   const handleEdit = async () => {
@@ -255,29 +357,35 @@ export default function SystemAdminProfilePage() {
             <CardContent>
               <div className="space-y-4">
                 <p className="text-gray-600">Recent system administration activities:</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm">Created new client</p>
-                      <p className="text-xs text-gray-500">Molslinjen A/S</p>
-                    </div>
-                    <span className="text-xs text-gray-500">2 hours ago</span>
+                {isLoadingActivities ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-black border-t-transparent" />
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm">Updated system settings</p>
-                      <p className="text-xs text-gray-500">Security policies</p>
-                    </div>
-                    <span className="text-xs text-gray-500">1 day ago</span>
+                ) : activities.length > 0 ? (
+                  <div className="space-y-2">
+                    {activities.map((activity) => (
+                      <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-sm">{activity.action}</p>
+                          <p className="text-xs text-gray-500">{activity.details}</p>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {new Date(activity.timestamp).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm">Managed user permissions</p>
-                      <p className="text-xs text-gray-500">5 users affected</p>
-                    </div>
-                    <span className="text-xs text-gray-500">3 days ago</span>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No recent activities found</p>
                   </div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
