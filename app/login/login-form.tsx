@@ -3,6 +3,7 @@
 import type React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, useEffect, Suspense } from "react"
+import { Mail, Lock } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -10,11 +11,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
+// Tenant branding interface
+interface TenantBranding {
+  name: string
+  logo_url?: string
+  primary_color: string
+}
+
+function LoginForm({
+  isSystemAdmin = false,
+  tenant: serverTenant
+}: {
+  isSystemAdmin?: boolean
+  tenant?: TenantBranding | null
+}) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [tenant, setTenant] = useState<TenantBranding | null>(serverTenant || null)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -34,6 +49,65 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
   
   // Use client-side detection if server-side prop is false but we're on admin subdomain
   const effectiveIsSystemAdmin = isSystemAdmin || clientIsSystemAdmin
+
+  // Detect tenant from subdomain and load branding (fallback if server didn't provide)
+  useEffect(() => {
+    // If we already have tenant data from server, don't fetch again
+    if (serverTenant) return
+
+    const loadTenantBranding = async () => {
+      if (typeof window !== 'undefined') {
+        const host = window.location.hostname
+
+        // Skip admin subdomains
+        if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost')) {
+          return
+        }
+
+        // Extract tenant slug from subdomain
+        let tenantSlug = null
+        if (host.endsWith('.brandassets.space')) {
+          tenantSlug = host.replace('.brandassets.space', '')
+        } else if (host.endsWith('.localhost')) {
+          tenantSlug = host.replace('.localhost', '')
+        }
+
+
+        if (tenantSlug && tenantSlug !== 'www') {
+          try {
+            const supabase = createClient()
+
+            // Try multiple possible slug variations
+            const possibleSlugs = [tenantSlug, `${tenantSlug}-demo`, `norgard-mikkelsen`]
+
+            let tenantData = null
+
+            for (const slug of possibleSlugs) {
+              const { data, error } = await supabase
+                .from("clients")
+                .select("name, logo_url, primary_color")
+                .eq("slug", slug)
+                .eq("status", "active")
+                .single()
+
+              if (data && !error) {
+                tenantData = data
+                break
+              }
+            }
+
+            if (tenantData) {
+              setTenant(tenantData)
+            }
+          } catch (error) {
+            console.error('[LOGIN] Failed to load tenant branding:', error)
+          }
+        }
+      }
+    }
+
+    loadTenantBranding()
+  }, [serverTenant])
 
   useEffect(() => {
     const checkSession = async () => {
@@ -69,29 +143,16 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
     setIsLoading(true)
     setError(null)
 
-    const debugLog: string[] = []
-    debugLog.push(`[DEBUG] Starting login process`)
-    debugLog.push(`[DEBUG] Host: ${window.location.host}`)
-    debugLog.push(`[DEBUG] Email: ${email}`)
-
-    // Debug Supabase configuration
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const hasAnonKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    debugLog.push(`[DEBUG] Supabase URL: ${supabaseUrl ? 'configured' : 'MISSING'}`)
-    debugLog.push(`[DEBUG] Supabase Anon Key: ${hasAnonKey ? 'configured' : 'MISSING'}`)
 
     if (!supabaseUrl || !hasAnonKey) {
-      const errorMsg = 'Supabase configuration missing. Please check your .env.local file.'
-      debugLog.push(`[DEBUG] ERROR: ${errorMsg}`)
-      console.error('[LOGIN DEBUG]', debugLog.join('\n'))
-      setError(errorMsg)
+      setError('Supabase configuration missing. Please check your .env.local file.')
       setIsLoading(false)
       return
     }
 
     try {
-      debugLog.push(`[DEBUG] Attempting to sign in via API route...`)
-      
       // Use API route to login and set cookies with correct domain
       const loginResponse = await fetch('/api/auth/login', {
         method: 'POST',
@@ -104,8 +165,6 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
 
       if (!loginResponse.ok) {
         const errorData = await loginResponse.json()
-        debugLog.push(`[DEBUG] API login error: ${errorData.error}`)
-        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
 
         if (errorData.error.includes('Invalid login credentials') || errorData.error.includes('Invalid')) {
           setError('Invalid email or password. Please check your credentials and try again.')
@@ -119,10 +178,8 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
       }
 
       const loginData = await loginResponse.json()
-      
-      if (loginData?.user) {
-        debugLog.push(`[DEBUG] API login successful, user: ${loginData.user.id}`)
 
+      if (loginData?.user) {
         // Set session in Supabase client
         if (loginData.session) {
           await supabase.auth.setSession({
@@ -131,7 +188,7 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
           })
         }
 
-        // Simple redirect logic: 
+        // Simple redirect logic:
         // - If on tenant subdomain (nmic.localhost), go to /dashboard
         // - If on admin subdomain (admin.localhost), go to /system-admin/dashboard
         // - Otherwise, let the server-side layout handle authorization
@@ -139,91 +196,143 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
         const isAdminSubdomain = host === 'admin.localhost' || host === 'admin.brandassets.space'
         const isTenantSubdomain = (host.endsWith('.localhost') && host !== 'localhost' && !isAdminSubdomain) ||
                                    (host.endsWith('.brandassets.space') && host !== 'brandassets.space' && !isAdminSubdomain)
-        
+
         let redirectUrl = '/dashboard'
         if (isAdminSubdomain) {
           redirectUrl = '/system-admin/dashboard'
         }
-        
-        debugLog.push(`[DEBUG] Host: ${host}, isAdmin: ${isAdminSubdomain}, isTenant: ${isTenantSubdomain}`)
-        debugLog.push(`[DEBUG] Redirecting to: ${redirectUrl}`)
-        console.log('[LOGIN DEBUG]', debugLog.join('\n'))
 
         // Small delay to ensure cookies are set
         await new Promise(resolve => setTimeout(resolve, 300))
         window.location.href = redirectUrl
       } else {
-        debugLog.push(`[DEBUG] API login successful but no user data`)
-        console.error('[LOGIN DEBUG]', debugLog.join('\n'))
         setError('Login failed. Please try again.')
         setIsLoading(false)
       }
     } catch (err) {
-      debugLog.push(`[DEBUG] Unexpected error: ${err}`)
-      console.error('[LOGIN DEBUG]', debugLog.join('\n'))
       setError('An unexpected error occurred. Please try again.')
       setIsLoading(false)
     }
   }
 
   return (
-    <div className={`flex min-h-screen w-full items-center justify-center p-6 ${effectiveIsSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
-          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>
-              Enter your email below to login to your account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-              {error && (
-                <div className="space-y-2">
-                  <p className="text-sm text-red-500 font-medium">{error.split('\n')[0]}</p>
-                  {error.includes('[DEBUG]') && (
-                    <details className="text-xs text-gray-600 bg-gray-50 p-2 rounded border max-h-60 overflow-auto">
-                      <summary className="cursor-pointer font-medium">Debug Details</summary>
-                      <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
-                    </details>
-                  )}
+    <div className={`min-h-screen w-full flex items-center justify-center p-6 ${
+      effectiveIsSystemAdmin ? 'bg-gray-50' : 'bg-gray-50'
+    }`}>
+        {/* Main content */}
+        <div className="w-full max-w-md">
+        <div className="w-full max-w-md">
+          {/* Clean Login Card */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            {/* Header with Logo */}
+            <div className="px-8 pt-8 pb-4 text-center">
+              {tenant?.logo_url ? (
+                <div className="mb-6">
+                  <img
+                    src={tenant.logo_url}
+                    alt={`${tenant.name} Logo`}
+                    className="h-12 mx-auto object-contain"
+                  />
                 </div>
+              ) : (
+                <h1 className="text-2xl font-bold text-gray-900 mb-6">
+                  {tenant?.name || 'Digital Asset Management'}
+                </h1>
               )}
-              <Button type="submit" className={`w-full rounded-[25px] ${effectiveIsSystemAdmin ? 'bg-black hover:bg-gray-800 text-white' : 'bg-[#DF475C] hover:bg-[#C82333]'}`} disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                {tenant ? `Sign in to ${tenant.name}` : 'Sign In'}
+              </h2>
+              <p className="text-gray-600 text-sm">
+                Enter your credentials to continue
+              </p>
+            </div>
+
+            {/* Form Content */}
+            <div className="px-8 py-6">
+              <form onSubmit={handleLogin} className="space-y-6">
+                {/* Email Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                    Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                      className="h-11 pl-10 pr-4 border border-gray-300 rounded-lg focus:border-gray-500 focus:ring-2 focus:ring-gray-500/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Password Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                    Password
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      required
+                      className="h-11 pl-10 pr-4 border border-gray-300 rounded-lg focus:border-gray-500 focus:ring-2 focus:ring-gray-500/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-700">{error.split('\n')[0]}</p>
+                    {error.includes('[DEBUG]') && (
+                      <details className="mt-3 text-xs text-red-600 bg-red-100 p-3 rounded border max-h-32 overflow-auto">
+                        <summary className="cursor-pointer font-medium">Debug Details</summary>
+                        <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
+                      </details>
+                    )}
+                  </div>
+                )}
+
+                {/* Login Button */}
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-11 rounded-lg font-medium text-white hover:opacity-90 transition-opacity"
+                  style={{
+                    backgroundColor: effectiveIsSystemAdmin ? '#000000' : (tenant?.primary_color || '#DF475C')
+                  }}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Signing in...
+                    </div>
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+
+                {/* Footer */}
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 text-center">
+                    <span className="font-semibold text-gray-700">Nørgård Mikkelsen</span>
+                    {' '}Digital Asset Management System
+                  </p>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -233,16 +342,13 @@ function LoginForm({ isSystemAdmin = false }: { isSystemAdmin?: boolean }) {
  * Determine correct redirect URL based on user context
  * Returns null if user has no valid access
  */
-async function determineUserRedirect(userId: string, supabase: any, host: string, debugLog: string[] = []): Promise<string | null> {
+async function determineUserRedirect(userId: string, supabase: any, host: string): Promise<string | null> {
 
   // CONTEXT-BASED REDIRECT LOGIC
 
   // 1. System Admin Context (admin.brandassets.space or admin.localhost*)
   if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')) {
-    debugLog.push(`[REDIRECT] System admin context detected`)
-
     // Check if user has superadmin role
-    debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
     const { data: superadminCheck, error: superadminError } = await supabase
       .from('client_users')
       .select(`
@@ -254,17 +360,10 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
       .eq('roles.key', 'superadmin')
       .limit(1)
 
-    if (superadminError) {
-      debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
-    }
-
     if (superadminCheck && superadminCheck.length > 0) {
-      debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
       return '/system-admin/dashboard'
-    } else {
-      debugLog.push(`[REDIRECT] User is not a superadmin`)
-      return null
     }
+    return null
   }
 
   // 2. Tenant Context (*.brandassets.space or *.localhost)
@@ -272,7 +371,7 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   const port = host.split(':')[1] || '3000'
 
   let subdomain = ''
-  
+
   // Check for localhost subdomains (e.g., nmic.localhost:3000)
   if (hostWithoutPort.endsWith('.localhost') && hostWithoutPort !== 'localhost') {
     subdomain = hostWithoutPort.replace('.localhost', '')
@@ -281,18 +380,11 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   else if (hostWithoutPort.endsWith('.brandassets.space') && hostWithoutPort !== 'brandassets.space') {
     subdomain = hostWithoutPort.replace('.brandassets.space', '')
   }
-  // Plain localhost or main domain - no subdomain
-  else {
-    subdomain = ''
-  }
-  
-  const isDevelopment = hostWithoutPort.includes('localhost')
 
-  debugLog.push(`[REDIRECT] Tenant context detected, subdomain: "${subdomain}"`)
+  const isDevelopment = hostWithoutPort.includes('localhost')
 
   if (subdomain) {
     // Specific tenant requested
-    debugLog.push(`[REDIRECT] Checking tenant access for subdomain: ${subdomain}...`)
     const { data: tenant, error: tenantError } = await supabase
       .from("clients")
       .select("id, slug, name")
@@ -300,15 +392,8 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
       .eq("status", "active")
       .single()
 
-    if (tenantError) {
-      debugLog.push(`[REDIRECT] Tenant query error: ${tenantError.message}`)
-    }
-
-    debugLog.push(`[REDIRECT] Tenant result: ${tenant ? `found (id: ${tenant.id}, name: ${tenant.name})` : 'not found'}`)
-
     if (tenant) {
       // Check if user is superadmin (they have access to all tenants)
-      debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
       const { data: superadminCheck, error: superadminError } = await supabase
         .from("client_users")
         .select(`
@@ -320,19 +405,13 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
         .eq("roles.key", "superadmin")
         .limit(1)
 
-      if (superadminError) {
-        debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
-      }
-
       const isSuperAdmin = superadminCheck && superadminCheck.length > 0
 
       if (isSuperAdmin) {
-        debugLog.push(`[REDIRECT] User is superadmin, has access to all tenants, redirecting to /dashboard`)
         return "/dashboard"
       }
 
       // Not a superadmin, check explicit tenant access
-      debugLog.push(`[REDIRECT] Checking client_users access for tenant ${tenant.id}...`)
       const { data: accessCheck, error: accessError } = await supabase
         .from("client_users")
         .select("id, role_id")
@@ -341,20 +420,9 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
         .eq("status", "active")
         .single()
 
-      if (accessError) {
-        debugLog.push(`[REDIRECT] Client users query error: ${accessError.message}`)
-      }
-
-      debugLog.push(`[REDIRECT] Client users access result: ${accessCheck ? `found (id: ${accessCheck.id})` : 'not found'}`)
-
       if (accessCheck) {
-        debugLog.push(`[REDIRECT] User has access to tenant, redirecting to /dashboard`)
         return "/dashboard"
-      } else {
-        debugLog.push(`[REDIRECT] User does not have access to this tenant`)
       }
-    } else {
-      debugLog.push(`[REDIRECT] Tenant not found with slug: ${subdomain}`)
     }
     // No access to this tenant
     return null
@@ -363,10 +431,7 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   // 3. Public Context (brandassets.space) or other domains
   // Check what access the user has and redirect accordingly
 
-  debugLog.push(`[REDIRECT] Checking public context...`)
-
   // Priority: Superadmin > Any Tenant Access
-  debugLog.push(`[REDIRECT] Checking if user is superadmin...`)
   const { data: superadminCheck, error: superadminError } = await supabase
     .from('client_users')
     .select(`
@@ -378,17 +443,11 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     .eq('roles.key', 'superadmin')
     .limit(1)
 
-  if (superadminError) {
-    debugLog.push(`[REDIRECT] Superadmin check error: ${superadminError.message}`)
-  }
-
   if (superadminCheck && superadminCheck.length > 0) {
-    debugLog.push(`[REDIRECT] User is superadmin, redirecting to /system-admin/dashboard`)
     return '/system-admin/dashboard'
   }
 
   // Check for any tenant access
-  debugLog.push(`[REDIRECT] Checking for any tenant access...`)
   const { data: clientUsers, error: clientUsersError } = await supabase
     .from("client_users")
     .select(`
@@ -404,15 +463,8 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
     .eq("status", "active")
     .eq("clients.status", "active")
 
-  if (clientUsersError) {
-    debugLog.push(`[REDIRECT] Client users query error: ${clientUsersError.message}`)
-  }
-
-  debugLog.push(`[REDIRECT] Client users result: ${clientUsers && clientUsers.length > 0 ? `found ${clientUsers.length} access(es)` : 'not found'}`)
-
   if (clientUsers && clientUsers.length > 0) {
     const client = clientUsers[0].clients
-    debugLog.push(`[REDIRECT] User has access to tenant: ${client.slug} (${client.name})`)
     // Redirect to tenant subdomain
     if (isDevelopment) {
       return `http://${client.slug}.localhost:${port}/dashboard`
@@ -421,7 +473,6 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   }
 
   // No valid access found
-  debugLog.push(`[REDIRECT] No valid access found for user`)
   return null
 }
 

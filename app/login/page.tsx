@@ -6,7 +6,7 @@ export default async function LoginPage() {
   // Get host from server-side headers to avoid hydration mismatch
   const headersList = await headers()
   const hostname = headersList.get('host') || ''
-  
+
   // Remove port if present
   const [host] = hostname.split(':')
 
@@ -20,13 +20,60 @@ export default async function LoginPage() {
     host === 'admin.localhost' ||
     host.startsWith('admin.localhost:')
 
+  // SERVER-SIDE TENANT DETECTION (kun for tenant subdomains)
+  let tenant = null
+  if (!isSystemAdmin) {
+    // Extract tenant slug from hostname
+    let tenantSlug = null
+    if (host.endsWith('.brandassets.space')) {
+      tenantSlug = host.replace('.brandassets.space', '')
+    } else if (host.endsWith('.localhost')) {
+      tenantSlug = host.replace('.localhost', '')
+    }
+
+    if (tenantSlug && tenantSlug !== 'www') {
+      try {
+        // Use server-side Supabase client (bypasses RLS for service role)
+        const { createClient } = await import('@/lib/supabase/server')
+        const supabase = await createClient()
+
+        const { data, error } = await supabase
+          .from("clients")
+          .select("name, logo_url, primary_color")
+          .eq("slug", tenantSlug)
+          .eq("status", "active")
+          .single()
+
+        if (data && !error) {
+          tenant = data
+        }
+      } catch (error) {
+        console.error('Server-side tenant loading failed:', error)
+      }
+    }
+  }
+
   return (
     <Suspense fallback={
       <div className={`flex min-h-screen w-full items-center justify-center p-6 ${isSystemAdmin ? 'bg-white' : 'bg-gray-50'}`}>
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-gray-900">Digital Asset Management</h1>
-            <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+            {tenant?.logo_url ? (
+              <div className="mb-4">
+                <img
+                  src={tenant.logo_url}
+                  alt={`${tenant.name} Logo`}
+                  className="h-12 mx-auto object-contain"
+                />
+              </div>
+            ) : (
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">
+                {tenant?.name || 'Digital Asset Management'}
+              </h1>
+            )}
+            <p className="mt-2 text-sm text-gray-600">
+              {tenant ? `Sign in to ${tenant.name}` : 'Sign in to your account'}
+            </p>
           </div>
           <div className="border rounded-lg p-6 bg-white shadow-sm">
             <div className="text-2xl font-bold mb-2">Login</div>
@@ -40,7 +87,7 @@ export default async function LoginPage() {
         </div>
       </div>
     }>
-      <LoginForm isSystemAdmin={isSystemAdmin} />
+      <LoginForm isSystemAdmin={isSystemAdmin} tenant={tenant} />
     </Suspense>
   )
 }
