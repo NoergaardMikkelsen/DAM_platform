@@ -240,7 +240,7 @@ function LoginForm({
                 </h1>
               )}
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                {tenant ? `Sign in to ${tenant.name}` : 'Sign In'}
+                {tenant ? `Login to ${tenant.name} DAM` : 'Login'}
               </h2>
               <p className="text-gray-600 text-sm">
                 Enter your credentials to continue
@@ -318,7 +318,7 @@ function LoginForm({
                       Signing in...
                     </div>
                   ) : (
-                    'Sign In'
+                    'Login'
                   )}
                 </Button>
 
