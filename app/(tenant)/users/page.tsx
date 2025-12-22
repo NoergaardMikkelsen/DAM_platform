@@ -54,17 +54,8 @@ export default function UsersPage() {
     // Use server action to bypass RLS and get all tenant users
     const usersData = await getTenantUsers(clientId)
 
-    console.log('[USERS DEBUG] Received', usersData.length, 'users from server action')
     usersData.forEach((user, index) => {
-      console.log(`[USERS DEBUG] User ${index}:`, {
-        id: user.id,
-        status: user.status,
-        hasUser: !!user.users,
-        hasRole: !!user.roles,
-        userName: user.users?.full_name || 'MISSING',
-        userEmail: user.users?.email || 'MISSING',
-        roleName: user.roles?.name || 'MISSING'
-      })
+      // Debug removed
     })
 
     setAllUsers(usersData)

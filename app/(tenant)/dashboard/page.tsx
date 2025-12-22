@@ -82,7 +82,6 @@ export default function DashboardPage() {
           if (error) {
             console.error('[AUTH-TRANSFER] Error setting session:', error)
           } else {
-            console.log('[AUTH-TRANSFER] Session established successfully')
             // Remove auth params from URL to clean up
             const cleanUrl = window.location.pathname
             window.history.replaceState({}, '', cleanUrl)
@@ -104,13 +103,15 @@ export default function DashboardPage() {
     const updateMaxCollections = () => {
       if (typeof window !== 'undefined') {
         const width = window.innerWidth
-        // Calculate how many 200px+ cards can fit
+        // For horizontal scrolling layout, allow reasonable number but not unlimited
         const availableWidth = width - 64 // Account for padding
         const cardWidth = 200 + 32 // 200px min card + 32px gap
         const maxCols = Math.floor(availableWidth / cardWidth)
 
-        // Cap at 4 max, minimum 2
-        setMaxCollections(Math.min(Math.max(maxCols, 2), 4))
+
+        // For horizontal scroll: allow up to 12 max, min 2
+        const finalMax = Math.min(Math.max(maxCols, 2), 12)
+        setMaxCollections(finalMax)
       }
     }
 
@@ -136,7 +137,6 @@ export default function DashboardPage() {
     if (!user) {
       // Session not found client-side, but server verified - likely httpOnly cookie issue
       // Reload page to let server handle it
-      console.log('[DASHBOARD] No client session, reloading...')
       window.location.reload()
       return
     }
@@ -378,7 +378,9 @@ export default function DashboardPage() {
       <div className="mb-10">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-gray-900">{filteredCollections.length} Collections</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {collections.length > maxCollections ? `${maxCollections}+ of ${collections.length}` : `${collections.length}`} Collections
+            </h2>
             <button
               onClick={() => {
                 // Use full URL with tenant subdomain to ensure proper routing
@@ -411,7 +413,7 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
+          <div className="flex gap-6 overflow-x-auto pb-2">
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}

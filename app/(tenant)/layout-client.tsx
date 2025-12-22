@@ -38,7 +38,6 @@ export default function TenantLayoutClient({ tenant, userData, role, children }:
     setShowContent(true)
   }
 
-  console.log('[TENANT-LAYOUT-CLIENT] Rendering with children:', !!children, 'showContent:', showContent, 'pathname:', typeof window !== 'undefined' ? window.location.pathname : 'server')
 
   return (
     <>

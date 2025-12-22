@@ -22,7 +22,6 @@ export function BridgeTokenHandler() {
 
         // Validate token
         if (payload.targetDomain === window.location.host && payload.exp > Math.floor(Date.now() / 1000)) {
-          console.log('[BRIDGE] Token valid, syncing session for user', payload.userId)
 
           // Sync session via API
           const response = await fetch('/api/auth/sync-session', {
@@ -34,7 +33,6 @@ export function BridgeTokenHandler() {
           })
 
           if (response.ok) {
-            console.log('[BRIDGE] Session synced successfully')
             // Redirect to clean URL without bridge token
             const url = new URL(window.location.href)
             url.searchParams.delete('bridge')

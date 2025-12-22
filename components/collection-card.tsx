@@ -132,7 +132,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
 
   return (
     <Link href={`/assets/collections/${id}`}>
-      <div className="relative w-full max-w-[280px] aspect-[239/200] overflow-hidden" style={{ containerType: 'inline-size' }}>
+      <div className="relative flex-shrink-0 w-[280px] aspect-[239/200] overflow-hidden" style={{ containerType: 'inline-size' }}>
         {/* SVG with mask for the exact shape */}
         <svg viewBox="0 0 239 200" className="w-full h-full absolute inset-0" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
           <defs>

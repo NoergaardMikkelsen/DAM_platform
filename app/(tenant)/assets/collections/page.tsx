@@ -38,7 +38,6 @@ export default function CollectionsPage() {
   const [maxCollections, setMaxCollections] = useState(3)
   const router = useRouter()
 
-  console.log('[COLLECTIONS PAGE] Rendering with tenant:', tenant, 'window.location:', typeof window !== 'undefined' ? window.location.href : 'server')
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {

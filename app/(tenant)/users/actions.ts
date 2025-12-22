@@ -35,7 +35,6 @@ export async function getTenantUsers(clientId: string): Promise<UserWithRole[]> 
     return []
   }
 
-  console.log('[TENANT-USERS-ACTIONS] Found client_users:', clientUsers.length)
 
   // Get all user IDs and role IDs
   const userIds = [...new Set(clientUsers.map(cu => cu.user_id))]
@@ -69,6 +68,5 @@ export async function getTenantUsers(clientId: string): Promise<UserWithRole[]> 
     users: usersMap.get(clientUser.user_id) || null
   }))
 
-  console.log('[TENANT-USERS-ACTIONS] Returning combined data:', result.length)
   return result
 }

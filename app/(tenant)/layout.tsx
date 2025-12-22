@@ -89,14 +89,12 @@ export default async function AuthenticatedLayout({
   // Admin subdomain should NEVER reach tenant layout - redirect immediately
   if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')) {
     debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - redirecting to system-admin`)
-    console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/system-admin/dashboard")
   }
 
   if (host === 'brandassets.space' || (isDevelopment && host === 'localhost')) {
     // Wrong context - redirect to public landing
     debugLog.push(`[TENANT-LAYOUT] Wrong context - redirecting to public landing`)
-    console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/")
   }
 
@@ -233,7 +231,6 @@ export default async function AuthenticatedLayout({
   }
 
   debugLog.push(`[TENANT-LAYOUT] All checks passed - rendering layout`)
-  console.log('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
 
   // Get user role within this tenant
   // Superadmins always get "superadmin" role

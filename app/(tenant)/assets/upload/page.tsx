@@ -76,9 +76,6 @@ export default function UploadAssetPage() {
         .order("sort_order")
 
       if (tags) {
-        console.log('[UPLOAD] Available tags:', tags.length)
-        console.log('[UPLOAD] Category tags:', tags.filter(t => t.tag_type === 'category'))
-        console.log('[UPLOAD] Client ID:', clientId)
         setAvailableTags(tags)
       }
     } catch (err) {
@@ -139,7 +136,6 @@ export default function UploadAssetPage() {
     setSuccess(false)
 
     try {
-      console.log("Uploading asset for client:", clientId)
       setUploadProgress(10)
 
       let dimensions: { width: number; height: number; duration?: number } | null = null
@@ -160,7 +156,6 @@ export default function UploadAssetPage() {
         },
       })
 
-      console.log("File uploaded to:", uploadResult.path)
       setUploadProgress(75)
 
       // Generate thumbnail for video files
@@ -206,7 +201,6 @@ export default function UploadAssetPage() {
 
       if (dbError) throw dbError
 
-      console.log("Asset created with ID:", newAsset.id)
       setUploadProgress(90)
 
       // Create initial asset_version and set as current_version_id
@@ -258,7 +252,6 @@ export default function UploadAssetPage() {
           if (fileTypeTagError) {
             console.error("File type tag assignment error:", fileTypeTagError)
           } else {
-            console.log(`Auto-assigned file_type tag: ${fileTypeSlug}`)
           }
         }
       }
@@ -310,11 +303,6 @@ export default function UploadAssetPage() {
   // Visual style tags - show ALL visual_style tags (system + client-specific)
   const visualStyleTags = availableTags.filter((t) => t.tag_type === "visual_style")
 
-  console.log('[UPLOAD] Filtered arrays:')
-  console.log('Category tags:', categoryTags.length, categoryTags)
-  console.log('Description tags:', descriptionTags.length)
-  console.log('Usage tags:', usageTags.length)
-  console.log('Visual style tags:', visualStyleTags.length)
 
   if (isInitializing) {
     return (
@@ -350,13 +338,13 @@ export default function UploadAssetPage() {
             <div className="space-y-2">
               <Label htmlFor="file">File *</Label>
               <div className="flex">
-                <Input
-                  id="file"
-                  type="file"
-                  required
-                  onChange={handleFileChange}
-                  accept="image/*,video/*,application/pdf"
-                  disabled={isLoading}
+              <Input
+                id="file"
+                type="file"
+                required
+                onChange={handleFileChange}
+                accept="image/*,video/*,application/pdf"
+                disabled={isLoading}
                   className="hidden"
                 />
                 <label

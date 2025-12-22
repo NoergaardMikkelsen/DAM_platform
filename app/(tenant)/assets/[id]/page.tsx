@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useTenant } from "@/lib/context/tenant-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +37,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Download,
+  Edit3,
   Heart,
   Link2,
   Share2,
@@ -158,6 +161,9 @@ export default function AssetDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDownloadingPreset, setIsDownloadingPreset] = useState(false)
   const [isDownloadingCustom, setIsDownloadingCustom] = useState(false)
+  const [isEditingTags, setIsEditingTags] = useState(false)
+  const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
   const [isDownloadingVideoCustom, setIsDownloadingVideoCustom] = useState(false)
   const [isMediaLoading, setIsMediaLoading] = useState(false)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
@@ -459,6 +465,130 @@ export default function AssetDetailPage() {
     } catch (error) {
       console.error("Favorite toggle failed:", error)
       setErrorMessage("Kunne ikke opdatere favorit.")
+    }
+  }
+
+  const handleEditTags = async () => {
+    if (!asset) return
+
+    const supabase = supabaseRef.current
+    const clientId = asset.client_id
+
+    try {
+      // Get all available tags for this tenant
+      const { data: tagsData } = await supabase
+        .from("tags")
+        .select("id, label, tag_type, slug")
+        .or(`client_id.eq.${clientId},client_id.is.null`)
+        .order("tag_type")
+        .order("sort_order")
+
+      setAvailableTags(tagsData || [])
+
+      // Get currently selected tag IDs
+      const currentTagIds = new Set(tags.map(tag => tag.id))
+      setSelectedTagIds(currentTagIds)
+
+      setIsEditingTags(true)
+    } catch (error) {
+      console.error("Failed to load tags for editing:", error)
+      setErrorMessage("Kunne ikke indlæse tags til redigering.")
+    }
+  }
+
+  const handleTagToggle = (tagId: string) => {
+    const newSelected = new Set(selectedTagIds)
+    if (newSelected.has(tagId)) {
+      newSelected.delete(tagId)
+    } else {
+      newSelected.add(tagId)
+    }
+    setSelectedTagIds(newSelected)
+  }
+
+  const handleSaveTags = async () => {
+    if (!asset) return
+
+    const supabase = supabaseRef.current
+
+    try {
+
+      // Separate category tags from other tags
+      const categoryTagId = Array.from(selectedTagIds).find(id =>
+        availableTags.find(tag => tag.id === id)?.tag_type === 'category'
+      )
+
+      // Get non-category tags
+      const nonCategoryTagIds = new Set(
+        Array.from(selectedTagIds).filter(id =>
+          availableTags.find(tag => tag.id === id)?.tag_type !== 'category'
+        )
+      )
+
+
+      // Update category tag in assets table
+      if (categoryTagId !== asset.category_tag_id) {
+        await supabase
+          .from("assets")
+          .update({ category_tag_id: categoryTagId })
+          .eq("id", asset.id)
+      }
+
+      // Get current non-category tag relationships from asset_tags
+      const { data: currentAssetTags } = await supabase
+        .from("asset_tags")
+        .select("tag_id")
+        .eq("asset_id", asset.id)
+
+      const currentNonCategoryTagIds = new Set(currentAssetTags?.map((at: any) => at.tag_id as string) || [])
+
+
+      // Find tags to add and remove (only non-category)
+      const tagsToAdd = [...nonCategoryTagIds].filter((id: string) => !currentNonCategoryTagIds.has(id))
+      const tagsToRemove = [...currentNonCategoryTagIds as Set<string>].filter((id: string) => !nonCategoryTagIds.has(id))
+
+
+      // Add new tags
+      if (tagsToAdd.length > 0) {
+        const insertData = tagsToAdd.map(tagId => ({
+          asset_id: asset.id,
+          tag_id: tagId
+        }))
+        const { error: insertError } = await supabase.from("asset_tags").insert(insertData)
+        if (insertError) {
+          console.error('[TAG SAVE] Insert error:', insertError)
+          throw insertError
+        }
+      }
+
+      // Remove old tags
+      if (tagsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("asset_tags")
+          .delete()
+          .eq("asset_id", asset.id)
+          .in("tag_id", tagsToRemove)
+        if (deleteError) {
+          console.error('[TAG SAVE] Delete error:', deleteError)
+          throw deleteError
+        }
+      }
+
+      // Reload asset data to reflect changes
+      await loadAsset(asset.id, true)
+      setIsEditingTags(false)
+
+      // Log the tag change event
+      await logAssetEvent("tags_updated", {
+        category_changed: categoryTagId !== asset.category_tag_id,
+        added_tags: tagsToAdd.length,
+        removed_tags: tagsToRemove.length
+      })
+
+
+    } catch (error) {
+      console.error("Failed to save tags:", error)
+      setErrorMessage("Kunne ikke gemme tag ændringer.")
     }
   }
 
@@ -1373,7 +1503,20 @@ export default function AssetDetailPage() {
                 </AccordionItem>
 
                 <AccordionItem value="tags">
-                  <AccordionTrigger className="text-sm font-semibold text-gray-800">Tags</AccordionTrigger>
+                  <div className="flex items-center justify-between">
+                    <AccordionTrigger className="text-sm font-semibold text-gray-800 flex-1">Tags</AccordionTrigger>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditTags()
+                      }}
+                      className="mr-2 h-8 w-8 p-0 hover:bg-gray-100"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <AccordionContent>
                     {tags.filter(tag => tag.tag_type !== 'category' && tag.tag_type !== 'file_type').length ? (
                       <div className="flex flex-wrap gap-2">
@@ -1453,6 +1596,57 @@ export default function AssetDetailPage() {
                 </AccordionItem>
               </Accordion>
             </div>
+
+            {/* Tag Editing Modal */}
+            <Dialog open={isEditingTags} onOpenChange={setIsEditingTags}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Tags</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  {/* Group tags by type */}
+                  {['category', 'description', 'usage', 'visual_style'].map(tagType => {
+                    const typeTags = availableTags.filter(tag => tag.tag_type === tagType)
+                    if (typeTags.length === 0) return null
+
+                    return (
+                      <div key={tagType} className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-900 capitalize">
+                          {tagType.replace('_', ' ')} Tags
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {typeTags.map(tag => (
+                            <div key={tag.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={tag.id}
+                                checked={selectedTagIds.has(tag.id)}
+                                onCheckedChange={() => handleTagToggle(tag.id)}
+                              />
+                              <label
+                                htmlFor={tag.id}
+                                className="text-sm text-gray-700 cursor-pointer"
+                              >
+                                {tag.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditingTags(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveTags} style={{ backgroundColor: tenant.primary_color }}>
+                    Save Changes
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Actions pinned to bottom of sidebar */}
             <div className="mt-4 border-t border-gray-100 pt-4">

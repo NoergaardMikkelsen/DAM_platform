@@ -96,8 +96,8 @@ export default function AssetsPage() {
         const cardWidth = 200 + 32 // 200px min card + 32px gap
         const maxCols = Math.floor(availableWidth / cardWidth)
 
-        // Cap at 4 max, minimum 2
-        setMaxCollections(Math.min(Math.max(maxCols, 2), 4))
+        // For horizontal scroll: allow up to 12 max, min 2
+        setMaxCollections(Math.min(Math.max(maxCols, 2), 12))
       }
     }
 
@@ -253,7 +253,6 @@ export default function AssetsPage() {
     }
 
     debugLog.push(`[ASSETS-PAGE] LoadData completed`)
-    console.log('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
 
     const totalAssetsToLoad = assetsWithMedia.length
     setTotalAssets(totalAssetsToLoad)
@@ -423,7 +422,7 @@ export default function AssetsPage() {
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
         ) : (
-          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 280px))' }}>
+          <div className="flex gap-6 overflow-x-auto pb-2">
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
