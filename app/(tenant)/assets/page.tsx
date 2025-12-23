@@ -170,7 +170,11 @@ export default function AssetsPage() {
     }
 
     // Show content immediately - images will load individually with their own loading states
+    // Add a fallback timeout in case something goes wrong
     setTimeout(() => setIsLoading(false), 100)
+
+    // Also add a longer timeout as ultimate fallback
+    setTimeout(() => setIsLoading(false), 10000)
   }
 
   const applySearchAndSort = () => {

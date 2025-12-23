@@ -47,8 +47,6 @@ export default function DashboardPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [maxCollections, setMaxCollections] = useState(3)
-  const [retryCount, setRetryCount] = useState(0)
-  const [sessionError, setSessionError] = useState(false)
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -131,33 +129,9 @@ export default function DashboardPage() {
     // isLoading is already true from initial state
     const supabase = supabaseRef.current
 
-    // Server-side layout already verified auth, so we get user for data queries
-    // Use getSession instead of getUser since cookies might be httpOnly
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-
-    if (!user) {
-      // Session not found client-side, but server verified - likely httpOnly cookie issue
-      // Retry a few times before giving up
-      if (retryCount < 3) {
-        console.warn(`[DASHBOARD] No client-side session found (attempt ${retryCount + 1}/3), waiting for sync...`)
-        setRetryCount(prev => prev + 1)
-        // Set a timeout to retry getting session after potential sync
-        setTimeout(() => {
-          loadDashboardData()
-        }, 1500)
-        return
-      } else {
-        console.error('[DASHBOARD] Failed to get client-side session after 3 attempts')
-        // Show error state instead of reloading
-        setSessionError(true)
-        setIsLoading(false)
-        return
-      }
-    }
-
-    // Reset retry count on success
-    setRetryCount(0)
+    // Server-side layout already verified auth, so we trust the session is valid
+    // Don't try to get session client-side as it might not be available immediately when switching subdomains
+    // Just proceed with data loading - if session is invalid, server-side auth will catch it
 
     // Use tenant from context - tenant layout already verified access
     const clientId = tenant.id
@@ -193,7 +167,15 @@ export default function DashboardPage() {
     const storageLimitGB = 10 // Default limit in GB, could be made configurable per tenant later
     const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100) // Cap at 100%
 
-    const { data: userData } = await supabase.from("users").select("full_name").eq("id", user.id).single()
+    // Get current user for user data
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (!currentUser) {
+      console.error('[DASHBOARD] No user found')
+      setIsLoading(false)
+      return
+    }
+
+    const { data: userData } = await supabase.from("users").select("full_name").eq("id", currentUser.id).single()
 
     const { data: categoryTags } = await supabase
       .from("tags")
@@ -265,7 +247,11 @@ export default function DashboardPage() {
       ).length || 0), 0) || 0
 
     // Show content immediately - images will load individually with their own loading states
+    // Add a fallback timeout in case something goes wrong
     setTimeout(() => setIsLoading(false), 100)
+
+    // Also add a longer timeout as ultimate fallback
+    setTimeout(() => setIsLoading(false), 10000)
   }
 
   const handleApplyFilters = async (filters: {
@@ -325,26 +311,6 @@ export default function DashboardPage() {
     setIsFilterOpen(false)
   }
 
-  if (sessionError) {
-    return (
-      <div className="p-8">
-        <div className="max-w-md mx-auto mt-20">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <h2 className="text-lg font-semibold text-red-800 mb-2">Session Error</h2>
-            <p className="text-red-600 mb-4">
-              Unable to load your session. This may happen when switching between client subdomains.
-            </p>
-            <Button
-              onClick={() => window.location.reload()}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Reload Page
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   if (isLoading) {
     return (
