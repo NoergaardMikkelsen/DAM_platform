@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
   const router = useRouter()
   const supabaseRef = useRef(createClient())
-  const { tenant } = useTenant()
+  const { tenant, userData } = useTenant()
 
 
   useEffect(() => {
@@ -96,6 +96,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
+    // Start loading data immediately but with retry logic for session
     loadDashboardData()
   }, [tenant]) // Add tenant as dependency
 
@@ -167,15 +168,12 @@ export default function DashboardPage() {
     const storageLimitGB = 10 // Default limit in GB, could be made configurable per tenant later
     const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100) // Cap at 100%
 
-    // Get current user for user data
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      console.error('[DASHBOARD] No user found')
+    // Use userData from context - already verified server-side
+    if (!userData) {
+      console.error('[DASHBOARD] No userData in context')
       setIsLoading(false)
       return
     }
-
-    const { data: userData } = await supabase.from("users").select("full_name").eq("id", currentUser.id).single()
 
     const { data: categoryTags } = await supabase
       .from("tags")

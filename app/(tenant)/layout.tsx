@@ -265,7 +265,7 @@ export default async function AuthenticatedLayout({
 
   // Render tenant-scoped layout with loading screen
   return (
-    <TenantProvider tenant={tenant}>
+    <TenantProvider tenant={tenant} userData={userData}>
       <BrandProvider>
         <SessionSyncProvider>
           <Head>

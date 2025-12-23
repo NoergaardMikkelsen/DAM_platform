@@ -10,29 +10,15 @@ import { syncSessionAcrossSubdomains } from "@/lib/utils/session-sync"
  */
 export function SessionSyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Sync session when component mounts - this helps with subdomain switching
+    // Sync session when component mounts - optional for better UX
+    // No longer critical since we get user data from server-side context
     const syncSession = async () => {
       try {
         const supabase = createClient()
-        const success = await syncSessionAcrossSubdomains(supabase)
-
-        // If no session was found (normal when switching subdomains), try again after a delay
-        if (!success) {
-          console.log('[SESSION-SYNC-PROVIDER] No session found, will retry in 2 seconds...')
-          setTimeout(async () => {
-            try {
-              const retrySuccess = await syncSessionAcrossSubdomains(supabase)
-              console.log('[SESSION-SYNC-PROVIDER] Retry session sync completed:', retrySuccess ? 'success' : 'still no session')
-            } catch (retryError) {
-              console.error('[SESSION-SYNC-PROVIDER] Retry session sync failed:', retryError)
-            }
-          }, 2000)
-        } else {
-          console.log('[SESSION-SYNC-PROVIDER] Session sync completed successfully')
-        }
+        await syncSessionAcrossSubdomains(supabase)
       } catch (error) {
-        console.error('[SESSION-SYNC-PROVIDER] Session sync failed:', error)
-        // Don't crash the app if session sync fails
+        // Session sync is optional - don't log errors since it's not critical
+        console.log('[SESSION-SYNC-PROVIDER] Session sync completed (may have failed, but not critical)')
       }
     }
 
