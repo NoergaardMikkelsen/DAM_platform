@@ -21,7 +21,6 @@ interface Asset {
   mime_type: string
   created_at: string
   file_size: number
-  category_tag_id: string | null
 }
 
 type ClientUserRoleRow = {
@@ -104,21 +103,6 @@ export default function CollectionDetailPage() {
       return
     }
 
-    // Fetch collection tag
-    const { data: tag } = await supabase
-      .from("tags")
-      .select("id, label, slug")
-      .eq("id", id)
-      .eq("tag_type", "category")
-      .single()
-
-    if (!tag) {
-      router.push("/assets")
-      return
-    }
-
-    setCollectionName(tag.label)
-
     // Try to get client ID from tenant context, fallback to lookup
     let clientId: string
 
@@ -128,7 +112,7 @@ export default function CollectionDetailPage() {
       // Fallback: lookup client_id from client_users table
       const supabase = supabaseRef.current
       const {
-        data: { user },
+        data: user,
         error: userError,
       } = await supabase.auth.getUser()
 
@@ -155,12 +139,41 @@ export default function CollectionDetailPage() {
       clientId = clientUsers.client_id
     }
 
-    // Get all assets in this collection (with this category tag)
+    // Fetch collection tag (any tag that generates collections)
+    const { data: tag } = await supabase
+      .from("tags")
+      .select("id, label, slug")
+      .eq("id", id)
+      .or(`client_id.eq.${clientId},client_id.is.null`)
+      .single()
+
+    if (!tag) {
+      router.push("/assets")
+      return
+    }
+
+    setCollectionName(tag.label)
+
+    // Get all assets in this collection (via asset_tags junction table)
+    const { data: assetTags } = await supabase
+      .from("asset_tags")
+      .select("asset_id")
+      .eq("tag_id", id)
+
+    const assetIds = assetTags?.map((at: any) => at.asset_id) || []
+
+    if (assetIds.length === 0) {
+      setAssets([])
+      setFilteredAssets([])
+      setIsLoading(false)
+      return
+    }
+
     const { data: assetsData } = await supabase
       .from("assets")
-      .select("id, title, storage_path, mime_type, created_at, file_size, category_tag_id")
+      .select("id, title, storage_path, mime_type, created_at, file_size")
       .eq("client_id", clientId)
-      .eq("category_tag_id", id)
+      .in("id", assetIds)
       .eq("status", "active")
       .order("created_at", { ascending: false })
 

@@ -67,75 +67,112 @@ export default function AssetsPage() {
 
     const supabase = supabaseRef.current
 
-    // Fetch assets and category tags simultaneously
-    const [assetsResult, categoryTagsResult] = await Promise.all([
-      supabase
-        .from("assets")
-        .select(`
-          id,
-          title,
-          storage_path,
-          mime_type,
-          created_at,
-          file_size,
-          current_version:asset_versions!current_version_id (
-            thumbnail_path
-          )
-        `)
-        .eq("client_id", clientId)
-        .eq("status", "active")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("tags")
-        .select("id, label, slug, dimension_key")
-        .eq("dimension_key", "campaign")
-        .or(`client_id.is.null,client_id.eq.${clientId}`)
-        .order("sort_order", { ascending: true })
-    ])
-
-    const assetsData = assetsResult.data || []
-    const categoryTags = categoryTagsResult.data || []
+    // Fetch assets
+    const { data: assetsData } = await supabase
+      .from("assets")
+      .select(`
+        id,
+        title,
+        storage_path,
+        mime_type,
+        created_at,
+        file_size,
+        current_version:asset_versions!current_version_id (
+          thumbnail_path
+        )
+      `)
+      .eq("client_id", clientId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
 
     // Set assets data
-    setAssets(assetsData)
-    setFilteredAssets(assetsData)
+    setAssets(assetsData || [])
+    setFilteredAssets(assetsData || [])
 
-    // Build collections from campaign tags (collections are generated from campaign dimension)
-    if (categoryTags && assetsData) {
-      // Get assets with campaign tags via junction table
-      const { data: assetTags } = await supabase
-        .from("asset_tags")
-        .select("asset_id, tag_id, tags!inner(dimension_key)")
-        .in("tag_id", categoryTags.map((t: any) => t.id))
-        .eq("tags.dimension_key", "campaign")
+    // Load dimensions that generate collections
+    const { data: dimensions } = await supabase
+      .from("tag_dimensions")
+      .select("*")
+      .eq("generates_collection", true)
+      .order("display_order", { ascending: true })
 
-      const assetTagMap = new Map<string, string[]>() // asset_id -> tag_ids
-      assetTags?.forEach((at: any) => {
-        const current = assetTagMap.get(at.asset_id) || []
-        assetTagMap.set(at.asset_id, [...current, at.tag_id])
-      })
+    if (!dimensions || dimensions.length === 0) {
+      setCollections([])
+      setFilteredCollections([])
+    } else {
+      // Build collections for each dimension
+      const allCollections: Collection[] = []
 
-      const collectionsWithCounts: Collection[] = categoryTags
-        .map((tag: { id: string; label: string; slug: string }) => {
-          const tagAssets = assetsData.filter((a: Asset) => {
-            const assetTagIds = assetTagMap.get(a.id) || []
-            return assetTagIds.includes(tag.id)
-          })
-          return {
-            id: tag.id,
-            label: tag.label,
-            slug: tag.slug,
-            assetCount: tagAssets.length,
-            previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
-              ...asset,
-              thumbnail_path: asset.current_version?.thumbnail_path || null
-            })),
-          }
+      for (const dimension of dimensions) {
+        // Get parent tag if hierarchical
+        let parentTagId: string | null = null
+        if (dimension.is_hierarchical) {
+          const { data: parentTag } = await supabase
+            .from("tags")
+            .select("id")
+            .eq("dimension_key", dimension.dimension_key)
+            .is("parent_id", null)
+            .or(`client_id.eq.${clientId},client_id.is.null`)
+            .maybeSingle()
+
+          parentTagId = parentTag?.id || null
+        }
+
+        // Get tags for this dimension
+        const query = supabase
+          .from("tags")
+          .select("id, label, slug")
+          .eq("dimension_key", dimension.dimension_key)
+          .or(`client_id.eq.${clientId},client_id.is.null`)
+          .order("sort_order", { ascending: true })
+
+        if (dimension.is_hierarchical && parentTagId) {
+          query.eq("parent_id", parentTagId)
+        } else if (dimension.is_hierarchical) {
+          query.is("parent_id", null)
+        }
+
+        const { data: tags } = await query
+
+        if (!tags || tags.length === 0) continue
+
+        // Get asset-tag relationships for this dimension
+        const { data: assetTags } = await supabase
+          .from("asset_tags")
+          .select("asset_id, tag_id")
+          .in("tag_id", tags.map((t: any) => t.id))
+
+        // Build map of tag_id -> asset_ids
+        const tagAssetMap = new Map<string, string[]>()
+        assetTags?.forEach((at: any) => {
+          const current = tagAssetMap.get(at.tag_id) || []
+          tagAssetMap.set(at.tag_id, [...current, at.asset_id])
         })
-        .filter((c: Collection) => c.assetCount > 0)
 
-      setCollections(collectionsWithCounts)
-      setFilteredCollections(collectionsWithCounts)
+        // Create collections for each tag
+        const dimensionCollections = tags
+          .map((tag: any) => {
+            const assetIds = tagAssetMap.get(tag.id) || []
+            const tagAssets = (assetsData || []).filter((a: Asset) => assetIds.includes(a.id))
+
+            return {
+              id: tag.id,
+              label: tag.label,
+              slug: tag.slug,
+              assetCount: tagAssets.length,
+              previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
+                ...asset,
+                thumbnail_path: asset.current_version?.thumbnail_path || null
+              })),
+            }
+          })
+          .filter((c: Collection) => c.assetCount > 0)
+
+        allCollections.push(...dimensionCollections)
+      }
+
+      setCollections(allCollections)
+      setFilteredCollections(allCollections)
     }
 
     // Batch fetch signed URLs for all assets that need them

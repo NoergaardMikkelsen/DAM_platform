@@ -33,7 +33,6 @@ interface Asset {
   title: string
   storage_path: string
   mime_type: string
-  category_tag_id: string | null
   current_version?: {
     thumbnail_path: string | null
   } | null
@@ -124,7 +123,7 @@ export default function DashboardPage() {
 
     const { data: recentUploadsData } = await supabase
       .from("assets")
-      .select("id, title, storage_path, mime_type, category_tag_id")
+      .select("id, title, storage_path, mime_type")
       .eq("client_id", clientId)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -154,12 +153,17 @@ export default function DashboardPage() {
       return
     }
 
-    const { data: categoryTags } = await supabase
-      .from("tags")
-      .select("id, label, slug")
-      .eq("tag_type", "category")
-      .or(`client_id.is.null,client_id.eq.${clientId}`)
-      .order("sort_order", { ascending: true })
+    // Load dimensions that generate collections
+    const { data: dimensions } = await supabase
+      .from("tag_dimensions")
+      .select("*")
+      .eq("generates_collection", true)
+      .order("display_order", { ascending: true })
+
+    if (!dimensions || dimensions.length === 0) {
+      setIsLoading(false)
+      return
+    }
 
     // Get all assets to build collection previews
     const { data: allAssetsData } = await supabase
@@ -169,7 +173,6 @@ export default function DashboardPage() {
         title,
         storage_path,
         mime_type,
-        category_tag_id,
         current_version:asset_versions!current_version_id (
           thumbnail_path
         )
@@ -178,22 +181,78 @@ export default function DashboardPage() {
       .eq("status", "active")
       .order("created_at", { ascending: false })
 
-    // Build collections from category tags
-    const collectionsData: Collection[] = (categoryTags || [])
-      .map((tag: any) => {
-        const tagAssets = (allAssetsData || []).filter((a: any) => a.category_tag_id === tag.id)
-        return {
-          id: tag.id,
-          label: tag.label,
-          slug: tag.slug,
-          assetCount: tagAssets.length,
-          previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
-            ...asset,
-            thumbnail_path: asset.current_version?.thumbnail_path || null
-          })),
-        }
+    // Build collections for each dimension
+    const allCollections: Collection[] = []
+
+    for (const dimension of dimensions) {
+      // Get parent tag if hierarchical
+      let parentTagId: string | null = null
+      if (dimension.is_hierarchical) {
+        const { data: parentTag } = await supabase
+          .from("tags")
+          .select("id")
+          .eq("dimension_key", dimension.dimension_key)
+          .is("parent_id", null)
+          .or(`client_id.eq.${clientId},client_id.is.null`)
+          .maybeSingle()
+
+        parentTagId = parentTag?.id || null
+      }
+
+      // Get tags for this dimension
+      const query = supabase
+        .from("tags")
+        .select("id, label, slug")
+        .eq("dimension_key", dimension.dimension_key)
+        .or(`client_id.eq.${clientId},client_id.is.null`)
+        .order("sort_order", { ascending: true })
+
+      if (dimension.is_hierarchical && parentTagId) {
+        query.eq("parent_id", parentTagId)
+      } else if (dimension.is_hierarchical) {
+        query.is("parent_id", null)
+      }
+
+      const { data: tags } = await query
+
+      if (!tags || tags.length === 0) continue
+
+      // Get asset-tag relationships for this dimension
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select("asset_id, tag_id")
+        .in("tag_id", tags.map((t: any) => t.id))
+
+      // Build map of tag_id -> asset_ids
+      const tagAssetMap = new Map<string, string[]>()
+      assetTags?.forEach((at: any) => {
+        const current = tagAssetMap.get(at.tag_id) || []
+        tagAssetMap.set(at.tag_id, [...current, at.asset_id])
       })
-      .filter((c: any) => c.assetCount > 0)
+
+      // Create collections for each tag
+      const dimensionCollections = tags
+        .map((tag: any) => {
+          const assetIds = tagAssetMap.get(tag.id) || []
+          const tagAssets = allAssetsData?.filter((a: any) => assetIds.includes(a.id)) || []
+
+          return {
+            id: tag.id,
+            label: tag.label,
+            slug: tag.slug,
+            assetCount: tagAssets.length,
+            previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
+              ...asset,
+              thumbnail_path: asset.current_version?.thumbnail_path || null
+            })),
+          }
+        })
+        .filter((c: any) => c.assetCount > 0)
+
+      allCollections.push(...dimensionCollections)
+    }
+
+    const collectionsData: Collection[] = allCollections
 
     setCollections(collectionsData)
     setFilteredCollections(collectionsData)
@@ -240,21 +299,46 @@ export default function DashboardPage() {
     let filteredAssetsResult = [...assets]
 
     if (allSelectedTags.length > 0) {
-      // Filter by category tags directly on assets
-      if (filters.categoryTags.length > 0) {
-        filteredAssetsResult = filteredAssetsResult.filter(
-          (asset) => asset.category_tag_id && filters.categoryTags.includes(asset.category_tag_id),
-        )
+      // Filter by tags via asset_tags junction table
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select("asset_id, tag_id")
+        .in("tag_id", allSelectedTags)
+
+      // Build map of tag_id -> asset_ids for each dimension
+      const tagAssetMap = new Map<string, Set<string>>()
+      assetTags?.forEach((at: any) => {
+        if (!tagAssetMap.has(at.tag_id)) {
+          tagAssetMap.set(at.tag_id, new Set())
+        }
+        tagAssetMap.get(at.tag_id)!.add(at.asset_id)
+      })
+
+      // For each dimension, find assets that match ALL selected tags in that dimension
+      // Then intersect results across dimensions (AND logic between dimensions, OR logic within dimension)
+      const dimensionAssetSets: Set<string>[] = []
+
+      for (const [dimensionKey, tagIds] of Object.entries(filters)) {
+        if (tagIds.length === 0) continue
+
+        // Get assets that have ANY of the selected tags in this dimension (OR logic within dimension)
+        const assetSet = new Set<string>()
+        tagIds.forEach((tagId) => {
+          const assetIds = tagAssetMap.get(tagId)
+          if (assetIds) {
+            assetIds.forEach((assetId) => assetSet.add(assetId))
+          }
+        })
+        dimensionAssetSets.push(assetSet)
       }
 
-      // Filter by other tags via asset_tags junction
-      const otherTags = [...filters.descriptionTags, ...filters.usageTags, ...filters.visualStyleTags]
-
-      if (otherTags.length > 0) {
-        const { data: assetTags } = await supabase.from("asset_tags").select("asset_id").in("tag_id", otherTags)
-
-        const assetIds = [...new Set(assetTags?.map((at: any) => at.asset_id) || [])]
-        filteredAssetsResult = filteredAssetsResult.filter((asset) => assetIds.includes(asset.id))
+      // Intersect all dimension sets (AND logic between dimensions)
+      if (dimensionAssetSets.length > 0) {
+        let matchingAssetIds = dimensionAssetSets[0]
+        for (let i = 1; i < dimensionAssetSets.length; i++) {
+          matchingAssetIds = new Set([...matchingAssetIds].filter((id) => dimensionAssetSets[i].has(id)))
+        }
+        filteredAssetsResult = filteredAssetsResult.filter((asset) => matchingAssetIds.has(asset.id))
       }
     }
 
@@ -262,15 +346,10 @@ export default function DashboardPage() {
     let filteredCollectionsResult = [...collections]
 
     if (allSelectedTags.length > 0) {
-      // For collections, we filter by category tags only (simplified for dashboard)
-      if (filters.categoryTags.length > 0) {
-        filteredCollectionsResult = collections.filter((collection: any) =>
-          filters.categoryTags.includes(collection.id)
-        )
-      } else {
-        // For other tags, show collections that have assets (simplified)
-        filteredCollectionsResult = collections.filter((collection: any) => collection.assetCount > 0)
-      }
+      // Show collections that match any of the selected tags
+      filteredCollectionsResult = collections.filter((collection: any) =>
+        allSelectedTags.includes(collection.id)
+      )
     }
 
     setFilteredAssets(filteredAssetsResult)

@@ -72,7 +72,6 @@ interface Asset {
   height: number | null
   uploaded_by: string | null
   created_at: string
-  category_tag_id: string | null
   current_version_id?: string | null
   previous_version_id?: string | null
 }
@@ -84,7 +83,7 @@ interface User {
 interface Tag {
   id: string
   label: string
-  tag_type: string
+  dimension_key: string
 }
 
 interface ActivityEvent {
@@ -269,10 +268,9 @@ export default function AssetDetailPage() {
       }
 
       // 3. HENT ALT ANDET I PARALLEL (ikke kritisk for billedet)
-      const [favoriteResult, tagsResult, categoryTagResult, uploaderResult, activityResult, versionsResult] = await Promise.all([
+      const [favoriteResult, tagsResult, uploaderResult, activityResult, versionsResult] = await Promise.all([
         supabase.from("favorites").select("id").eq("user_id", user.id).eq("asset_id", targetId).maybeSingle(),
         supabase.from("asset_tags").select("tags(*)").eq("asset_id", targetId),
-        assetData.category_tag_id ? supabase.from("tags").select("*").eq("id", assetData.category_tag_id).single() : Promise.resolve({ data: null }),
         supabase.from("users").select("full_name").eq("id", assetData.uploaded_by).single(),
         supabase.from("asset_events").select("*").eq("asset_id", targetId).order("created_at", { ascending: false }).limit(20),
         supabase.from("asset_versions").select("*").eq("asset_id", targetId).order("created_at", { ascending: false })
@@ -282,10 +280,8 @@ export default function AssetDetailPage() {
       setFavorite(favoriteResult.data)
       setIsFavorited(!!favoriteResult.data)
 
-      // Combine regular tags with category tag
-      const regularTags = tagsResult.data?.map((at: any) => at.tags) || []
-      const categoryTag = categoryTagResult.data
-      const allTags = categoryTag ? [categoryTag, ...regularTags] : regularTags
+      // Get all tags from asset_tags junction table
+      const allTags = tagsResult.data?.map((at: any) => at.tags) || []
       setTags(allTags)
 
       setUploader(uploaderResult.data)
@@ -326,8 +322,34 @@ export default function AssetDetailPage() {
       }
 
       // Load navigation assets asynchronously (non-critical, blokerer ikke billedet)
-      const context = searchParams.get("context") || (assetData.category_tag_id ? "collection" : "all")
-      const collectionId = searchParams.get("collectionId") || (context === "collection" ? assetData.category_tag_id : null)
+      // Get collection-generating tags for this asset to determine context
+      // First get all tags for this asset
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select("tag_id")
+        .eq("asset_id", targetId)
+
+      const tagIds = assetTags?.map((at: any) => at.tag_id) || []
+      
+      // Then get dimensions that generate collections
+      const { data: collectionDimensions } = await supabase
+        .from("tag_dimensions")
+        .select("dimension_key")
+        .eq("generates_collection", true)
+
+      const collectionDimensionKeys = collectionDimensions?.map((d: any) => d.dimension_key) || []
+      
+      // Find tags that belong to collection-generating dimensions
+      const { data: collectionTags } = await supabase
+        .from("tags")
+        .select("id")
+        .in("id", tagIds)
+        .in("dimension_key", collectionDimensionKeys)
+        .limit(1)
+
+      const collectionTagId = collectionTags?.[0]?.id || null
+      const context = searchParams.get("context") || (collectionTagId ? "collection" : "all")
+      const collectionId = searchParams.get("collectionId") || (context === "collection" ? collectionTagId : null)
       loadNavAssets({ context, collectionId, currentAssetId: assetData.id, clientId: assetData.client_id })
         .catch(() => {
           // Non-critical error
@@ -359,11 +381,25 @@ export default function AssetDetailPage() {
 
     let query = supabase
       .from("assets")
-      .select("id, client_id, title, storage_path, mime_type, created_at, category_tag_id, status")
+      .select("id, client_id, title, storage_path, mime_type, created_at, status")
       .eq("status", "active")
 
     if (context === "collection" && collectionId) {
-      query = query.eq("category_tag_id", collectionId)
+      // Get assets with this tag via asset_tags junction table
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select("asset_id")
+        .eq("tag_id", collectionId)
+
+      const assetIds = assetTags?.map((at: any) => at.asset_id) || []
+      if (assetIds.length > 0) {
+        query = query.in("id", assetIds).eq("client_id", clientId)
+      } else {
+        // No assets with this tag, return empty
+        setNavAssets([])
+        setNavIndex(-1)
+        return
+      }
     } else {
       query = query.eq("client_id", clientId)
     }
@@ -376,14 +412,47 @@ export default function AssetDetailPage() {
     setNavIndex(idx)
   }
 
-  const goToNeighbor = (direction: -1 | 1) => {
+  const goToNeighbor = async (direction: -1 | 1) => {
     if (navIndex < 0) return
     const nextIndex = navIndex + direction
     if (nextIndex < 0 || nextIndex >= navAssets.length) return
     const nextAsset = navAssets[nextIndex]
-    const context = searchParams.get("context") || (asset?.category_tag_id ? "collection" : "all")
+    
+    // Get collection-generating tags for current asset to determine context
+    const getCollectionTagId = async () => {
+      if (!asset?.id) return null
+      
+      // First get all tags for this asset
+      const { data: assetTags } = await supabaseRef.current
+        .from("asset_tags")
+        .select("tag_id")
+        .eq("asset_id", asset.id)
+
+      const tagIds = assetTags?.map((at: any) => at.tag_id) || []
+      
+      // Then get dimensions that generate collections
+      const { data: collectionDimensions } = await supabaseRef.current
+        .from("tag_dimensions")
+        .select("dimension_key")
+        .eq("generates_collection", true)
+
+      const collectionDimensionKeys = collectionDimensions?.map((d: any) => d.dimension_key) || []
+      
+      // Find tags that belong to collection-generating dimensions
+      const { data: collectionTags } = await supabaseRef.current
+        .from("tags")
+        .select("id")
+        .in("id", tagIds)
+        .in("dimension_key", collectionDimensionKeys)
+        .limit(1)
+
+      return collectionTags?.[0]?.id || null
+    }
+    
+    const collectionTagId = await getCollectionTagId()
+    const context = searchParams.get("context") || (collectionTagId ? "collection" : "all")
     const collectionId =
-      searchParams.get("collectionId") || (context === "collection" ? asset?.category_tag_id : null)
+      searchParams.get("collectionId") || (context === "collection" ? collectionTagId : null)
     const query = new URLSearchParams()
     query.set("context", context)
     if (collectionId) query.set("collectionId", collectionId)
@@ -396,9 +465,41 @@ export default function AssetDetailPage() {
 
   // Prefetch neighbor routes for smoother navigation
   useEffect(() => {
-    const context = searchContext || (asset?.category_tag_id ? "collection" : "all")
-    const collectionId =
-      searchCollectionId || (context === "collection" ? asset?.category_tag_id : null)
+    // Get collection-generating tags for current asset
+    const getCollectionTagId = async () => {
+      if (!asset?.id) return null
+      
+      // First get all tags for this asset
+      const { data: assetTags } = await supabaseRef.current
+        .from("asset_tags")
+        .select("tag_id")
+        .eq("asset_id", asset.id)
+
+      const tagIds = assetTags?.map((at: any) => at.tag_id) || []
+      
+      // Then get dimensions that generate collections
+      const { data: collectionDimensions } = await supabaseRef.current
+        .from("tag_dimensions")
+        .select("dimension_key")
+        .eq("generates_collection", true)
+
+      const collectionDimensionKeys = collectionDimensions?.map((d: any) => d.dimension_key) || []
+      
+      // Find tags that belong to collection-generating dimensions
+      const { data: collectionTags } = await supabaseRef.current
+        .from("tags")
+        .select("id")
+        .in("id", tagIds)
+        .in("dimension_key", collectionDimensionKeys)
+        .limit(1)
+
+      return collectionTags?.[0]?.id || null
+    }
+    
+    getCollectionTagId().then((collectionTagId) => {
+      const context = searchContext || (collectionTagId ? "collection" : "all")
+      const collectionId =
+        searchCollectionId || (context === "collection" ? collectionTagId : null)
     const buildUrl = (assetId: string) => {
       const q = new URLSearchParams()
       q.set("context", context)
@@ -411,7 +512,8 @@ export default function AssetDetailPage() {
     if (navIndex >= 0 && navIndex < navAssets.length - 1) {
       router.prefetch(buildUrl(navAssets[navIndex + 1].id))
     }
-  }, [navIndex, navAssets, asset?.category_tag_id, searchContext, searchCollectionId, router])
+    })
+  }, [navIndex, navAssets, asset?.id, searchContext, searchCollectionId, router])
 
   const loadVersions = async (assetId: string) => {
     try {
@@ -478,9 +580,9 @@ export default function AssetDetailPage() {
       // Get all available tags for this tenant
       const { data: tagsData } = await supabase
         .from("tags")
-        .select("id, label, tag_type, slug")
+        .select("id, label, dimension_key, slug")
         .or(`client_id.eq.${clientId},client_id.is.null`)
-        .order("tag_type")
+        .order("dimension_key")
         .order("sort_order")
 
       setAvailableTags(tagsData || [])
@@ -512,41 +614,18 @@ export default function AssetDetailPage() {
     const supabase = supabaseRef.current
 
     try {
-
-      // Separate category tags from other tags
-      const categoryTagId = Array.from(selectedTagIds).find(id =>
-        availableTags.find(tag => tag.id === id)?.tag_type === 'category'
-      )
-
-      // Get non-category tags
-      const nonCategoryTagIds = new Set(
-        Array.from(selectedTagIds).filter(id =>
-          availableTags.find(tag => tag.id === id)?.tag_type !== 'category'
-        )
-      )
-
-
-      // Update category tag in assets table
-      if (categoryTagId !== asset.category_tag_id) {
-        await supabase
-          .from("assets")
-          .update({ category_tag_id: categoryTagId })
-          .eq("id", asset.id)
-      }
-
-      // Get current non-category tag relationships from asset_tags
+      // Get current tag relationships from asset_tags
       const { data: currentAssetTags } = await supabase
         .from("asset_tags")
         .select("tag_id")
         .eq("asset_id", asset.id)
 
-      const currentNonCategoryTagIds = new Set(currentAssetTags?.map((at: any) => at.tag_id as string) || [])
+      const currentTagIds = new Set(currentAssetTags?.map((at: any) => at.tag_id as string) || [])
+      const newTagIds = new Set(selectedTagIds)
 
-
-      // Find tags to add and remove (only non-category)
-      const tagsToAdd = [...nonCategoryTagIds].filter((id: string) => !currentNonCategoryTagIds.has(id))
-      const tagsToRemove = [...currentNonCategoryTagIds as Set<string>].filter((id: string) => !nonCategoryTagIds.has(id))
-
+      // Find tags to add and remove
+      const tagsToAdd = [...newTagIds].filter((id: string) => !currentTagIds.has(id))
+      const tagsToRemove = [...currentTagIds].filter((id: string) => !newTagIds.has(id))
 
       // Add new tags
       if (tagsToAdd.length > 0) {
@@ -580,11 +659,9 @@ export default function AssetDetailPage() {
 
       // Log the tag change event
       await logAssetEvent("tags_updated", {
-        category_changed: categoryTagId !== asset.category_tag_id,
         added_tags: tagsToAdd.length,
         removed_tags: tagsToRemove.length
       })
-
 
     } catch (error) {
       console.error("Failed to save tags:", error)
@@ -1466,8 +1543,12 @@ export default function AssetDetailPage() {
               <div className="space-y-3">
                 <h1 className="text-base font-semibold text-gray-900">{asset.title}</h1>
                 <div className="flex flex-wrap gap-2">
-                  {/* Show only category and file_type tags in top */}
-                  {tags.filter(tag => tag.tag_type === 'category' || tag.tag_type === 'file_type').map((tag) => (
+                  {/* Show only collection-generating and file_type tags in top */}
+                  {tags.filter(tag => {
+                    // Show tags from dimensions that generate collections or file_type
+                    const collectionDimensions = ['campaign', 'brand_assets', 'department']
+                    return collectionDimensions.includes(tag.dimension_key) || tag.dimension_key === 'file_type'
+                  }).map((tag) => (
                     <Badge key={tag.id} variant="secondary" className="rounded-full px-3 py-1 text-xs">
                       {tag.label}
                     </Badge>
@@ -1518,9 +1599,16 @@ export default function AssetDetailPage() {
                     </Button>
                   </div>
                   <AccordionContent>
-                    {tags.filter(tag => tag.tag_type !== 'category' && tag.tag_type !== 'file_type').length ? (
+                    {tags.filter(tag => {
+                      // Hide collection-generating and file_type tags (shown at top)
+                      const collectionDimensions = ['campaign', 'brand_assets', 'department']
+                      return !collectionDimensions.includes(tag.dimension_key) && tag.dimension_key !== 'file_type'
+                    }).length ? (
                       <div className="flex flex-wrap gap-2">
-                        {tags.filter(tag => tag.tag_type !== 'category' && tag.tag_type !== 'file_type').map((tag) => (
+                        {tags.filter(tag => {
+                          const collectionDimensions = ['campaign', 'brand_assets', 'department']
+                          return !collectionDimensions.includes(tag.dimension_key) && tag.dimension_key !== 'file_type'
+                        }).map((tag) => (
                           <Badge key={tag.id} variant="secondary" className="rounded-full px-3 py-1 text-xs">
                             {tag.label}
                           </Badge>
@@ -1605,36 +1693,45 @@ export default function AssetDetailPage() {
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  {/* Group tags by type */}
-                  {['category', 'description', 'usage', 'visual_style'].map(tagType => {
-                    const typeTags = availableTags.filter(tag => tag.tag_type === tagType)
-                    if (typeTags.length === 0) return null
+                  {/* Group tags by dimension */}
+                  {(() => {
+                    // Get unique dimensions from available tags
+                    const dimensions = [...new Set(availableTags.map(tag => tag.dimension_key))].sort()
+                    return dimensions.map(dimensionKey => {
+                      const dimensionTags = availableTags.filter(tag => tag.dimension_key === dimensionKey)
+                      if (dimensionTags.length === 0) return null
 
-                    return (
-                      <div key={tagType} className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-900 capitalize">
-                          {tagType.replace('_', ' ')} Tags
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {typeTags.map(tag => (
-                            <div key={tag.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={tag.id}
-                                checked={selectedTagIds.has(tag.id)}
-                                onCheckedChange={() => handleTagToggle(tag.id)}
-                              />
-                              <label
-                                htmlFor={tag.id}
-                                className="text-sm text-gray-700 cursor-pointer"
-                              >
-                                {tag.label}
-                              </label>
-                            </div>
-                          ))}
+                      // Get dimension label from tag_dimensions
+                      const dimensionLabel = dimensionKey.split('_').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                      ).join(' ')
+
+                      return (
+                        <div key={dimensionKey} className="space-y-2">
+                          <h4 className="text-sm font-medium text-gray-900">
+                            {dimensionLabel} Tags
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {dimensionTags.map(tag => (
+                              <div key={tag.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={tag.id}
+                                  checked={selectedTagIds.has(tag.id)}
+                                  onCheckedChange={() => handleTagToggle(tag.id)}
+                                />
+                                <label
+                                  htmlFor={tag.id}
+                                  className="text-sm text-gray-700 cursor-pointer"
+                                >
+                                  {tag.label}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  })()}
                 </div>
 
                 <DialogFooter>
