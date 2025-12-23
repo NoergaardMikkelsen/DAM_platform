@@ -12,10 +12,16 @@ export function SessionSyncProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     // Sync session when component mounts
     const syncSession = async () => {
-      const supabase = createClient()
-      await syncSessionAcrossSubdomains(supabase)
+      try {
+        const supabase = createClient()
+        const success = await syncSessionAcrossSubdomains(supabase)
+        console.log('[SESSION-SYNC-PROVIDER] Session sync completed:', success ? 'success' : 'no session to sync')
+      } catch (error) {
+        console.error('[SESSION-SYNC-PROVIDER] Session sync failed:', error)
+        // Don't crash the app if session sync fails
+      }
     }
-    
+
     syncSession()
   }, [])
 

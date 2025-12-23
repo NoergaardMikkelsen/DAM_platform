@@ -6,14 +6,15 @@ export async function syncSessionAcrossSubdomains(supabase: any) {
   try {
     // Get current session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
+
     if (sessionError) {
       console.error('[SESSION-SYNC] Error getting session:', sessionError)
       return false
     }
 
     if (!session) {
-      // No session to sync
+      // No session to sync - this is normal when switching subdomains
+      console.log('[SESSION-SYNC] No session found - this is normal when switching subdomains')
       return false
     }
 

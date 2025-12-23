@@ -47,6 +47,8 @@ export default function DashboardPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [maxCollections, setMaxCollections] = useState(3)
+  const [retryCount, setRetryCount] = useState(0)
+  const [sessionError, setSessionError] = useState(false)
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -136,10 +138,26 @@ export default function DashboardPage() {
 
     if (!user) {
       // Session not found client-side, but server verified - likely httpOnly cookie issue
-      // Reload page to let server handle it
-      window.location.reload()
-      return
+      // Retry a few times before giving up
+      if (retryCount < 3) {
+        console.warn(`[DASHBOARD] No client-side session found (attempt ${retryCount + 1}/3), waiting for sync...`)
+        setRetryCount(prev => prev + 1)
+        // Set a timeout to retry getting session after potential sync
+        setTimeout(() => {
+          loadDashboardData()
+        }, 1500)
+        return
+      } else {
+        console.error('[DASHBOARD] Failed to get client-side session after 3 attempts')
+        // Show error state instead of reloading
+        setSessionError(true)
+        setIsLoading(false)
+        return
+      }
     }
+
+    // Reset retry count on success
+    setRetryCount(0)
 
     // Use tenant from context - tenant layout already verified access
     const clientId = tenant.id
@@ -307,6 +325,26 @@ export default function DashboardPage() {
     setIsFilterOpen(false)
   }
 
+  if (sessionError) {
+    return (
+      <div className="p-8">
+        <div className="max-w-md mx-auto mt-20">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Session Error</h2>
+            <p className="text-red-600 mb-4">
+              Unable to load your session. This may happen when switching between client subdomains.
+            </p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Reload Page
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
