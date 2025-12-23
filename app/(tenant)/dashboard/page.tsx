@@ -464,12 +464,12 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
             {stats.recentUploads.map((asset, index) => (
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
-                className="block mb-6 break-inside-avoid animate-stagger-fade-in"
+                className="block break-inside-avoid animate-stagger-fade-in mb-6"
                 style={{
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
                 }}

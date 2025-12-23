@@ -479,7 +479,7 @@ export default function AssetsPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
             {filteredAssets.map((asset, index) => {
               // Always render assets, but control animation timing
               // Use inline style for opacity to ensure it works with animation
@@ -487,7 +487,7 @@ export default function AssetsPage() {
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
-                className="block mb-6 break-inside-avoid animate-stagger-fade-in"
+                className="block break-inside-avoid animate-stagger-fade-in"
                 style={{
                   animationDelay: `${Math.min(index * 40, 600)}ms`,
                 }}

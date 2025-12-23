@@ -6,7 +6,8 @@ import { ArrowRight } from 'lucide-react'
 // Individual asset card skeleton
 export function AssetCardSkeleton() {
   return (
-    <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
+    <div className="break-inside-avoid mb-6">
+      <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
       <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
         <Button
           variant="ghost"
@@ -17,13 +18,14 @@ export function AssetCardSkeleton() {
         </Button>
       </div>
     </Card>
+    </div>
   )
 }
 
 // Asset grid skeleton with dynamic count
 export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
   return (
-    <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
+    <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
       {Array.from({ length: count }, (_, i) => (
         <AssetCardSkeleton key={i} />
       ))}
