@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
+import { UploadAssetModal } from "@/components/upload-asset-modal"
 
 type SidebarProps = {
   user: {
@@ -23,6 +24,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   const router = useRouter()
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
 
   // Only use tenant context in tenant layout, not in system-admin
   const tenant = isSystemAdminContext ? null : useTenant().tenant
@@ -364,21 +366,21 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         {/* Upload Button - Only show in tenant context (not in system admin context) */}
         {!isSystemAdminContext && (
           <div className={`border-t transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
-            <Link href="/assets/upload" className="block" title={isCollapsed ? "Upload" : undefined}>
-              <Button
-                className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
-                style={{
-                  backgroundColor: tenant?.primary_color || '#DF475C',
-                  borderRadius: isCollapsed ? '50%' : '25px',
-                  padding: isCollapsed ? '0' : '24px 16px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                }}
-              >
-                <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
-                {!isCollapsed && 'Upload'}
-              </Button>
-            </Link>
+            <Button
+              onClick={() => setIsUploadModalOpen(true)}
+              className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
+              title={isCollapsed ? "Upload" : undefined}
+              style={{
+                backgroundColor: tenant?.primary_color || '#DF475C',
+                borderRadius: isCollapsed ? '50%' : '25px',
+                padding: isCollapsed ? '0' : '24px 16px',
+                fontSize: '14px',
+                fontWeight: '500',
+              }}
+            >
+              <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
+              {!isCollapsed && 'Upload'}
+            </Button>
           </div>
         )}
 
@@ -466,6 +468,16 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
           </svg>
         </button>
       </div>
+
+      {/* Upload Modal */}
+      <UploadAssetModal
+        open={isUploadModalOpen}
+        onOpenChange={setIsUploadModalOpen}
+        onSuccess={() => {
+          // Could refresh data or show success message
+          console.log('Upload completed successfully')
+        }}
+      />
     </div>
   )
 }

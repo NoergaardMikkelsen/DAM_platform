@@ -529,7 +529,7 @@ export default function UploadAssetPage() {
                         className="w-full"
               />
             </div>
-                  </div>
+            </div>
                 </div>
 
                 {/* Organization Tags */}
@@ -549,6 +549,7 @@ export default function UploadAssetPage() {
                           <TagBadgeSelector
                             dimension={dimension}
                             selectedTagIds={getSelectedTags(dimension.dimension_key)}
+                            onSelect={() => {}}
                             onToggle={(tagId) => toggleTag(dimension.dimension_key, tagId)}
                             onCreate={createTagHandler(dimension)}
                             clientId={clientId!}
@@ -576,6 +577,7 @@ export default function UploadAssetPage() {
                             <TagBadgeSelector
                               dimension={dimension}
                               selectedTagIds={getSelectedTags(dimension.dimension_key)}
+                              onSelect={() => {}}
                               onToggle={(tagId) => toggleTag(dimension.dimension_key, tagId)}
                               onCreate={createTagHandler(dimension)}
                               clientId={clientId!}

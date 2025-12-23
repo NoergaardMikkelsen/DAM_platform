@@ -210,7 +210,7 @@ export default function DashboardPage() {
     })
 
     // Count how many images need to be loaded (recent uploads + collection previews)
-    const recentUploadsImages = recentUploadsData?.filter(asset =>
+    const recentUploadsImages = recentUploadsData?.filter((asset: any) =>
       asset.mime_type?.startsWith("image/") ||
       asset.mime_type?.startsWith("video/") ||
       asset.mime_type === "application/pdf"
@@ -231,18 +231,8 @@ export default function DashboardPage() {
     setTimeout(() => setIsLoading(false), 10000)
   }
 
-  const handleApplyFilters = async (filters: {
-    categoryTags: string[]
-    descriptionTags: string[]
-    usageTags: string[]
-    visualStyleTags: string[]
-  }) => {
-    const allSelectedTags = [
-      ...filters.categoryTags,
-      ...filters.descriptionTags,
-      ...filters.usageTags,
-      ...filters.visualStyleTags,
-    ]
+  const handleApplyFilters = async (filters: Record<string, string[]>) => {
+    const allSelectedTags = Object.values(filters).flat()
 
     const supabase = supabaseRef.current
 
@@ -393,14 +383,7 @@ export default function DashboardPage() {
 
         {filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
-            <Button
-              onClick={() => router.push('/assets/upload')}
-              className="mt-4 bg-transparent hover:bg-transparent border-0"
-              style={{ backgroundColor: tenant.primary_color, color: 'white' }}
-            >
-              Upload your first asset
-            </Button>
+            <p className="text-gray-500">No collections yet. Collections will be automatically created when you tag assets with organizational categories.</p>
           </div>
         ) : (
           <div className="flex flex-wrap gap-6">
@@ -442,13 +425,6 @@ export default function DashboardPage() {
         {stats.recentUploads.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No assets uploaded yet.</p>
-            <Button
-              onClick={() => router.push('/assets/upload')}
-              className="mt-4 bg-transparent hover:bg-transparent border-0"
-              style={{ backgroundColor: tenant.primary_color, color: 'white' }}
-            >
-              Upload your first asset
-            </Button>
           </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">

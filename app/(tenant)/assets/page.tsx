@@ -4,14 +4,13 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Filter, Search, Heart, ArrowRight, Upload } from "lucide-react"
+import { Filter, Search, Heart, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { Card, CardHeader } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
-import { UploadAssetModal } from "@/components/upload-asset-modal"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
@@ -48,7 +47,6 @@ export default function AssetsPage() {
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -244,8 +242,8 @@ export default function AssetsPage() {
         .in("tag_id", tagIds)
         .eq("tags.dimension_key", dimensionKey)
 
-      const assetIdsForDimension = new Set(
-        assetTags?.map((at: any) => at.asset_id) || []
+      const assetIdsForDimension = new Set<string>(
+        assetTags?.map((at: any) => at.asset_id as string) || []
       )
 
       if (matchingAssetIds === null) {
@@ -290,16 +288,6 @@ export default function AssetsPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Assets library</h1>
         <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setIsUploadModalOpen(true)}
-            style={{
-              backgroundColor: tenant.primary_color,
-              borderColor: tenant.primary_color,
-            }}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Upload
-          </Button>
           <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -390,13 +378,6 @@ export default function AssetsPage() {
         {filteredAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-gray-600">No assets found</p>
-            <Button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="mt-4 bg-transparent hover:bg-transparent border-0"
-              style={{ backgroundColor: tenant.primary_color, color: 'white' }}
-            >
-              Upload your first asset
-            </Button>
           </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
@@ -442,13 +423,6 @@ export default function AssetsPage() {
 
       <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} onApplyFilters={handleApplyFilters} />
 
-      <UploadAssetModal
-        open={isUploadModalOpen}
-        onOpenChange={setIsUploadModalOpen}
-        onSuccess={() => {
-          loadData()
-        }}
-      />
     </div>
   )
 }

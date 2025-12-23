@@ -1,11 +1,9 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, ArrowLeft } from "lucide-react"
-import Link from "next/link"
 import { CollectionCard } from "@/components/collection-card"
 import { CollectionGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef } from "react"
@@ -149,7 +147,7 @@ export default function CollectionsPage() {
       const { data: assetTags } = await supabase
         .from("asset_tags")
         .select("asset_id, tag_id")
-        .in("tag_id", tags.map((t) => t.id))
+        .in("tag_id", tags.map((t: any) => t.id))
 
       // Build map of tag_id -> asset_ids
       const tagAssetMap = new Map<string, string[]>()
@@ -272,9 +270,6 @@ export default function CollectionsPage() {
       {filteredCollections.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No collections found</p>
-          <Link href="/assets/upload">
-            <Button className="mt-4 bg-transparent hover:bg-transparent border-0" style={{ backgroundColor: tenant.primary_color, color: 'white' }}>Upload assets to create collections</Button>
-          </Link>
         </div>
       ) : (
         <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>

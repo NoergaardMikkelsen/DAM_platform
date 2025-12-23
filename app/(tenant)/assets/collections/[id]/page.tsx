@@ -258,13 +258,8 @@ export default function CollectionDetailPage() {
     setFilteredAssets(filtered)
   }
 
-  const handleApplyFilters = async (filters: {
-    categoryTags: string[]
-    descriptionTags: string[]
-    usageTags: string[]
-    visualStyleTags: string[]
-  }) => {
-    const otherTags = [...filters.descriptionTags, ...filters.usageTags, ...filters.visualStyleTags]
+  const handleApplyFilters = async (filters: Record<string, string[]>) => {
+    const otherTags = Object.values(filters).flat()
 
     if (otherTags.length === 0) {
       setFilteredAssets(assets)
@@ -364,12 +359,6 @@ export default function CollectionDetailPage() {
       ) : filteredAssets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-gray-600">No assets found in this collection</p>
-          <Button
-            onClick={() => router.push('/assets/upload')}
-            className="mt-4 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]"
-          >
-            Upload assets to this collection
-          </Button>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">

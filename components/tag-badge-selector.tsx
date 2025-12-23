@@ -12,7 +12,7 @@ interface TagBadgeSelectorProps {
   dimension: TagDimension
   selectedTagId?: string | null // For single-select
   selectedTagIds?: string[] // For multi-select
-  onSelect: (tagId: string | null) => void // Called when tag is selected/deselected (for single-select)
+  onSelect?: (tagId: string | null) => void // Called when tag is selected/deselected (for single-select)
   onToggle?: (tagId: string) => void // Called when tag is toggled (for multi-select)
   onCreate?: (label: string) => Promise<string | null> // Returns new tag ID or null
   clientId: string
