@@ -5,6 +5,16 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
@@ -17,6 +27,7 @@ interface Tag {
   label: string
   slug: string
   dimension_key: string | null
+  parent_id: string | null
   tag_type?: string // Legacy field
   is_system: boolean
   sort_order: number
@@ -43,6 +54,9 @@ export default function TaggingPage() {
   const [dimensionFilter, setDimensionFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [tagToDelete, setTagToDelete] = useState<Tag | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [childTagsCount, setChildTagsCount] = useState<number>(0)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -167,6 +181,119 @@ export default function TaggingPage() {
     setFilteredTags(filtered)
   }
 
+  const handleDelete = async () => {
+    if (!tagToDelete) return
+
+    if (tagToDelete.is_system) {
+      alert("Cannot delete system tags")
+      setTagToDelete(null)
+      return
+    }
+
+    const supabase = supabaseRef.current
+    setIsDeleting(true)
+
+    try {
+      // Check if this tag has child tags (tags that reference this tag as parent)
+      const { data: childTags, error: childTagsError } = await supabase
+        .from("tags")
+        .select("id, label")
+        .eq("parent_id", tagToDelete.id)
+
+      if (childTagsError) {
+        console.error("Error checking child tags:", childTagsError)
+      }
+
+      // If there are child tags, delete them first (cascade delete)
+      if (childTags && childTags.length > 0) {
+        const childTagIds = childTags.map((t: any) => t.id)
+        
+        // Delete asset_tags for all child tags first
+        const { error: childAssetTagsError } = await supabase
+          .from("asset_tags")
+          .delete()
+          .in("tag_id", childTagIds)
+
+        if (childAssetTagsError) {
+          console.error("Error deleting asset_tags for child tags:", childAssetTagsError)
+          alert(`Failed to remove child tags from assets: ${childAssetTagsError.message || childAssetTagsError.code || "Unknown error"}`)
+          setIsDeleting(false)
+          setTagToDelete(null)
+          return
+        }
+
+        // Delete all child tags
+        const { error: childTagsDeleteError } = await supabase
+          .from("tags")
+          .delete()
+          .in("id", childTagIds)
+
+        if (childTagsDeleteError) {
+          console.error("Error deleting child tags:", childTagsDeleteError)
+          alert(`Failed to delete child tags: ${childTagsDeleteError.message || childTagsDeleteError.code || "Unknown error"}`)
+          setIsDeleting(false)
+          setTagToDelete(null)
+          return
+        }
+      }
+
+      // Delete asset_tags first (remove tag from all assets)
+      // RLS will handle authorization - if user doesn't have permission, this will fail
+      const { error: assetTagsError } = await supabase
+        .from("asset_tags")
+        .delete()
+        .eq("tag_id", tagToDelete.id)
+
+      if (assetTagsError) {
+        console.error("Error deleting asset_tags:", assetTagsError)
+        console.error("Full error object:", JSON.stringify(assetTagsError, null, 2))
+        alert(`Failed to remove tag from assets: ${assetTagsError.message || assetTagsError.code || "Unknown error"}`)
+        setIsDeleting(false)
+        setTagToDelete(null)
+        return
+      }
+
+      // Delete the tag
+      const { error: tagError } = await supabase
+        .from("tags")
+        .delete()
+        .eq("id", tagToDelete.id)
+
+      if (tagError) {
+        console.error("Error deleting tag:", tagError)
+        console.error("Full error object:", JSON.stringify(tagError, null, 2))
+        
+        // Check if it's a foreign key constraint error (child tags)
+        if (tagError.code === "23503" || tagError.message?.includes("foreign key") || tagError.message?.includes("parent_id")) {
+          alert("Cannot delete this tag because it has child tags. Please delete the child tags first.")
+        } else if (tagError.code === "42501" || tagError.message?.includes("permission") || tagError.message?.includes("policy")) {
+          alert("You don't have permission to delete this tag. You need admin or superadmin role.")
+        } else {
+          const errorMessage = tagError.message || tagError.code || tagError.hint || "Unknown error"
+          alert(`Failed to delete tag: ${errorMessage}`)
+        }
+      } else {
+        // Reload tags to reflect the deletion
+        await loadTags()
+      }
+    } catch (error: any) {
+      console.error("Error deleting tag:", error)
+      console.error("Full error object:", JSON.stringify(error, null, 2))
+      
+      // Check if it's a permission error
+      if (error?.code === "42501" || error?.message?.includes("permission") || error?.message?.includes("policy")) {
+        alert("You don't have permission to delete this tag. You need admin or superadmin role.")
+      } else {
+        const errorMessage = error?.message || error?.code || error?.toString() || "Unknown error"
+        alert(`Failed to delete tag: ${errorMessage}`)
+      }
+    } finally {
+      setIsDeleting(false)
+      setTagToDelete(null)
+      setChildTagsCount(0)
+    }
+  }
+
   // Show loading skeleton while checking access (before redirect happens)
   if (isLoading) {
     return (
@@ -234,7 +361,11 @@ export default function TaggingPage() {
           </thead>
           <tbody className="divide-y">
             {filteredTags?.map((tag) => (
-              <tr key={tag.id} className="hover:bg-gray-50 cursor-pointer">
+              <tr
+                key={tag.id}
+                className="hover:bg-gray-50 cursor-pointer"
+                onClick={() => router.push(`/tagging/${tag.id}`)}
+              >
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{tag.label}</td>
                 <td className="px-6 py-4 text-sm capitalize text-gray-600">
                   {tag.dimension_key 
@@ -253,7 +384,23 @@ export default function TaggingPage() {
                       </Button>
                     </Link>
                     {!tag.is_system && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          // Check for child tags before showing dialog
+                          const supabase = supabaseRef.current
+                          const { data: childTags } = await supabase
+                            .from("tags")
+                            .select("id")
+                            .eq("parent_id", tag.id)
+                          
+                          setChildTagsCount(childTags?.length || 0)
+                          setTagToDelete(tag)
+                        }}
+                      >
                         <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                     )}
@@ -263,6 +410,44 @@ export default function TaggingPage() {
             ))}
           </tbody>
         </table>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog 
+          open={!!tagToDelete} 
+          onOpenChange={(open) => {
+            if (!open) {
+              setTagToDelete(null)
+              setChildTagsCount(0)
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Tag</AlertDialogTitle>
+              <AlertDialogDescription>
+                {childTagsCount > 0 ? (
+                  <>
+                    Are you sure you want to delete the tag "{tagToDelete?.label}"? This will also delete {childTagsCount} child tag{childTagsCount > 1 ? "s" : ""} and remove them from all associated assets. This action cannot be undone.
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to delete the tag "{tagToDelete?.label}"? This will remove it from all associated assets. This action cannot be undone.
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 border-t px-6 py-4">
