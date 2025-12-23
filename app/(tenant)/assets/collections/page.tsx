@@ -126,6 +126,7 @@ export default function CollectionsPage() {
       }
 
       // Get tags for this dimension
+      // For hierarchical dimensions, only get child tags (exclude parent tags)
       const query = supabase
         .from("tags")
         .select("id, label, slug")
@@ -133,10 +134,16 @@ export default function CollectionsPage() {
         .or(`client_id.eq.${clientId},client_id.is.null`)
         .order("sort_order", { ascending: true })
 
-      if (dimension.is_hierarchical && parentTagId) {
-        query.eq("parent_id", parentTagId)
-      } else if (dimension.is_hierarchical) {
-        query.is("parent_id", null)
+      if (dimension.is_hierarchical) {
+        // For hierarchical dimensions, always exclude parent tags (parent_id IS NULL)
+        // Only show child tags
+        if (parentTagId) {
+          // If parent tag exists, only show its children
+          query.eq("parent_id", parentTagId)
+        } else {
+          // If no parent tag exists, show all child tags (parent_id IS NOT NULL)
+          query.not("parent_id", "is", null)
+        }
       }
 
       const { data: tags } = await query
