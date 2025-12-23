@@ -46,38 +46,13 @@ export default function AssetsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("newest")
   const [collectionSort, setCollectionSort] = useState("newest")
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [maxCollections, setMaxCollections] = useState(3)
-  const [loadedAssets, setLoadedAssets] = useState(0)
-  const [totalAssets, setTotalAssets] = useState(0)
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
-  const [signedUrlsReady, setSignedUrlsReady] = useState(false)
-  const [shouldAnimate, setShouldAnimate] = useState(false) // Control when stagger animation should start
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
-  const handleAssetLoaded = useCallback(() => {
-    setLoadedAssets(prev => {
-      const newCount = prev + 1
-      
-      // Smart threshold: Show content when we have minimum assets loaded OR all assets loaded
-      // Minimum is either 30% of total or 12 assets (whichever is smaller)
-      const minAssetsToShow = totalAssets > 0 
-        ? Math.min(12, Math.max(6, Math.ceil(totalAssets * 0.3)))
-        : 0
-      
-      // Show content when:
-      // 1. Signed URLs are ready AND
-      // 2. We have minimum assets loaded OR all assets are loaded
-      if (signedUrlsReady && totalAssets > 0) {
-        if (newCount >= minAssetsToShow || newCount >= totalAssets) {
-          setIsLoading(false)
-        }
-      }
-      
-      return newCount
-    })
-  }, [totalAssets, signedUrlsReady])
+
 
   useEffect(() => {
     loadData()
@@ -107,17 +82,12 @@ export default function AssetsPage() {
   }, [])
 
   const loadData = async () => {
-    const debugLog: string[] = []
-    debugLog.push(`[ASSETS-PAGE] Starting loadData`)
-
     // Use tenant from context - tenant layout already verified access
     const clientId = tenant.id
-    debugLog.push(`[ASSETS-PAGE] Using tenant client ID: ${clientId}`)
 
     const supabase = supabaseRef.current
 
-    // Parallelliser: Fetch assets and category tags simultaneously
-    debugLog.push(`[ASSETS-PAGE] Fetching assets and category tags in parallel...`)
+    // Fetch assets and category tags simultaneously
     const [assetsResult, categoryTagsResult] = await Promise.all([
       supabase
         .from("assets")
@@ -147,33 +117,12 @@ export default function AssetsPage() {
     const assetsData = assetsResult.data || []
     const categoryTags = categoryTagsResult.data || []
 
-    if (assetsResult.error) {
-      debugLog.push(`[ASSETS-PAGE] Assets query error: ${assetsResult.error.message}`)
-      console.error('[ASSETS-PAGE DEBUG]', debugLog.join('\n'))
-    }
+    // Set assets data
+    setAssets(assetsData)
+    setFilteredAssets(assetsData)
 
-    debugLog.push(`[ASSETS-PAGE] Found ${assetsData.length} assets`)
-    
-    if (assetsData.length > 0) {
-      debugLog.push(`[ASSETS-PAGE] Sample assets:`)
-      assetsData.slice(0, 3).forEach((asset: Asset, index: number) => {
-        debugLog.push(`[ASSETS-PAGE]   Asset ${index + 1}: id=${asset.id}, title=${asset.title}, storage_path=${asset.storage_path}, mime_type=${asset.mime_type}`)
-      })
-    }
-
-    if (categoryTagsResult.error) {
-      debugLog.push(`[ASSETS-PAGE] Category tags query error: ${categoryTagsResult.error.message}`)
-    }
-
-    debugLog.push(`[ASSETS-PAGE] Found ${categoryTags.length} category tags`)
-
-    if (assetsData) {
-      setAssets(assetsData)
-      setFilteredAssets(assetsData)
-    }
-
+    // Build collections from category tags
     if (categoryTags && assetsData) {
-      // Build collections from category tags
       const collectionsWithCounts: Collection[] = categoryTags
         .map((tag: { id: string; label: string; slug: string }) => {
           const tagAssets = assetsData.filter((a: Asset) => a.category_tag_id === tag.id)
@@ -185,17 +134,16 @@ export default function AssetsPage() {
             previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
               ...asset,
               thumbnail_path: asset.current_version?.thumbnail_path || null
-            })), // First 4 assets for preview
+            })),
           }
         })
-        .filter((c: Collection) => c.assetCount > 0) // Only show collections with assets
+        .filter((c: Collection) => c.assetCount > 0)
 
-      debugLog.push(`[ASSETS-PAGE] Created ${collectionsWithCounts.length} collections`)
       setCollections(collectionsWithCounts)
       setFilteredCollections(collectionsWithCounts)
     }
 
-    // Batch fetch signed URLs for assets that need them
+    // Batch fetch signed URLs for all assets that need them
     const assetsWithMedia = assetsData.filter((asset: Asset) =>
       asset.mime_type?.startsWith("image/") ||
       asset.mime_type?.startsWith("video/") ||
@@ -203,69 +151,26 @@ export default function AssetsPage() {
     )
 
     if (assetsWithMedia.length > 0) {
-      debugLog.push(`[ASSETS-PAGE] Batch fetching signed URLs for ${assetsWithMedia.length} assets...`)
-      
       try {
-        const assetIds = assetsWithMedia.map((a: Asset) => a.id)
         const storagePaths = assetsWithMedia.map((a: Asset) => a.storage_path).filter(Boolean)
-        
+
         const batchResponse = await fetch('/api/assets/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            storagePaths,
-            assetIds 
-          })
+          body: JSON.stringify({ storagePaths })
         })
-        
+
         if (batchResponse.ok) {
           const { signedUrls } = await batchResponse.json()
           setSignedUrlsCache(signedUrls)
-          setSignedUrlsReady(true) // Mark signed URLs as ready
-          debugLog.push(`[ASSETS-PAGE] Got ${Object.keys(signedUrls).length} signed URLs`)
-          
-          // Start animation after a short delay to ensure assets are rendered
-          setTimeout(() => {
-            setShouldAnimate(true)
-          }, 200)
-        } else {
-          debugLog.push(`[ASSETS-PAGE] Batch signed URL request failed: ${batchResponse.status}`)
-          // Even if batch fails, mark as ready to avoid infinite loading
-          setSignedUrlsReady(true)
-          setTimeout(() => {
-            setShouldAnimate(true)
-          }, 200)
         }
       } catch (error) {
-        debugLog.push(`[ASSETS-PAGE] Error fetching signed URLs: ${error}`)
-        // Mark as ready even on error to avoid infinite loading
-        setSignedUrlsReady(true)
-        setTimeout(() => {
-          setShouldAnimate(true)
-        }, 200)
+        console.error('[ASSETS-PAGE] Error fetching signed URLs:', error)
       }
-    } else {
-      // No assets to load, mark as ready immediately
-      setSignedUrlsReady(true)
-      setTimeout(() => {
-        setShouldAnimate(true)
-      }, 200)
     }
 
-    debugLog.push(`[ASSETS-PAGE] LoadData completed`)
-
-    const totalAssetsToLoad = assetsWithMedia.length
-    setTotalAssets(totalAssetsToLoad)
-    setLoadedAssets(0) // Reset counter
-    setSignedUrlsReady(false) // Reset signed URLs ready state
-
-    // If no assets need to be loaded, hide skeleton immediately
-    if (totalAssetsToLoad === 0) {
-      setIsLoading(false)
-      setSignedUrlsReady(true)
-      setShouldAnimate(true) // Start animation immediately if no assets to load
-    }
-    // Otherwise, wait for smart threshold in handleAssetLoaded
+    // Show content immediately - images will load individually with their own loading states
+    setTimeout(() => setIsLoading(false), 100)
   }
 
   const applySearchAndSort = () => {
@@ -413,11 +318,7 @@ export default function AssetsPage() {
           </Select>
         </div>
 
-        {!shouldAnimate ? (
-          // Show skeleton while waiting for animation to start - match the actual number that will be shown
-          // Use collections.length (primary state) or filteredCollections.length, whichever is available
-          <CollectionGridSkeleton count={4} />
-        ) : filteredCollections.length === 0 ? (
+        {filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
@@ -428,7 +329,7 @@ export default function AssetsPage() {
                 key={collection.id}
                 className="animate-stagger-fade-in"
                 style={{
-                  animationDelay: `${Math.min(index * 40, 600)}ms`,
+                  animationDelay: `${Math.min(index * 20, 300)}ms`,
                 }}
               >
                 <CollectionCard
@@ -464,10 +365,7 @@ export default function AssetsPage() {
           </Select>
         </div>
 
-        {!shouldAnimate ? (
-          // Show skeleton while waiting for animation to start
-          <AssetGridSkeleton count={12} />
-        ) : filteredAssets.length === 0 ? (
+        {filteredAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-gray-600">No assets found</p>
             <Button
@@ -484,12 +382,12 @@ export default function AssetsPage() {
               // Always render assets, but control animation timing
               // Use inline style for opacity to ensure it works with animation
               return (
-              <Link 
-                key={asset.id} 
-                href={`/assets/${asset.id}?context=all`} 
+              <Link
+                key={asset.id}
+                href={`/assets/${asset.id}?context=all`}
                 className="block break-inside-avoid animate-stagger-fade-in"
                 style={{
-                  animationDelay: `${Math.min(index * 40, 600)}ms`,
+                  animationDelay: `${Math.min(index * 15, 200)}ms`,
                 }}
               >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
@@ -502,7 +400,6 @@ export default function AssetsPage() {
                         className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain" : "w-full h-full object-cover"}
                         signedUrl={signedUrlsCache[asset.storage_path]} // Pass cached signed URL if available
                         showLoading={false}
-                        onAssetLoaded={handleAssetLoaded}
                       />
                     )}
                     <Button

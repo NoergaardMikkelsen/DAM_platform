@@ -9,7 +9,7 @@ import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton, AssetGridSkeleton } from "@/components/skeleton-loaders"
@@ -45,9 +45,8 @@ export default function DashboardPage() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [maxCollections, setMaxCollections] = useState(3)
-  const [shouldAnimate, setShouldAnimate] = useState(false) // Control when stagger animation should start
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -61,6 +60,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const supabaseRef = useRef(createClient())
   const { tenant } = useTenant()
+
 
   useEffect(() => {
     // Handle cross-subdomain auth transfer (localhost workaround)
@@ -126,7 +126,7 @@ export default function DashboardPage() {
       return
     }
 
-    setIsLoading(true)
+    // isLoading is already true from initial state
     const supabase = supabaseRef.current
 
     // Server-side layout already verified auth, so we get user for data queries
@@ -231,11 +231,23 @@ export default function DashboardPage() {
       storageLimitGB,
       userName: userData?.full_name || ""
     })
-    setIsLoading(false)
-    // Start stagger animation after a short delay to ensure content is rendered
-    setTimeout(() => {
-      setShouldAnimate(true)
-    }, 100)
+
+    // Count how many images need to be loaded (recent uploads + collection previews)
+    const recentUploadsImages = recentUploadsData?.filter(asset =>
+      asset.mime_type?.startsWith("image/") ||
+      asset.mime_type?.startsWith("video/") ||
+      asset.mime_type === "application/pdf"
+    ).length || 0
+
+    const collectionPreviewImages = collectionsData?.reduce((total, collection) =>
+      total + (collection.previewAssets?.filter(asset =>
+        asset.mime_type?.startsWith("image/") ||
+        asset.mime_type?.startsWith("video/") ||
+        asset.mime_type === "application/pdf"
+      ).length || 0), 0) || 0
+
+    // Show content immediately - images will load individually with their own loading states
+    setTimeout(() => setIsLoading(false), 100)
   }
 
   const handleApplyFilters = async (filters: {
@@ -329,8 +341,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4 animate-stagger-fade-in"
+           style={{ animationDelay: '50ms' }}>
+        <Card className="animate-stagger-fade-in" style={{ animationDelay: '100ms' }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Storage usage</CardTitle>
             <Package className="h-5 w-5 text-gray-400" />
@@ -344,7 +357,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-stagger-fade-in" style={{ animationDelay: '150ms' }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total assets</CardTitle>
             <TrendingUp className="h-5 w-5 text-gray-400" />
@@ -354,7 +367,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-stagger-fade-in" style={{ animationDelay: '200ms' }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Recent uploads</CardTitle>
             <Clock className="h-5 w-5 text-gray-400" />
@@ -364,7 +377,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-stagger-fade-in" style={{ animationDelay: '250ms' }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Assets downloaded</CardTitle>
             <Download className="h-5 w-5 text-gray-400" />
@@ -397,11 +410,7 @@ export default function DashboardPage() {
           <span className="text-sm text-gray-500">Sort collection by Newest</span>
         </div>
 
-        {!shouldAnimate ? (
-          // Show skeleton while waiting for animation to start - match the actual number that will be shown
-          // Use collections.length (primary state) or filteredCollections.length, whichever is available
-          <CollectionGridSkeleton count={4} />
-        ) : filteredCollections.length === 0 ? (
+        {filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
             <Button
@@ -419,7 +428,7 @@ export default function DashboardPage() {
                 key={collection.id}
                 className="animate-stagger-fade-in"
                 style={{
-                  animationDelay: `${Math.min(index * 40, 600)}ms`,
+                  animationDelay: `${Math.min(index * 20, 300)}ms`, // Reduced delay from 40ms to 20ms, max from 600ms to 300ms
                 }}
               >
                 <CollectionCard
@@ -449,10 +458,7 @@ export default function DashboardPage() {
           <span className="text-sm text-gray-500">Sort assets by Newest</span>
         </div>
 
-        {!shouldAnimate ? (
-          // Show skeleton while waiting for animation to start
-          <AssetGridSkeleton count={Math.min(10, stats.recentUploads.length || 10)} />
-        ) : stats.recentUploads.length === 0 ? (
+        {stats.recentUploads.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No assets uploaded yet.</p>
             <Button
@@ -471,7 +477,7 @@ export default function DashboardPage() {
                 href={`/assets/${asset.id}?context=all`} 
                 className="block break-inside-avoid animate-stagger-fade-in mb-6"
                 style={{
-                  animationDelay: `${Math.min(index * 40, 600)}ms`,
+                  animationDelay: `${Math.min(index * 15, 200)}ms`, // Even faster animation for assets - 15ms delay, max 200ms
                 }}
               >
                 <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">

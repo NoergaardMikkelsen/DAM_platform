@@ -146,7 +146,7 @@ export const BatchAssetLoader = GlobalBatchManager
 
 export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl, showLoading = true, onAssetLoaded }: AssetPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(signedUrl || null)
-  const [loading, setLoading] = useState(!signedUrl && showLoading) // Show loading if no signedUrl and showLoading is true
+  const [loading, setLoading] = useState(false) // Never show loading for pre-loaded assets
   const [error, setError] = useState(false)
   const [mediaLoaded, setMediaLoaded] = useState(!!signedUrl) // Start as loaded if we have signedUrl
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(!!signedUrl) // Track if we've attempted to load
@@ -193,7 +193,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
 
     // Reset states when props change
     setError(false)
-    setLoading(!signedUrl && showLoading) // Show loading if no signedUrl and showLoading is true
+    setLoading(false) // Never show loading
     setMediaLoaded(!!signedUrl)
     setHasAttemptedLoad(!!signedUrl) // If we have signedUrl, we've attempted load
 
@@ -206,11 +206,10 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
     }
 
     loadUrl()
-  }, [storagePath, signedUrl, previewUrl, loadUrl, showLoading])
+  }, [storagePath, signedUrl, previewUrl, loadUrl])
 
-  // Show loading state if we're loading OR if we don't have a URL yet but haven't attempted load
-  // Use skeleton placeholder that fills the entire container to prevent layout shift
-  if (loading || (!previewUrl && !hasAttemptedLoad)) {
+  // Only show loading for assets that need to load signed URLs (not pre-loaded)
+  if (!previewUrl && !hasAttemptedLoad) {
     return (
       <div className={`flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 ${className} absolute inset-0`}>
         <div className="flex flex-col items-center justify-center gap-2">
@@ -220,6 +219,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
       </div>
     )
   }
+
 
   // Only show error if we've attempted to load AND there's an error AND we don't have a preview URL
   // Error state should also maintain size to prevent layout shift
@@ -254,7 +254,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
       <img
         src={previewUrl}
         alt={alt}
-        className={`${className} transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`${className} transition-opacity duration-300 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => {
           setMediaLoaded(true)
           onAssetLoaded?.()
@@ -282,7 +282,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
         )}
         <video
           src={previewUrl}
-          className={`h-full w-full object-cover transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`h-full w-full object-cover transition-opacity duration-300 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
           preload="metadata"
           muted
           playsInline
@@ -320,7 +320,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
         )}
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
-          className={`w-full h-full transition-opacity duration-500 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full transition-opacity duration-300 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
           title={`PDF Preview: ${alt}`}
           style={{ border: 'none', minHeight: '300px' }}
           onLoad={() => {

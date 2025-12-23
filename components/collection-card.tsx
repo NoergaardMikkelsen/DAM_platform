@@ -23,6 +23,15 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
   const [imageUrls, setImageUrls] = useState<string[]>(["", "", "", ""])
   const [assetTypes, setAssetTypes] = useState<string[]>(["placeholder", "placeholder", "placeholder", "placeholder"])
   const [videoUrls, setVideoUrls] = useState<string[]>(["", "", "", ""])
+  const [loadedImages, setLoadedImages] = useState<boolean[]>([false, false, false, false])
+
+  const handleImageLoad = (index: number) => {
+    setLoadedImages(prev => {
+      const newLoaded = [...prev]
+      newLoaded[index] = true
+      return newLoaded
+    })
+  }
 
   useEffect(() => {
     const fetchImageUrls = async () => {
@@ -170,10 +179,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
               <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
                 <video
                   src={videoUrls[0]}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none',
+                    opacity: loadedImages[0] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
+                  }}
                   preload="metadata"
                   muted
                   playsInline
+                  onLoadedData={() => handleImageLoad(0)}
+                  onError={() => handleImageLoad(0)}
                 />
               </foreignObject>
             ) : assetTypes[0] === "pdf" ? (
@@ -184,9 +202,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     border: 'none',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[0] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   title="PDF Preview"
+                  onLoad={() => handleImageLoad(0)}
+                  onError={() => handleImageLoad(0)}
                 />
               </foreignObject>
             ) : assetTypes[0] === "image" ? (
@@ -197,10 +219,14 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[0] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
+                  onLoad={() => handleImageLoad(0)}
+                  onError={() => handleImageLoad(0)}
                 />
               </foreignObject>
             ) : (
@@ -211,10 +237,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
               <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
                 <video
                   src={videoUrls[1]}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none',
+                    opacity: loadedImages[1] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
+                  }}
                   preload="metadata"
                   muted
                   playsInline
+                  onLoadedData={() => handleImageLoad(1)}
+                  onError={() => handleImageLoad(1)}
                 />
               </foreignObject>
             ) : assetTypes[1] === "pdf" ? (
@@ -225,9 +260,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     border: 'none',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[1] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   title="PDF Preview"
+                  onLoad={() => handleImageLoad(1)}
+                  onError={() => handleImageLoad(1)}
                 />
               </foreignObject>
             ) : assetTypes[1] === "image" ? (
@@ -238,10 +277,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[1] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
+                  onLoad={() => handleImageLoad(1)}
                 />
               </foreignObject>
             ) : (
@@ -252,10 +294,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
               <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
                 <video
                   src={videoUrls[2]}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none',
+                    opacity: loadedImages[2] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
+                  }}
                   preload="metadata"
                   muted
                   playsInline
+                  onLoadedData={() => handleImageLoad(2)}
+                  onError={() => handleImageLoad(2)}
                 />
               </foreignObject>
             ) : assetTypes[2] === "pdf" ? (
@@ -266,9 +317,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     border: 'none',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[2] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   title="PDF Preview"
+                  onLoad={() => handleImageLoad(2)}
+                  onError={() => handleImageLoad(2)}
                 />
               </foreignObject>
             ) : assetTypes[2] === "image" ? (
@@ -279,10 +334,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[2] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
+                  onLoad={() => handleImageLoad(2)}
                 />
               </foreignObject>
             ) : (
@@ -293,10 +351,19 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
               <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
                 <video
                   src={videoUrls[3]}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    pointerEvents: 'none',
+                    opacity: loadedImages[3] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
+                  }}
                   preload="metadata"
                   muted
                   playsInline
+                  onLoadedData={() => handleImageLoad(3)}
+                  onError={() => handleImageLoad(3)}
                 />
               </foreignObject>
             ) : assetTypes[3] === "pdf" ? (
@@ -307,9 +374,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     border: 'none',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[3] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   title="PDF Preview"
+                  onLoad={() => handleImageLoad(3)}
+                  onError={() => handleImageLoad(3)}
                 />
               </foreignObject>
             ) : assetTypes[3] === "image" ? (
@@ -320,10 +391,13 @@ export function CollectionCard({ id, label, assetCount, previewAssets }: Collect
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    opacity: loadedImages[3] ? 1 : 0,
+                    transition: 'opacity 0.3s ease-out'
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
+                  onLoad={() => handleImageLoad(3)}
                 />
               </foreignObject>
             ) : (
