@@ -96,6 +96,28 @@ async function executeMigration(client: Client, migration: Migration): Promise<v
 
     console.log(`✓ Completed: ${migration.filename}`)
   } catch (error: any) {
+    // Handle "already exists" errors gracefully - these mean the migration was already applied
+    const alreadyExistsErrors = [
+      "42701", // duplicate_column
+      "42P07", // duplicate_table
+      "42710", // duplicate_object
+      "42P16", // duplicate_schema
+    ]
+    
+    if (alreadyExistsErrors.includes(error.code)) {
+      console.log(`⚠ Skipped: ${migration.filename} (already applied)`)
+      // Still record it as executed
+      try {
+        await client.query(
+          "INSERT INTO schema_migrations (filename, checksum, executed_by) VALUES ($1, $2, $3) ON CONFLICT (filename) DO NOTHING",
+          [migration.filename, migration.checksum, "migration_execute"],
+        )
+      } catch (recordError) {
+        // Ignore errors when recording - migration might already be recorded
+      }
+      return
+    }
+    
     console.error(`✗ Failed: ${migration.filename}`)
     console.error(`  Error: ${error.message}`)
     throw error
@@ -104,15 +126,20 @@ async function executeMigration(client: Client, migration: Migration): Promise<v
 
 async function runMigrations() {
   // Parse connection string to handle SSL properly
-  const connectionConfig: any = {
-    connectionString: DATABASE_URL,
+  // Ensure SSL mode is set in connection string if not already present
+  let connectionString = DATABASE_URL || ""
+  
+  // Add SSL mode if not present and it's a Supabase connection
+  if (connectionString.includes("supabase") && !connectionString.includes("sslmode")) {
+    connectionString += (connectionString.includes("?") ? "&" : "?") + "sslmode=require"
   }
   
-  // Add SSL configuration for Supabase
-  if (DATABASE_URL?.includes("supabase") || DATABASE_URL?.includes("pooler")) {
-    connectionConfig.ssl = {
-      rejectUnauthorized: false, // Supabase uses self-signed certificates
-    }
+  // Always apply SSL config to handle self-signed certificates
+  const connectionConfig: any = {
+    connectionString,
+    ssl: connectionString.includes("supabase") || connectionString.includes("pooler") ? {
+      rejectUnauthorized: false, // Allow self-signed certificates
+    } : undefined,
   }
   
   const client = new Client(connectionConfig)

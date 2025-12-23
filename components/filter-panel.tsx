@@ -5,106 +5,119 @@ import { Label } from "@/components/ui/label"
 import { X } from "lucide-react"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-
-interface Tag {
-  id: string
-  tag_type: string
-  label: string
-}
+import { useTenant } from "@/lib/context/tenant-context"
+import type { Tag, TagDimension } from "@/lib/types/database"
 
 interface FilterPanelProps {
   isOpen: boolean
   onClose: () => void
-  onApplyFilters: (filters: {
-    categoryTags: string[]
-    descriptionTags: string[]
-    usageTags: string[]
-    visualStyleTags: string[]
-    fileTypeTags: string[]
-  }) => void
+  onApplyFilters: (filters: Record<string, string[]>) => void // dimension_key -> tag_ids[]
   showCategoryFilter?: boolean
 }
 
 export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilter = true }: FilterPanelProps) {
-  const [categoryTags, setCategoryTags] = useState<string[]>([])
-  const [descriptionTags, setDescriptionTags] = useState<string[]>([])
-  const [usageTags, setUsageTags] = useState<string[]>([])
-  const [visualStyleTags, setVisualStyleTags] = useState<string[]>([])
-  const [fileTypeTags, setFileTypeTags] = useState<string[]>([])
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  const { tenant } = useTenant()
+  const [dimensions, setDimensions] = useState<TagDimension[]>([])
+  const [tagsByDimension, setTagsByDimension] = useState<Record<string, Tag[]>>({})
+  const [selectedTags, setSelectedTags] = useState<Record<string, string[]>>({}) // dimension_key -> tag_ids[]
 
   useEffect(() => {
     if (isOpen) {
-      loadTags()
+      loadDimensionsAndTags()
     }
-  }, [isOpen])
+  }, [isOpen, tenant])
 
-  const loadTags = async () => {
+  const loadDimensionsAndTags = async () => {
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
+    
+    // Load dimensions
+    const { data: dimensionsData } = await supabase
+      .from("tag_dimensions")
+      .select("*")
+      .order("display_order", { ascending: true })
 
-    const { data: clientUsers } = await supabase
-      .from("client_users")
-      .select("client_id")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .limit(1)
-      .single()
+    if (!dimensionsData) return
+    setDimensions(dimensionsData)
 
-    if (!clientUsers?.client_id) return
+    // Load tags for each dimension
+    const tagsMap: Record<string, Tag[]> = {}
+    
+    for (const dimension of dimensionsData) {
+      // Get parent tag if hierarchical
+      let parentTagId: string | null = null
+      if (dimension.is_hierarchical) {
+        const { data: parentTag } = await supabase
+          .from("tags")
+          .select("id")
+          .eq("dimension_key", dimension.dimension_key)
+          .is("parent_id", null)
+          .or(`client_id.eq.${tenant.id},client_id.is.null`)
+          .maybeSingle()
+        
+        parentTagId = parentTag?.id || null
+      }
 
-    const { data: tags } = await supabase
-      .from("tags")
-      .select("id, tag_type, label")
-      .or(`client_id.eq.${clientUsers.client_id},is_system.eq.true`)
-      .order("tag_type")
-      .order("sort_order")
+      // Get tags for this dimension
+      const query = supabase
+        .from("tags")
+        .select("id, dimension_key, label, slug, parent_id")
+        .eq("dimension_key", dimension.dimension_key)
+        .or(`client_id.eq.${tenant.id},client_id.is.null`)
+        .order("sort_order", { ascending: true })
+        .order("label", { ascending: true })
 
-    if (tags) {
-      setAvailableTags(tags)
+      if (dimension.is_hierarchical && parentTagId) {
+        query.eq("parent_id", parentTagId)
+      } else if (dimension.is_hierarchical) {
+        query.is("parent_id", null)
+      }
+
+      const { data: tags } = await query
+      if (tags) {
+        tagsMap[dimension.dimension_key] = tags
+      }
     }
+
+    setTagsByDimension(tagsMap)
   }
 
-  const toggleTag = (tagId: string, type: string) => {
-    if (type === "category") {
-      setCategoryTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
-    } else if (type === "description") {
-      setDescriptionTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
-    } else if (type === "usage") {
-      setUsageTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
-    } else if (type === "visual_style") {
-      setVisualStyleTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
-    } else if (type === "file_type") {
-      setFileTypeTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
-    }
-  }
+  const toggleTag = (dimensionKey: string, tagId: string) => {
+    setSelectedTags((prev) => {
+      const current = prev[dimensionKey] || []
+      const dimension = dimensions.find((d) => d.dimension_key === dimensionKey)
+      const allowsMultiple = dimension?.allows_multiple ?? true
 
-  const handleApply = () => {
-    onApplyFilters({
-      categoryTags,
-      descriptionTags,
-      usageTags,
-      visualStyleTags,
-      fileTypeTags,
+      if (allowsMultiple) {
+        // Multi-select: toggle
+        return {
+          ...prev,
+          [dimensionKey]: current.includes(tagId)
+            ? current.filter((id) => id !== tagId)
+            : [...current, tagId],
+        }
+      } else {
+        // Single-select: replace
+        return {
+          ...prev,
+          [dimensionKey]: current.includes(tagId) ? [] : [tagId],
+        }
+      }
     })
   }
 
-  const handleClear = () => {
-    setCategoryTags([])
-    setDescriptionTags([])
-    setUsageTags([])
-    setVisualStyleTags([])
-    setFileTypeTags([])
+  const handleApply = () => {
+    onApplyFilters(selectedTags)
   }
 
-  const categories = availableTags.filter((t) => t.tag_type === "category")
-  const descriptions = availableTags.filter((t) => t.tag_type === "description")
-  const usages = availableTags.filter((t) => t.tag_type === "usage")
-  const visualStyles = availableTags.filter((t) => t.tag_type === "visual_style")
-  const fileTypes = availableTags.filter((t) => t.tag_type === "file_type")
+  const handleClear = () => {
+    setSelectedTags({})
+  }
+
+  // Filter dimensions to show (exclude file_type from manual filtering, it's auto-assigned)
+  // Also exclude content_type as it overlaps with usage
+  const filterableDimensions = dimensions.filter(
+    (d) => (d.dimension_key !== "file_type" || showCategoryFilter) && d.dimension_key !== "content_type"
+  )
 
   if (!isOpen) return null
 
@@ -120,120 +133,34 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
         </div>
 
         <div className="space-y-6 p-6">
-          {/* Category Tags */}
-          {showCategoryFilter && categories.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Category</Label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id, "category")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                      categoryTags.includes(tag.id)
-                        ? "border-[#DF475C] bg-[#DF475C] text-white"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {filterableDimensions.map((dimension) => {
+            const tags = tagsByDimension[dimension.dimension_key] || []
+            const selected = selectedTags[dimension.dimension_key] || []
 
-          {/* Description Tags */}
-          {descriptions.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Description tags</Label>
-              <div className="flex flex-wrap gap-2">
-                {descriptions.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id, "description")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                      descriptionTags.includes(tag.id)
-                        ? "border-[#DF475C] bg-[#DF475C] text-white"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+            if (tags.length === 0) return null
 
-          {/* Usage / Purpose Tags */}
-          {usages.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Usage / Purpose</Label>
-              <div className="flex flex-wrap gap-2">
-                {usages.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id, "usage")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                      usageTags.includes(tag.id)
-                        ? "border-[#DF475C] bg-[#DF475C] text-white"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
+            return (
+              <div key={dimension.dimension_key} className="space-y-3">
+                <Label className="text-base font-medium">{dimension.label}</Label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(dimension.dimension_key, tag.id)}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
+                        selected.includes(tag.id)
+                          ? "border-[#DF475C] bg-[#DF475C] text-white"
+                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                      }`}
+                    >
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Visual Style Tags */}
-          {visualStyles.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Visual style</Label>
-              <div className="flex flex-wrap gap-2">
-                {visualStyles.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id, "visual_style")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                      visualStyleTags.includes(tag.id)
-                        ? "border-[#DF475C] bg-[#DF475C] text-white"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* File Type Tags */}
-          {fileTypes.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium">File type</Label>
-              <div className="flex flex-wrap gap-2">
-                {fileTypes.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id, "file_type")}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                      fileTypeTags.includes(tag.id)
-                        ? "border-[#DF475C] bg-[#DF475C] text-white"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+            )
+          })}
         </div>
 
         <div className="sticky bottom-0 flex gap-3 border-t bg-white p-6">

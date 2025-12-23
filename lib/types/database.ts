@@ -42,17 +42,35 @@ export type ClientUser = {
   updated_at: string
 }
 
+export type TagDimension = {
+  id: string
+  dimension_key: string
+  label: string
+  is_hierarchical: boolean
+  requires_subtag: boolean
+  allows_multiple: boolean
+  required: boolean
+  display_order: number
+  generates_collection: boolean
+  allow_user_creation: boolean
+  created_at: string
+  updated_at: string
+}
+
 export type Tag = {
   id: string
   client_id: string
   created_by: string | null
-  tag_type: "category" | "description" | "usage" | "visual_style" | "file_type"
+  dimension_key: string | null // New: references tag_dimensions
+  parent_id: string | null // New: for hierarchical tags
+  tag_type?: string // Legacy field, kept for backward compatibility
   label: string
   slug: string
   is_system: boolean
   sort_order: number
   created_at: string
   updated_at: string
+  asset_count?: number // Computed field for UI
 }
 
 export type Asset = {
@@ -68,7 +86,7 @@ export type Asset = {
   width: number | null
   height: number | null
   duration_seconds: number | null
-  category_tag_id: string | null
+  category_tag_id?: string | null // Legacy field, removed in migration
   status: string
   current_version_id?: string | null
   previous_version_id?: string | null

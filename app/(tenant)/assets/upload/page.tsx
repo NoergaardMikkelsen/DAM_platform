@@ -6,32 +6,27 @@ import { createClient } from "@/lib/supabase/client"
 import { uploadAsset, getImageDimensions, getVideoDimensions, generateVideoThumbnail } from "@/lib/utils/storage"
 import { getFileTypeFromMimeType } from "@/lib/utils/file-type-detector"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Upload, CheckCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
-
-interface Tag {
-  id: string
-  tag_type: string
-  label: string
-  slug: string
-}
+import { TagBadgeSelector } from "@/components/tag-badge-selector"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import type { TagDimension } from "@/lib/types/database"
 
 export default function UploadAssetPage() {
   const { tenant } = useTenant()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [categoryTag, setCategoryTag] = useState<string>("")
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  
+  // Dynamic tag selections - keyed by dimension_key
+  const [selectedTags, setSelectedTags] = useState<Record<string, string[]>>({})
+  
+  const [tagDimensions, setTagDimensions] = useState<TagDimension[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
@@ -43,10 +38,10 @@ export default function UploadAssetPage() {
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
-    initializeAndLoadTags()
-  }, [tenant]) // Re-run when tenant changes
+    initializeAndLoadDimensions()
+  }, [tenant])
 
-  const initializeAndLoadTags = async () => {
+  const initializeAndLoadDimensions = async () => {
     try {
       const supabase = supabaseRef.current
       const {
@@ -61,22 +56,21 @@ export default function UploadAssetPage() {
       }
 
       setUserId(user.id)
-
-      // Use tenant context for client ID instead of looking up client_users
-      // This ensures we get tags for the current tenant/subdomain
       const clientId = tenant.id
       setClientId(clientId)
 
-      // Fetch tags (client-specific OR system tags)
-      const { data: tags } = await supabase
-        .from("tags")
-        .select("id, tag_type, label, slug")
-        .or(`client_id.eq.${clientId},client_id.is.null`)
-        .order("tag_type")
-        .order("sort_order")
+      // Load tag dimensions configuration
+      const { data: dimensions, error: dimError } = await supabase
+        .from("tag_dimensions")
+        .select("*")
+        .order("display_order", { ascending: true })
 
-      if (tags) {
-        setAvailableTags(tags)
+      if (dimError) {
+        console.error("Error loading tag dimensions:", dimError)
+        // Fallback: create default dimensions if table doesn't exist yet
+        setTagDimensions([])
+      } else {
+        setTagDimensions(dimensions || [])
       }
     } catch (err) {
       console.error("Initialization error:", err)
@@ -109,8 +103,120 @@ export default function UploadAssetPage() {
     }
   }
 
-  const toggleTag = (tagId: string) => {
-    setSelectedTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const droppedFile = e.dataTransfer.files[0]
+      setFile(droppedFile)
+
+      // Generate preview for images
+      if (droppedFile.type.startsWith("image/")) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setPreview(reader.result as string)
+        }
+        reader.readAsDataURL(droppedFile)
+      } else {
+        setPreview(null)
+      }
+
+      // Auto-fill title if empty
+      if (!title) {
+        setTitle(droppedFile.name.replace(/\.[^/.]+$/, "")) // Remove extension
+      }
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const toggleTag = (dimensionKey: string, tagId: string) => {
+    setSelectedTags((prev) => {
+      const current = prev[dimensionKey] || []
+      if (current.includes(tagId)) {
+        return {
+          ...prev,
+          [dimensionKey]: current.filter((id) => id !== tagId),
+        }
+      } else {
+        return {
+          ...prev,
+          [dimensionKey]: [...current, tagId],
+        }
+      }
+    })
+  }
+
+  const getSelectedTags = (dimensionKey: string): string[] => {
+    return selectedTags[dimensionKey] || []
+  }
+
+  // Generic tag creation handler
+  const createTagHandler = (dimension: TagDimension) => {
+    if (!dimension.allow_user_creation) return undefined
+
+    return async (label: string): Promise<string | null> => {
+      const supabase = supabaseRef.current
+      let parentId: string | null = null
+
+      if (dimension.is_hierarchical) {
+        const { data: parentTag } = await supabase
+          .from("tags")
+          .select("id")
+          .eq("dimension_key", dimension.dimension_key)
+          .is("parent_id", null)
+          .or(`client_id.eq.${clientId},client_id.is.null`)
+          .maybeSingle()
+        parentId = parentTag?.id || null
+      }
+
+      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+
+      // Check if tag already exists before creating
+      const { data: existing } = await supabase
+        .from("tags")
+        .select("id")
+        .eq("dimension_key", dimension.dimension_key)
+        .eq("slug", slug)
+        .or(`client_id.eq.${clientId},client_id.is.null`)
+        .maybeSingle()
+
+      if (existing) {
+        return existing.id
+      }
+
+      // Determine tag_type based on dimension_key (for backward compatibility)
+      let tagType = "description"
+      if (dimension.dimension_key === "campaign" || dimension.dimension_key === "brand_assets") {
+        tagType = "category"
+      } else if (dimension.dimension_key === "visual_style") {
+        tagType = "visual_style"
+      } else if (dimension.dimension_key === "usage") {
+        tagType = "usage"
+      }
+
+      const { data, error } = await supabase
+        .from("tags")
+        .insert({
+          client_id: clientId!,
+          dimension_key: dimension.dimension_key,
+          parent_id: parentId,
+          label: label.trim(),
+          slug,
+          is_system: false,
+          sort_order: 0,
+          created_by: userId,
+          tag_type: tagType,
+        })
+        .select("id")
+        .single()
+
+      return error ? null : data?.id || null
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,9 +226,20 @@ export default function UploadAssetPage() {
       return
     }
 
-    if (!categoryTag) {
-      setError("Please select a category for this asset")
+    // Validate: At least one organizational tag is required
+    const organizationDimensions = tagDimensions.filter(
+      (d) => (d.generates_collection || d.dimension_key === "department") && d.dimension_key !== "file_type"
+    )
+    
+    if (organizationDimensions.length > 0) {
+      const hasOrgTag = organizationDimensions.some(
+        (dim) => (selectedTags[dim.dimension_key] || []).length > 0
+      )
+      
+      if (!hasOrgTag) {
+        setError("Please select at least one organizational tag")
       return
+      }
     }
 
     if (!clientId || !userId) {
@@ -167,25 +284,25 @@ export default function UploadAssetPage() {
             const thumbnailUploadResult = await uploadAsset({
               clientId,
               file: thumbnailFile,
-              onProgress: () => {}, // No progress for thumbnail
+              onProgress: () => {},
             })
             thumbnailPath = thumbnailUploadResult.path
           }
         } catch (error) {
           console.warn("Failed to generate video thumbnail:", error)
-          // Continue without thumbnail - not critical
         }
       }
 
       setUploadProgress(85)
 
+      // Create asset (no category_tag_id - all tags go through junction table)
       const { data: newAsset, error: dbError } = await supabase
         .from("assets")
         .insert({
           client_id: clientId,
           uploaded_by: userId,
-          title: title.trim() || file.name,
-          description: description.trim() || null,
+          title: title.trim() || file.name || "Untitled",
+          description: null,
           storage_bucket: "assets",
           storage_path: uploadResult.path,
           mime_type: file.type,
@@ -193,7 +310,6 @@ export default function UploadAssetPage() {
           width: dimensions?.width || null,
           height: dimensions?.height || null,
           duration_seconds: dimensions?.duration || null,
-          category_tag_id: categoryTag || null,
           status: "active",
         })
         .select("id")
@@ -203,7 +319,7 @@ export default function UploadAssetPage() {
 
       setUploadProgress(90)
 
-      // Create initial asset_version and set as current_version_id
+      // Create initial asset_version
       const { data: versionData, error: versionError } = await supabase
         .from("asset_versions")
         .insert({
@@ -232,38 +348,39 @@ export default function UploadAssetPage() {
           .eq("id", newAsset.id)
       }
 
-      // Auto-assign file_type tag based on mime_type
+      // Collect all selected tags dynamically
+      const allTagIds: string[] = []
+      Object.values(selectedTags).forEach((tagIds) => {
+        allTagIds.push(...tagIds)
+      })
+
+      // Auto-assign file_type tag
       const fileTypeSlug = getFileTypeFromMimeType(file.type)
       if (fileTypeSlug) {
-        // Find the file_type tag (system tag, available to all clients)
         const { data: fileTypeTag } = await supabase
           .from("tags")
           .select("id")
-          .eq("tag_type", "file_type")
+          .eq("dimension_key", "file_type")
           .eq("slug", fileTypeSlug)
-          .eq("is_system", true)
+          .or(`client_id.eq.${clientId},client_id.is.null`)
           .maybeSingle()
 
-        if (fileTypeTag) {
-          const { error: fileTypeTagError } = await supabase.from("asset_tags").insert({
-            asset_id: newAsset.id,
-            tag_id: fileTypeTag.id,
-          })
-          if (fileTypeTagError) {
-            console.error("File type tag assignment error:", fileTypeTagError)
-          } else {
-          }
+        if (fileTypeTag && !allTagIds.includes(fileTypeTag.id)) {
+          allTagIds.push(fileTypeTag.id)
         }
       }
 
-      if (selectedTags.length > 0) {
-        const tagInserts = selectedTags.map((tagId) => ({
+      // Insert all tags through junction table
+      if (allTagIds.length > 0) {
+        const tagInserts = allTagIds.map((tagId) => ({
           asset_id: newAsset.id,
           tag_id: tagId,
         }))
 
         const { error: tagError } = await supabase.from("asset_tags").insert(tagInserts)
-        if (tagError) console.error("Tag insertion error:", tagError)
+        if (tagError) {
+          console.error("Tag insertion error:", tagError)
+        }
       }
 
       setUploadProgress(95)
@@ -291,18 +408,14 @@ export default function UploadAssetPage() {
     }
   }
 
-  // Category tags - show ALL category tags (system + client-specific)
-  const categoryTags = availableTags.filter((t) => t.tag_type === "category")
-
-  // Description tags - show ALL description tags (system + client-specific)
-  const descriptionTags = availableTags.filter((t) => t.tag_type === "description")
-
-  // Usage tags - show ALL usage tags (system + client-specific)
-  const usageTags = availableTags.filter((t) => t.tag_type === "usage")
-
-  // Visual style tags - show ALL visual_style tags (system + client-specific)
-  const visualStyleTags = availableTags.filter((t) => t.tag_type === "visual_style")
-
+  // Calculate grid columns based on number of organizational dimensions
+  const getGridCols = (count: number) => {
+    if (count === 1) return "grid-cols-1"
+    if (count === 2) return "grid-cols-1 md:grid-cols-2"
+    if (count === 3) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+    if (count === 4) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+  }
 
   if (isInitializing) {
     return (
@@ -315,29 +428,44 @@ export default function UploadAssetPage() {
     )
   }
 
+  // Group dimensions by type
+  const organizationDimensions = tagDimensions.filter(
+    (d) => (d.generates_collection || d.dimension_key === "department") && d.dimension_key !== "file_type"
+  )
+  const descriptiveDimensions = tagDimensions.filter(
+    (d) => !d.generates_collection && d.dimension_key !== "department" && d.dimension_key !== "file_type" && d.dimension_key !== "content_type"
+  )
+
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => router.push('/assets')}
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
+            onClick={() => router.push("/assets")}
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-6 transition-colors"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to assets
         </button>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Upload asset</h1>
       </div>
 
-      <Card className="mx-auto max-w-3xl">
-        <CardHeader>
-          <CardTitle className="text-2xl">Upload asset</CardTitle>
-          <CardDescription>Upload a new asset and organize it with tags</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* File Upload */}
-            <div className="space-y-2">
-              <Label htmlFor="file">File *</Label>
-              <div className="flex">
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
+            {/* Left Column - Preview */}
+            <div className="lg:col-span-2">
+              <div className="sticky top-8">
+                {/* File Upload Area */}
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  className={`relative group rounded-xl border-2 border-dashed transition-all ${
+                    file
+                      ? "border-gray-200 bg-gray-50/50"
+                      : "border-gray-200 bg-gray-50/30 hover:border-gray-300 hover:bg-gray-50/50"
+                  }`}
+                >
               <Input
                 id="file"
                 type="file"
@@ -345,186 +473,136 @@ export default function UploadAssetPage() {
                 onChange={handleFileChange}
                 accept="image/*,video/*,application/pdf"
                 disabled={isLoading}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="file"
-                  className="flex-1 cursor-pointer inline-flex items-center justify-start px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Choose file
-                </label>
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  {preview ? (
+                    <div className="p-6">
+                      <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 mb-4">
+                        <img
+                          src={preview}
+                          alt="Preview"
+                          className="w-full h-full object-contain"
+                        />
               </div>
-              {file && (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">
-                    {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                  {preview && (
-                    <div className="mt-4">
-                      <img src={preview || "/placeholder.svg"} alt="Preview" className="max-h-48 rounded-lg border" />
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-900 truncate">{file?.name}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {(file?.size ? file.size / 1024 / 1024 : 0).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-12 text-center">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 group-hover:bg-gray-200 transition-colors mb-4">
+                        <Upload className="h-7 w-7 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1">Drop file here</p>
+                      <p className="text-xs text-gray-500">or click to browse</p>
+                      <p className="text-xs text-gray-400 mt-2">Images, videos, PDFs</p>
                     </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
 
+            {/* Right Column - Form */}
+            <div className="lg:col-span-3">
+              <div className="space-y-8">
+                {/* Basic Information */}
+                <div>
+                  <div className="mb-6">
+                    <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-2">Details</h2>
+                  </div>
+
+                  <div className="space-y-6">
             {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">Title *</Label>
+                    <div>
+                      <Label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+                        Title <span className="text-gray-400 text-xs">(optional)</span>
+                      </Label>
               <Input
                 id="title"
-                required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Asset title"
+                        placeholder="Enter asset title (leave empty to use filename)"
                 disabled={isLoading}
+                        className="w-full"
               />
             </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe this asset"
-                rows={3}
-                disabled={isLoading}
-              />
-            </div>
-
-            {/* Category Tag (single select) */}
-            {categoryTags.length > 0 && (
-              <div className="space-y-2">
-                <Label>
-                  Category <span style={{ color: tenant.primary_color }}>*</span>
-                </Label>
-                <p className="text-sm text-gray-500">Select a category to organize this asset into a collection</p>
-                <div className="flex flex-wrap gap-2">
-                  {categoryTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => setCategoryTag(tag.id === categoryTag ? "" : tag.id)}
-                      disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                        categoryTag === tag.id
-                          ? `border-[${tenant.primary_color}] text-white`
-                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                      }`}
-                      style={categoryTag === tag.id ? { backgroundColor: tenant.primary_color } : {}}
-                    >
-                      {tag.label}
-                    </button>
-                  ))}
+                  </div>
                 </div>
-                {!categoryTag && error?.includes("category") && (
-                  <p className="text-sm" style={{ color: tenant.primary_color }}>Please select a category</p>
-                )}
-              </div>
-            )}
 
-            {/* Description Tags (multi-select) */}
-            {descriptionTags.length > 0 && (
-              <div className="space-y-2">
-                <Label>Description tags</Label>
-                <div className="flex flex-wrap gap-2">
-                  {descriptionTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                        selectedTags.includes(tag.id)
-                          ? "text-white"
-                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                      }`}
-                      style={selectedTags.includes(tag.id) ? {
-                        backgroundColor: tenant.primary_color,
-                        borderColor: tenant.primary_color
-                      } : {}}
-                    >
-                      {tag.label}
-                    </button>
+                {/* Organization Tags */}
+                {organizationDimensions.length > 0 && (
+                  <div>
+                    <div className="mb-6">
+                      <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-2">
+                        Organization
+                        <span className="ml-2 text-red-500 normal-case" title="Required - select at least one organizational tag">
+                          *
+                        </span>
+                      </h2>
+                </div>
+                    <div className={`grid ${getGridCols(organizationDimensions.length)} gap-6`}>
+                      {organizationDimensions.map((dimension) => (
+                        <div key={dimension.dimension_key}>
+                          <TagBadgeSelector
+                            dimension={dimension}
+                            selectedTagIds={getSelectedTags(dimension.dimension_key)}
+                            onToggle={(tagId) => toggleTag(dimension.dimension_key, tagId)}
+                            onCreate={createTagHandler(dimension)}
+                            clientId={clientId!}
+                            userId={userId}
+                          />
+              </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Usage Tags (multi-select) */}
-            {usageTags.length > 0 && (
-              <div className="space-y-2">
-                <Label>Usage / Purpose</Label>
-                <div className="flex flex-wrap gap-2">
-                  {usageTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                        selectedTags.includes(tag.id)
-                          ? "text-white"
-                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                      }`}
-                      style={selectedTags.includes(tag.id) ? {
-                        backgroundColor: tenant.primary_color,
-                        borderColor: tenant.primary_color
-                      } : {}}
-                    >
-                      {tag.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Visual Style Tags (multi-select) */}
-            {visualStyleTags.length > 0 && (
-              <div className="space-y-2">
-                <Label>Visual style</Label>
-                <div className="flex flex-wrap gap-2">
-                  {visualStyleTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
-                        selectedTags.includes(tag.id)
-                          ? "text-white"
-                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                      }`}
-                      style={selectedTags.includes(tag.id) ? {
-                        backgroundColor: tenant.primary_color,
-                        borderColor: tenant.primary_color
-                      } : {}}
-                    >
-                      {tag.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Descriptive Tags */}
+                {descriptiveDimensions.length > 0 && (
+                  <div>
+                    <div className="mb-6">
+                      <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-2">Additional Tags</h2>
+                    </div>
+                    <Accordion type="single" collapsible className="w-full">
+                      {descriptiveDimensions.map((dimension) => (
+                        <AccordionItem key={dimension.dimension_key} value={dimension.dimension_key} className="border-gray-200">
+                          <AccordionTrigger className="text-sm font-medium text-gray-700 hover:no-underline py-3">
+                            {dimension.label}
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-2 pb-4">
+                            <TagBadgeSelector
+                              dimension={dimension}
+                              selectedTagIds={getSelectedTags(dimension.dimension_key)}
+                              onToggle={(tagId) => toggleTag(dimension.dimension_key, tagId)}
+                              onCreate={createTagHandler(dimension)}
+                              clientId={clientId!}
+                              userId={userId}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
               </div>
             )}
 
             {/* Upload Progress */}
             {isLoading && uploadProgress > 0 && (
-              <div className="space-y-2">
+                  <div className="space-y-3 rounded-lg bg-blue-50/50 p-4 border border-blue-100">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">
+                      <span className="text-blue-700 font-medium">
                     {uploadProgress < 30 && "Preparing..."}
                     {uploadProgress >= 30 && uploadProgress < 80 && "Uploading..."}
                     {uploadProgress >= 80 && "Saving..."}
                   </span>
-                  <span className="font-medium">{uploadProgress}%</span>
+                      <span className="font-semibold text-blue-900">{uploadProgress}%</span>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
                   <div
-                    className="h-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%`, backgroundColor: tenant.primary_color }}
+                        className="h-full transition-all duration-300 bg-blue-600"
+                        style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
               </div>
@@ -532,7 +610,7 @@ export default function UploadAssetPage() {
 
             {/* Success Message */}
             {success && (
-              <div className="flex items-center gap-2 rounded-lg bg-green-50 p-4 text-green-800">
+                  <div className="flex items-center gap-2 rounded-lg bg-green-50 p-4 text-green-800 border border-green-200">
                 <CheckCircle className="h-5 w-5" />
                 <p className="text-sm font-medium">Upload successful! Redirecting...</p>
               </div>
@@ -540,13 +618,13 @@ export default function UploadAssetPage() {
 
             {/* Error Message */}
             {error && (
-              <div className="rounded-lg bg-red-50 p-4">
-                <p className="text-sm text-red-800">{error}</p>
+                  <div className="rounded-lg bg-red-50 p-4 text-red-800 border border-red-200">
+                    <p className="text-sm">{error}</p>
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex justify-end gap-4">
+                <div className="flex justify-end gap-3 pt-8 border-t border-gray-200">
               <Link href="/assets">
                 <Button type="button" variant="outline" disabled={isLoading}>
                   Cancel
@@ -554,20 +632,30 @@ export default function UploadAssetPage() {
               </Link>
               <Button
                 type="submit"
-                className="rounded-[25px]"
                 style={{
                   backgroundColor: tenant.primary_color,
-                  borderColor: tenant.primary_color
+                      borderColor: tenant.primary_color,
                 }}
                 disabled={isLoading || success || !clientId}
               >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
                 <Upload className="mr-2 h-4 w-4" />
-                {isLoading ? "Uploading..." : "Upload asset"}
+                        Upload asset
+                      </>
+                    )}
               </Button>
+                </div>
+              </div>
+            </div>
             </div>
           </form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   )
 }

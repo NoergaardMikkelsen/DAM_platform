@@ -4,13 +4,14 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Filter, Search, Heart, ArrowRight } from "lucide-react"
+import { Filter, Search, Heart, ArrowRight, Upload } from "lucide-react"
 import Link from "next/link"
 import { Card, CardHeader } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
+import { UploadAssetModal } from "@/components/upload-asset-modal"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
@@ -22,7 +23,6 @@ interface Asset {
   mime_type: string
   created_at: string
   file_size: number
-  category_tag_id: string | null
   current_version?: {
     thumbnail_path: string | null
   } | null
@@ -48,6 +48,7 @@ export default function AssetsPage() {
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -79,7 +80,6 @@ export default function AssetsPage() {
           mime_type,
           created_at,
           file_size,
-          category_tag_id,
           current_version:asset_versions!current_version_id (
             thumbnail_path
           )
@@ -89,8 +89,8 @@ export default function AssetsPage() {
         .order("created_at", { ascending: false }),
       supabase
         .from("tags")
-        .select("id, label, slug")
-        .eq("tag_type", "category")
+        .select("id, label, slug, dimension_key")
+        .eq("dimension_key", "campaign")
         .or(`client_id.is.null,client_id.eq.${clientId}`)
         .order("sort_order", { ascending: true })
     ])
@@ -102,11 +102,27 @@ export default function AssetsPage() {
     setAssets(assetsData)
     setFilteredAssets(assetsData)
 
-    // Build collections from category tags
+    // Build collections from campaign tags (collections are generated from campaign dimension)
     if (categoryTags && assetsData) {
+      // Get assets with campaign tags via junction table
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select("asset_id, tag_id, tags!inner(dimension_key)")
+        .in("tag_id", categoryTags.map((t: any) => t.id))
+        .eq("tags.dimension_key", "campaign")
+
+      const assetTagMap = new Map<string, string[]>() // asset_id -> tag_ids
+      assetTags?.forEach((at: any) => {
+        const current = assetTagMap.get(at.asset_id) || []
+        assetTagMap.set(at.asset_id, [...current, at.tag_id])
+      })
+
       const collectionsWithCounts: Collection[] = categoryTags
         .map((tag: { id: string; label: string; slug: string }) => {
-          const tagAssets = assetsData.filter((a: Asset) => a.category_tag_id === tag.id)
+          const tagAssets = assetsData.filter((a: Asset) => {
+            const assetTagIds = assetTagMap.get(a.id) || []
+            return assetTagIds.includes(tag.id)
+          })
           return {
             id: tag.id,
             label: tag.label,
@@ -196,62 +212,73 @@ export default function AssetsPage() {
     }
   })
 
-  const handleApplyFilters = async (filters: {
-    categoryTags: string[]
-    descriptionTags: string[]
-    usageTags: string[]
-    visualStyleTags: string[]
-    fileTypeTags: string[]
-  }) => {
-    const allSelectedTags = [
-      ...filters.categoryTags,
-      ...filters.fileTypeTags,
-      ...filters.descriptionTags,
-      ...filters.usageTags,
-      ...filters.visualStyleTags,
-    ]
+  const handleApplyFilters = async (filters: Record<string, string[]>) => {
+    // filters is now: { dimension_key: tag_ids[] }
+    const allSelectedTags = Object.values(filters).flat()
 
     const supabase = supabaseRef.current
 
-    // Filter assets
-    let filteredAssets = [...assets]
+    if (allSelectedTags.length === 0) {
+      // No filters - show all
+      setFilteredAssets(assets)
+      setFilteredCollections(collections)
+      setIsFilterOpen(false)
+      return
+    }
 
-    if (allSelectedTags.length > 0) {
-      // Filter by category tags directly on assets
-      if (filters.categoryTags.length > 0) {
-        filteredAssets = filteredAssets.filter(
-          (asset) => asset.category_tag_id && filters.categoryTags.includes(asset.category_tag_id),
+    // Get all assets that match the selected tags
+    // For multi-dimensional filtering, we need assets that have ALL selected tags from each dimension
+    // But can have ANY tag from different dimensions (AND within dimension, OR between dimensions)
+    
+    const dimensionKeys = Object.keys(filters)
+    let matchingAssetIds: Set<string> | null = null
+
+    for (const dimensionKey of dimensionKeys) {
+      const tagIds = filters[dimensionKey]
+      if (tagIds.length === 0) continue
+
+      // Get assets that have any of these tags for this dimension
+      const { data: assetTags } = await supabase
+        .from("asset_tags")
+        .select("asset_id, tag_id, tags!inner(dimension_key)")
+        .in("tag_id", tagIds)
+        .eq("tags.dimension_key", dimensionKey)
+
+      const assetIdsForDimension = new Set(
+        assetTags?.map((at: any) => at.asset_id) || []
+      )
+
+      if (matchingAssetIds === null) {
+        // First dimension - initialize with these assets
+        matchingAssetIds = assetIdsForDimension
+      } else {
+        // Intersect with previous results (AND logic between dimensions)
+        matchingAssetIds = new Set(
+          [...matchingAssetIds].filter((id) => assetIdsForDimension.has(id))
         )
       }
-
-      // Filter by other tags via asset_tags junction (includes file types)
-      const otherTags = [
-        ...filters.descriptionTags,
-        ...filters.usageTags,
-        ...filters.visualStyleTags,
-        ...filters.fileTypeTags,
-      ]
-
-      if (otherTags.length > 0) {
-        const { data: assetTags } = await supabase.from("asset_tags").select("asset_id").in("tag_id", otherTags)
-
-    const assetIds = [...new Set(assetTags?.map((at: { asset_id: string }) => at.asset_id) || [])]
-        filteredAssets = filteredAssets.filter((asset) => assetIds.includes(asset.id))
-      }
     }
 
-    // Filter collections based on the filtered assets
-    let filteredCollectionsResult = [...collections]
+    // Filter assets
+    const filteredAssets = matchingAssetIds
+      ? assets.filter((asset) => matchingAssetIds!.has(asset.id))
+      : []
 
-    if (allSelectedTags.length > 0) {
-      // Get all unique category IDs from the filtered assets
-      const filteredCategoryIds = [...new Set(filteredAssets.map(asset => asset.category_tag_id).filter(id => id))]
+    // Filter collections based on filtered assets
+    // Get campaign tags from filtered assets
+    const { data: filteredAssetTags } = await supabase
+      .from("asset_tags")
+      .select("tag_id, tags!inner(dimension_key)")
+      .in("asset_id", filteredAssets.map((a) => a.id))
+      .eq("tags.dimension_key", "campaign")
 
-      // Only show collections that have assets in the filtered results
-      filteredCollectionsResult = collections.filter((collection) =>
-        filteredCategoryIds.includes(collection.id)
-      )
-    }
+    const campaignTagIds = new Set(
+      filteredAssetTags?.map((at: any) => at.tag_id) || []
+    )
+
+    const filteredCollectionsResult = collections.filter((collection) =>
+      campaignTagIds.has(collection.id)
+    )
 
     setFilteredAssets(filteredAssets)
     setFilteredCollections(filteredCollectionsResult)
@@ -263,6 +290,16 @@ export default function AssetsPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Assets library</h1>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsUploadModalOpen(true)}
+            style={{
+              backgroundColor: tenant.primary_color,
+              borderColor: tenant.primary_color,
+            }}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Upload
+          </Button>
           <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -354,7 +391,7 @@ export default function AssetsPage() {
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-gray-600">No assets found</p>
             <Button
-              onClick={() => router.push('/assets/upload')}
+              onClick={() => setIsUploadModalOpen(true)}
               className="mt-4 bg-transparent hover:bg-transparent border-0"
               style={{ backgroundColor: tenant.primary_color, color: 'white' }}
             >
@@ -404,6 +441,14 @@ export default function AssetsPage() {
       </div>
 
       <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} onApplyFilters={handleApplyFilters} />
+
+      <UploadAssetModal
+        open={isUploadModalOpen}
+        onOpenChange={setIsUploadModalOpen}
+        onSuccess={() => {
+          loadData()
+        }}
+      />
     </div>
   )
 }

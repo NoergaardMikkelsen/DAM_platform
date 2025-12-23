@@ -19,7 +19,7 @@ export async function uploadAsset({ clientId, file, onProgress }: UploadOptions)
   const supabase = createClient()
 
   // Generate unique filename
-  const fileExt = file.name.split(".").pop()
+  const fileExt = file.name?.split(".").pop() || "bin"
   const timestamp = Date.now()
   const random = Math.random().toString(36).substring(7)
   const fileName = `${timestamp}-${random}.${fileExt}`
@@ -83,7 +83,7 @@ export async function deleteAsset(path: string): Promise<void> {
  * Get image dimensions from a file
  */
 export async function getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
-  if (!file.type.startsWith("image/")) {
+  if (!file.type?.startsWith("image/")) {
     return null
   }
 
@@ -107,7 +107,7 @@ export async function getImageDimensions(file: File): Promise<{ width: number; h
 export async function getVideoDimensions(
   file: File,
 ): Promise<{ width: number; height: number; duration: number } | null> {
-  if (!file.type.startsWith("video/")) {
+  if (!file.type?.startsWith("video/")) {
     return null
   }
 
@@ -137,7 +137,7 @@ export async function getVideoDimensions(
  * Generate a thumbnail image from a video file
  */
 export async function generateVideoThumbnail(file: File): Promise<File | null> {
-  if (!file.type.startsWith("video/")) {
+  if (!file.type?.startsWith("video/")) {
     return null
   }
 
@@ -176,7 +176,8 @@ export async function generateVideoThumbnail(file: File): Promise<File | null> {
         canvas.toBlob((blob) => {
           if (blob) {
             // Create File from blob
-            const thumbnailFile = new File([blob], `${file.name.split('.')[0]}_thumbnail.jpg`, {
+            const baseName = file.name?.split('.')[0] || 'thumbnail'
+            const thumbnailFile = new File([blob], `${baseName}_thumbnail.jpg`, {
               type: "image/jpeg",
               lastModified: Date.now(),
             })
