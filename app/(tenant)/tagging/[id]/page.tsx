@@ -17,7 +17,8 @@ interface Tag {
   id: string
   label: string
   slug: string
-  tag_type: string
+  dimension_key: string | null
+  tag_type?: string // Legacy field
   is_system: boolean
   sort_order: number
   client_id: string
@@ -250,9 +251,11 @@ export default function TagDetailPage() {
                   <p className="text-gray-900">{tag.slug}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Type</Label>
+                  <Label className="text-sm font-medium text-gray-700">Dimension</Label>
                   <Badge variant="outline" className="capitalize">
-                    {tag.tag_type.replace("_", " ")}
+                    {tag.dimension_key 
+                      ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                      : tag.tag_type?.replace("_", " ") || "Unknown"}
                   </Badge>
                 </div>
                 <div>
@@ -335,9 +338,11 @@ export default function TagDetailPage() {
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Tag Type</span>
+                <span className="text-sm text-gray-600">Dimension</span>
                 <Badge variant="outline" className="capitalize">
-                  {tag.tag_type.replace("_", " ")}
+                  {tag.dimension_key 
+                    ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                    : tag.tag_type?.replace("_", " ") || "Unknown"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
@@ -355,7 +360,9 @@ export default function TagDetailPage() {
             <CardContent>
               <div className="space-y-2 text-sm text-gray-600">
                 <p>
-                  This tag is used to categorize assets in the {tag.tag_type.replace("_", " ")} category.
+                  This tag belongs to the {tag.dimension_key 
+                    ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                    : tag.tag_type?.replace("_", " ") || "unknown"} dimension.
                 </p>
                 {tag.asset_count === 0 && (
                   <p className="text-orange-600">

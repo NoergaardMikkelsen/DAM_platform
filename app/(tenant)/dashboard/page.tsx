@@ -462,7 +462,7 @@ export default function DashboardPage() {
 
         {filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-gray-500">No collections yet. Collections will be automatically created when you tag assets with organizational categories.</p>
+            <p className="text-gray-500">No collections yet. Collections will be automatically created when you tag assets with collection-generating tags.</p>
           </div>
         ) : (
           <div className="flex flex-wrap gap-6">

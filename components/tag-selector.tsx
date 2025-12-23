@@ -91,7 +91,7 @@ export function TagSelector({
 
       // Get child tags (sub-tags) for this dimension
       // IMPORTANT: For hierarchical dimensions, exclude parent tags (where parent_id IS NULL)
-      // Parent tags are just organizational, not meant to be selected
+      // Parent tags are structural only and not meant to be selected
       const query = supabase
         .from("tags")
         .select(`
@@ -108,7 +108,7 @@ export function TagSelector({
         query.eq("parent_id", parentTagId)
       } else if (dimension.is_hierarchical) {
         // For hierarchical but no parent yet: exclude parent tags themselves
-        // Parent tags have parent_id IS NULL and are organizational only
+        // Parent tags have parent_id IS NULL and are structural only
         query.not("parent_id", "is", null)
       }
       // For flat dimensions: show all tags (no parent_id filtering needed)

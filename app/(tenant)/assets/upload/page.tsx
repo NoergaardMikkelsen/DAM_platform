@@ -226,18 +226,18 @@ export default function UploadAssetPage() {
       return
     }
 
-    // Validate: At least one organizational tag is required
-    const organizationDimensions = tagDimensions.filter(
-      (d) => (d.generates_collection || d.dimension_key === "department") && d.dimension_key !== "file_type"
+    // Validate: At least one collection-generating tag is required
+    const collectionGeneratingDimensions = tagDimensions.filter(
+      (d) => d.generates_collection && d.dimension_key !== "file_type"
     )
     
-    if (organizationDimensions.length > 0) {
-      const hasOrgTag = organizationDimensions.some(
+    if (collectionGeneratingDimensions.length > 0) {
+      const hasCollectionTag = collectionGeneratingDimensions.some(
         (dim) => (selectedTags[dim.dimension_key] || []).length > 0
       )
       
-      if (!hasOrgTag) {
-        setError("Please select at least one organizational tag")
+      if (!hasCollectionTag) {
+        setError("Please select at least one collection-generating tag")
       return
       }
     }
@@ -408,7 +408,7 @@ export default function UploadAssetPage() {
     }
   }
 
-  // Calculate grid columns based on number of organizational dimensions
+  // Calculate grid columns based on number of collection-generating dimensions
   const getGridCols = (count: number) => {
     if (count === 1) return "grid-cols-1"
     if (count === 2) return "grid-cols-1 md:grid-cols-2"
@@ -429,8 +429,8 @@ export default function UploadAssetPage() {
   }
 
   // Group dimensions by type
-  const organizationDimensions = tagDimensions.filter(
-    (d) => (d.generates_collection || d.dimension_key === "department") && d.dimension_key !== "file_type"
+  const collectionGeneratingDimensions = tagDimensions.filter(
+    (d) => d.generates_collection && d.dimension_key !== "file_type"
   )
   const descriptiveDimensions = tagDimensions.filter(
     (d) => !d.generates_collection && d.dimension_key !== "department" && d.dimension_key !== "file_type" && d.dimension_key !== "content_type"
@@ -532,19 +532,19 @@ export default function UploadAssetPage() {
             </div>
                 </div>
 
-                {/* Organization Tags */}
-                {organizationDimensions.length > 0 && (
+                {/* Collection-Generating Tags */}
+                {collectionGeneratingDimensions.length > 0 && (
                   <div>
                     <div className="mb-6">
                       <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-2">
                         Organization
-                        <span className="ml-2 text-red-500 normal-case" title="Required - select at least one organizational tag">
+                        <span className="ml-2 text-red-500 normal-case" title="Required - select at least one collection-generating tag">
                           *
                         </span>
                       </h2>
                 </div>
-                    <div className={`grid ${getGridCols(organizationDimensions.length)} gap-6`}>
-                      {organizationDimensions.map((dimension) => (
+                    <div className={`grid ${getGridCols(collectionGeneratingDimensions.length)} gap-6`}>
+                      {collectionGeneratingDimensions.map((dimension) => (
                         <div key={dimension.dimension_key}>
                           <TagBadgeSelector
                             dimension={dimension}

@@ -367,7 +367,7 @@ export default function AssetsPage() {
 
         {filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
+            <p className="text-gray-500">No collections yet. Upload assets with collection-generating tags to create collections.</p>
           </div>
         ) : (
           <div className="flex flex-wrap gap-6">

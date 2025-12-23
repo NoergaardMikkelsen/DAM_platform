@@ -16,7 +16,8 @@ interface Tag {
   id: string
   label: string
   slug: string
-  tag_type: string
+  dimension_key: string | null
+  tag_type?: string // Legacy field
   is_system: boolean
   sort_order: number
   client_id: string
@@ -29,23 +30,40 @@ interface Tag {
   asset_count?: number
 }
 
+interface TagDimension {
+  dimension_key: string
+  label: string
+}
+
 export default function TaggingPage() {
   const { tenant } = useTenant()
   const [tags, setTags] = useState<Tag[]>([])
   const [filteredTags, setFilteredTags] = useState<Tag[]>([])
-  const [tagTypeFilter, setTagTypeFilter] = useState("all")
+  const [dimensions, setDimensions] = useState<TagDimension[]>([])
+  const [dimensionFilter, setDimensionFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
+    loadDimensions()
     loadTags()
   }, [])
 
   useEffect(() => {
     applyFilters()
-  }, [tags, tagTypeFilter, searchQuery])
+  }, [tags, dimensionFilter, searchQuery])
+
+  const loadDimensions = async () => {
+    const supabase = supabaseRef.current
+    const { data } = await supabase
+      .from("tag_dimensions")
+      .select("dimension_key, label")
+      .order("display_order")
+
+    setDimensions(data || [])
+  }
 
   const loadTags = async () => {
     // Use tenant from context - tenant layout already verified access
@@ -55,19 +73,39 @@ export default function TaggingPage() {
     let tagsData: Tag[] = []
 
     // Get tags for this tenant (including system tags)
+    // Exclude parent tags for hierarchical dimensions (they're structural only)
+    // Include tags with NULL dimension_key (legacy tags) for backward compatibility
     const { data: clientTags } = await supabase
       .from("tags")
       .select(
         `
         *,
-        users (full_name)
+        users (full_name),
+        tag_dimensions(label)
       `,
       )
       .or(`client_id.eq.${tenant.id},client_id.is.null`)
-      .order("tag_type")
+      .or("parent_id.is.null,parent_id.not.is.null") // Include all tags, but we'll filter parent tags below
+      .order("dimension_key")
       .order("sort_order")
 
-    tagsData = clientTags || []
+    // Filter out parent tags manually (parent tags have parent_id IS NULL and belong to hierarchical dimensions)
+    const { data: hierarchicalDimensions } = await supabase
+      .from("tag_dimensions")
+      .select("dimension_key")
+      .eq("is_hierarchical", true)
+
+    const hierarchicalDimKeys = new Set(hierarchicalDimensions?.map(d => d.dimension_key) || [])
+    
+    const filteredTags = (clientTags || []).filter((tag: any) => {
+      // Exclude parent tags (tags with parent_id IS NULL in hierarchical dimensions)
+      if (tag.parent_id === null && tag.dimension_key && hierarchicalDimKeys.has(tag.dimension_key)) {
+        return false
+      }
+      return true
+    })
+
+    tagsData = filteredTags || []
 
     // Get asset counts for each tag
     const tagCountsMap = new Map<string, number>()
@@ -117,9 +155,13 @@ export default function TaggingPage() {
       )
     }
 
-    // Apply tag type filter
-    if (tagTypeFilter !== "all") {
-      filtered = filtered.filter((tag) => tag.tag_type === tagTypeFilter)
+    // Apply dimension filter
+    if (dimensionFilter !== "all") {
+      if (dimensionFilter === "legacy") {
+        filtered = filtered.filter((tag) => !tag.dimension_key)
+      } else {
+        filtered = filtered.filter((tag) => tag.dimension_key === dimensionFilter)
+      }
     }
 
     setFilteredTags(filtered)
@@ -163,15 +205,18 @@ export default function TaggingPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={tagTypeFilter} onValueChange={setTagTypeFilter} className="mb-6">
-        <TabsList suppressHydrationWarning>
+      {/* Tabs - Show all dimensions */}
+      <Tabs value={dimensionFilter} onValueChange={setDimensionFilter} className="mb-6">
+        <TabsList suppressHydrationWarning className="flex-wrap">
           <TabsTrigger value="all">All Tags</TabsTrigger>
-          <TabsTrigger value="category">Category</TabsTrigger>
-          <TabsTrigger value="description">Description</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="visual_style">Visual style</TabsTrigger>
-          <TabsTrigger value="file_type">File type</TabsTrigger>
+          {dimensions.map((dim) => (
+            <TabsTrigger key={dim.dimension_key} value={dim.dimension_key}>
+              {dim.label}
+            </TabsTrigger>
+          ))}
+          {tags.some(t => !t.dimension_key) && (
+            <TabsTrigger value="legacy">Legacy</TabsTrigger>
+          )}
         </TabsList>
       </Tabs>
 
@@ -181,7 +226,7 @@ export default function TaggingPage() {
           <thead className="border-b bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Tag</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Tag type</th>
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Dimension</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Created by</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Assets</th>
               <th className="px-6 py-3 text-right text-sm font-medium text-gray-900">Actions</th>
@@ -191,7 +236,11 @@ export default function TaggingPage() {
             {filteredTags?.map((tag) => (
               <tr key={tag.id} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{tag.label}</td>
-                <td className="px-6 py-4 text-sm capitalize text-gray-600">{tag.tag_type.replace("_", " ")}</td>
+                <td className="px-6 py-4 text-sm capitalize text-gray-600">
+                  {tag.dimension_key 
+                    ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                    : tag.tag_type?.replace("_", " ") || "Unknown"}
+                </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
                   {tag.users?.full_name || new Date(tag.created_at).toLocaleDateString("en-GB")}
                 </td>

@@ -324,23 +324,23 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
       return true
     }
     if (step === 3) {
-      // Validate that at least one organizational tag is selected
-      const organizationDimensions = tagDimensions.filter(
-        (d) => d.generates_collection || d.dimension_key === "department"
+      // Validate that at least one collection-generating tag is selected
+      const collectionGeneratingDimensions = tagDimensions.filter(
+        (d) => d.generates_collection && d.dimension_key !== "file_type"
       )
       
-      if (organizationDimensions.length === 0) return true
+      if (collectionGeneratingDimensions.length === 0) return true
       
       if (uploadType === "bulk") {
         // In bulk mode, check bulkTags
-        return organizationDimensions.some(
+        return collectionGeneratingDimensions.some(
           (dim) => (bulkTags[dim.dimension_key] || []).length > 0
         )
       } else {
         // In single mode, check each file individually
         return files.every((file) => {
           const fileTags = selectedTags[file.id] || {}
-          return organizationDimensions.some(
+          return collectionGeneratingDimensions.some(
             (dim) => (fileTags[dim.dimension_key] || []).length > 0
           )
         })
@@ -359,7 +359,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
       } else if (currentStep === 2) {
         setError("Please add a title for all files")
       } else if (currentStep === 3) {
-        setError("Please select at least one organizational tag for each file")
+        setError("Please select at least one collection-generating tag for each file")
       }
     }
   }
@@ -404,8 +404,8 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
 
     try {
       const supabase = supabaseRef.current
-      const organizationDimensions = tagDimensions.filter(
-        (d) => d.generates_collection || d.dimension_key === "department"
+      const collectionGeneratingDimensions = tagDimensions.filter(
+        (d) => d.generates_collection && d.dimension_key !== "file_type"
       )
 
       // Upload all files
@@ -637,8 +637,8 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
     }
   }
 
-  const organizationDimensions = tagDimensions.filter(
-    (d) => (d.generates_collection || d.dimension_key === "department") && d.dimension_key !== "file_type"
+  const collectionGeneratingDimensions = tagDimensions.filter(
+    (d) => d.generates_collection && d.dimension_key !== "file_type"
   )
   const descriptiveDimensions = tagDimensions.filter(
     (d) => !d.generates_collection && d.dimension_key !== "department" && d.dimension_key !== "file_type" && d.dimension_key !== "content_type"
@@ -941,14 +941,14 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
               {uploadType === "single" && files.length > 0 ? (
                 <div className="space-y-6">
                   {/* Organization Tags */}
-                  {organizationDimensions.length > 0 && (
+                  {collectionGeneratingDimensions.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
                         Organization
                         <span className="ml-2 text-red-500 normal-case">*</span>
                       </h4>
                       <div className="space-y-4">
-                        {organizationDimensions.map((dimension) => (
+                        {collectionGeneratingDimensions.map((dimension) => (
                           <TagBadgeSelector
                             key={dimension.dimension_key}
                             dimension={dimension}
@@ -1021,14 +1021,14 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
                   </div>
 
                   {/* Organization Tags */}
-                  {organizationDimensions.length > 0 && (
+                  {collectionGeneratingDimensions.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
                         Organization
                         <span className="ml-2 text-red-500 normal-case">*</span>
                       </h4>
                       <div className="space-y-4">
-                        {organizationDimensions.map((dimension) => (
+                        {collectionGeneratingDimensions.map((dimension) => (
                           <TagBadgeSelector
                             key={dimension.dimension_key}
                             dimension={dimension}

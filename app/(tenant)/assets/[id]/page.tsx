@@ -577,15 +577,35 @@ export default function AssetDetailPage() {
     const clientId = asset.client_id
 
     try {
-      // Get all available tags for this tenant
+      // Get dimensions to check which are hierarchical
+      const { data: dimensions } = await supabase
+        .from("tag_dimensions")
+        .select("dimension_key, is_hierarchical")
+
+      const hierarchicalDimensions = new Set(
+        dimensions?.filter((d: any) => d.is_hierarchical).map((d: any) => d.dimension_key) || []
+      )
+
+      // Get all available tags for this tenant, excluding parent tags for hierarchical dimensions
       const { data: tagsData } = await supabase
         .from("tags")
-        .select("id, label, dimension_key, slug")
+        .select("id, label, dimension_key, slug, parent_id")
         .or(`client_id.eq.${clientId},client_id.is.null`)
         .order("dimension_key")
         .order("sort_order")
 
-      setAvailableTags(tagsData || [])
+      // Filter out parent tags for hierarchical dimensions
+      // Parent tags have parent_id IS NULL and are structural only, not selectable
+      const filteredTags = (tagsData || []).filter((tag: any) => {
+        if (hierarchicalDimensions.has(tag.dimension_key)) {
+          // For hierarchical dimensions, exclude parent tags (parent_id IS NULL)
+          return tag.parent_id !== null
+        }
+        // For non-hierarchical dimensions, include all tags
+        return true
+      })
+
+      setAvailableTags(filteredTags)
 
       // Get currently selected tag IDs
       const currentTagIds = new Set(tags.map(tag => tag.id))
