@@ -647,7 +647,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
   if (isInitializing) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="!max-w-2xl w-full">
           <DialogHeader>
             <DialogTitle className="sr-only">Upload Asset</DialogTitle>
           </DialogHeader>
@@ -661,7 +661,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[90vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="sr-only">Upload Asset</DialogTitle>
           <DialogDescription className="sr-only">Upload assets to your library</DialogDescription>
