@@ -308,7 +308,7 @@ export default function AssetsPage() {
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="flex flex-wrap gap-6">
             {sortedCollections.map((collection, index) => (
               <div
                 key={collection.id}
