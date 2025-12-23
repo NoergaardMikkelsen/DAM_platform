@@ -46,7 +46,6 @@ export default function DashboardPage() {
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
-  const [maxCollections, setMaxCollections] = useState(3)
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -100,26 +99,6 @@ export default function DashboardPage() {
     loadDashboardData()
   }, [tenant]) // Add tenant as dependency
 
-  useEffect(() => {
-    const updateMaxCollections = () => {
-      if (typeof window !== 'undefined') {
-        const width = window.innerWidth
-        // For horizontal scrolling layout, allow reasonable number but not unlimited
-        const availableWidth = width - 64 // Account for padding
-        const cardWidth = 200 + 32 // 200px min card + 32px gap
-        const maxCols = Math.floor(availableWidth / cardWidth)
-
-
-        // For horizontal scroll: allow up to 12 max, min 2
-        const finalMax = Math.min(Math.max(maxCols, 2), 12)
-        setMaxCollections(finalMax)
-      }
-    }
-
-    updateMaxCollections()
-    window.addEventListener('resize', updateMaxCollections)
-    return () => window.removeEventListener('resize', updateMaxCollections)
-  }, [])
 
   const loadDashboardData = async () => {
     // Guard: ensure tenant is available
@@ -394,7 +373,7 @@ export default function DashboardPage() {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-900">
-              {collections.length > maxCollections ? `${maxCollections}+ of ${collections.length}` : `${collections.length}`} Collections
+              {collections.length} Collection{collections.length !== 1 ? "s" : ""}
             </h2>
             <button
               onClick={() => {
@@ -424,8 +403,8 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="flex gap-6 overflow-x-auto pb-2">
-            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {sortedCollections.map((collection, index) => (
               <div
                 key={collection.id}
                 className="animate-stagger-fade-in"

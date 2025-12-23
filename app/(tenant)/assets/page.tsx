@@ -47,7 +47,6 @@ export default function AssetsPage() {
   const [sortBy, setSortBy] = useState("newest")
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
-  const [maxCollections, setMaxCollections] = useState(3)
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
   const router = useRouter()
   const supabaseRef = useRef(createClient())
@@ -62,24 +61,6 @@ export default function AssetsPage() {
     applySearchAndSort()
   }, [assets, searchQuery, sortBy])
 
-  useEffect(() => {
-    const updateMaxCollections = () => {
-      if (typeof window !== 'undefined') {
-        const width = window.innerWidth
-        // Calculate how many 200px+ cards can fit
-        const availableWidth = width - 64 // Account for padding
-        const cardWidth = 200 + 32 // 200px min card + 32px gap
-        const maxCols = Math.floor(availableWidth / cardWidth)
-
-        // For horizontal scroll: allow up to 12 max, min 2
-        setMaxCollections(Math.min(Math.max(maxCols, 2), 12))
-      }
-    }
-
-    updateMaxCollections()
-    window.addEventListener('resize', updateMaxCollections)
-    return () => window.removeEventListener('resize', updateMaxCollections)
-  }, [])
 
   const loadData = async () => {
     // Use tenant from context - tenant layout already verified access
@@ -327,8 +308,8 @@ export default function AssetsPage() {
             <p className="text-gray-500">No collections yet. Upload assets with category tags to create collections.</p>
           </div>
         ) : (
-          <div className="flex gap-6 overflow-x-auto pb-2">
-            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {sortedCollections.map((collection, index) => (
               <div
                 key={collection.id}
                 className="animate-stagger-fade-in"
