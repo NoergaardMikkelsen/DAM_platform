@@ -14,6 +14,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton, AssetGridSkeleton } from "@/components/skeleton-loaders"
+import { sortItems } from "@/lib/utils/sorting"
 
 interface Collection {
   id: string
@@ -34,6 +35,7 @@ interface Asset {
   title: string
   storage_path: string
   mime_type: string
+  created_at?: string
   current_version?: {
     thumbnail_path: string | null
   } | null
@@ -162,7 +164,7 @@ export default function DashboardPage() {
         .eq("client_id", clientId),
       supabase
         .from("assets")
-        .select("id, title, storage_path, mime_type")
+        .select("id, title, storage_path, mime_type, created_at")
         .eq("client_id", clientId)
         .eq("status", "active")
         .order("created_at", { ascending: false })
@@ -330,8 +332,8 @@ export default function DashboardPage() {
     )
   }
 
-  const { sortItems } = require("@/lib/utils/sorting")
   const sortedCollections = sortItems(filteredCollections, collectionSort as any)
+  const sortedAssets = sortItems(stats.recentUploads, assetSort as any)
 
   return (
     <div className="p-8">
@@ -483,7 +485,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
-            {stats.recentUploads.map((asset, index) => (
+            {sortedAssets.map((asset, index) => (
               <Link 
                 key={asset.id} 
                 href={`/assets/${asset.id}?context=all`} 
@@ -502,13 +504,31 @@ export default function DashboardPage() {
                         className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain" : "w-full h-full object-cover"}
                       />
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+                    <button
+                      className="absolute bottom-2 right-2 h-[48px] w-[48px] rounded-full opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center"
+                      style={{
+                        backgroundColor: '#E5E5E5',
+                      }}
                     >
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
+                      <svg
+                        viewBox="0 8 25 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        preserveAspectRatio="xMidYMid"
+                        style={{
+                          width: '22px',
+                          height: '18px',
+                        }}
+                      >
+                        <path
+                          d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                          stroke="black"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="1.5"
+                        />
+                      </svg>
+                    </button>
                   </div>
                 </Card>
               </Link>
