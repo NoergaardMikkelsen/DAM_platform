@@ -1762,17 +1762,24 @@ export default function AssetDetailPage() {
                   <AccordionTrigger className="text-sm font-semibold text-gray-800">
                     <div className="flex items-center gap-2 flex-1">
                       <span>Tags</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <div
                         onClick={(e) => {
                           e.stopPropagation()
                           handleEditTags()
                         }}
-                        className="h-6 w-6 p-0 hover:bg-gray-100"
+                        className="h-6 w-6 p-0 hover:bg-gray-100 cursor-pointer inline-flex items-center justify-center rounded-md transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            handleEditTags()
+                          }
+                        }}
                       >
                         <Edit3 className="h-3.5 w-3.5" />
-                      </Button>
+                      </div>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
