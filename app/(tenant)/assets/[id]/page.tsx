@@ -1191,7 +1191,7 @@ export default function AssetDetailPage() {
             <button
               aria-label="Toggle favorite"
               onClick={handleFavorite}
-              className="pointer-events-auto rounded-full flex items-center justify-center hover:opacity-80 transition-all z-10 border border-gray-200 bg-white"
+              className="pointer-events-auto cursor-pointer rounded-full flex items-center justify-center hover:opacity-80 transition-all z-10 border border-gray-200 bg-white"
               style={{
                 width: '40px',
                 height: '40px',

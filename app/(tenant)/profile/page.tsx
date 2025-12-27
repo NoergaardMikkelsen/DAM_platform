@@ -111,153 +111,157 @@ export default function ProfilePage() {
 
   const profileContent = () => {
     if (isLoading) {
-  return (
-            <div className="flex min-h-[400px] items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: tenant.primary_color, borderTopColor: 'transparent' }} />
-                <p className="text-gray-600">Loading profile...</p>
-              </div>
-            </div>
+      return (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: tenant.primary_color, borderTopColor: 'transparent' }} />
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        </div>
       )
     }
 
     return (
-            <div className="flex items-start gap-8">
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-bold text-white" style={{ backgroundColor: tenant.primary_color }}>
-                  {initials}
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900">{userData?.full_name}</div>
-                  <div className="text-sm text-gray-500">
+      <div className="flex items-start gap-12">
+        <div className="flex flex-col items-center gap-4 shrink-0">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-bold text-white" style={{ backgroundColor: tenant.primary_color }}>
+            {initials}
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-gray-900 text-lg">{userData?.full_name}</div>
+            <div className="text-sm text-gray-500 mt-1">
               {userData?.department ? `${userData?.department}` : "Odense, Denmark"}
+            </div>
+            <div className="mt-3 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
+              {role}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {!isEditing ? (
+            <div className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Full name</Label>
+                  <p className="text-gray-900">{userData?.full_name}</p>
                 </div>
-                <div className="mt-2 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
-                  {role}
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <p className="text-gray-900">{userData?.phone || "Not provided"}</p>
                 </div>
               </div>
-            </div>
 
-              <div className="flex-1">
-                {!isEditing ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Full name</Label>
-                        <p className="text-gray-900">{userData?.full_name}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Phone</Label>
-                        <p className="text-gray-900">{userData?.phone || "Not provided"}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Email</Label>
-                        <p className="text-gray-900">{userData?.email}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Current Position</Label>
-                        <p className="text-gray-900">{userData?.current_position || "Not specified"}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Department</Label>
-                      <p className="text-gray-900">{userData?.department || "Not specified"}</p>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button style={{ backgroundColor: tenant.primary_color }} onClick={() => setIsEditing(true)}>
-                        Edit Profile
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-            <form className="space-y-6" autoComplete="off" suppressHydrationWarning>
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="full_name">Full name</Label>
-                        <Input
-                          id="full_name"
-                          value={editForm.full_name}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
-                          autoComplete="off"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
-                          placeholder="+45 12 34 56 78"
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" type="email" value={userData?.email || ""} disabled className="bg-gray-50" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="current_position">Current Position</Label>
-                        <Input
-                          id="current_position"
-                          value={editForm.current_position}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, current_position: e.target.value }))}
-                          placeholder="Marketing Manager"
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="department">Department</Label>
-                      <Input
-                        id="department"
-                        value={editForm.department}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
-                        placeholder="Marketing"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <Button variant="secondary" onClick={() => setIsEditing(false)} disabled={isLoading}>
-                        Cancel
-                      </Button>
-                      <Button style={{ backgroundColor: tenant.primary_color }} onClick={handleEdit} disabled={isLoading}>
-                        {isLoading ? "Saving..." : "Save Changes"}
-                      </Button>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <p className="text-gray-900">{userData?.email}</p>
                 </div>
-              </form>
+                <div className="space-y-2">
+                  <Label>Current Position</Label>
+                  <p className="text-gray-900">{userData?.current_position || "Not specified"}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <p className="text-gray-900">{userData?.department || "Not specified"}</p>
+              </div>
+
+              <div className="flex justify-end">
+                <Button style={{ backgroundColor: tenant.primary_color }} onClick={() => setIsEditing(true)}>
+                  Edit Profile
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <form className="space-y-6" autoComplete="off" suppressHydrationWarning>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full name</Label>
+                  <Input
+                    id="full_name"
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+45 12 34 56 78"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={userData?.email || ""} disabled className="bg-gray-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="current_position">Current Position</Label>
+                  <Input
+                    id="current_position"
+                    value={editForm.current_position}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, current_position: e.target.value }))}
+                    placeholder="Marketing Manager"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  value={editForm.department}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
+                  placeholder="Marketing"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setIsEditing(false)} disabled={isLoading}>
+                  Cancel
+                </Button>
+                <Button style={{ backgroundColor: tenant.primary_color }} onClick={handleEdit} disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
           )}
         </div>
-            </div>
+      </div>
     )
   }
 
   return (
     <div className="p-8">
-      <h1 className="mb-8 text-3xl font-bold text-gray-900">Profile</h1>
+      <h1 className="mb-6 text-3xl font-bold text-gray-900">Profile</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="mb-6">
+        <TabsList className="mb-0">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="account">Account stats</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile">
-          {profileContent()}
+        <TabsContent value="profile" className="mt-0">
+          <Card className="border-0 rounded-t-none">
+            <CardContent className="pt-6">
+              {profileContent()}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="account">
-          <Card>
+        <TabsContent value="account" className="mt-0">
+          <Card className="border-0 rounded-t-none">
             <CardHeader>
               <CardTitle>Account Statistics</CardTitle>
             </CardHeader>
@@ -267,8 +271,8 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings">
-          <Card>
+        <TabsContent value="settings" className="mt-0">
+          <Card className="border-0 rounded-t-none">
             <CardHeader>
               <CardTitle>Account Settings</CardTitle>
             </CardHeader>

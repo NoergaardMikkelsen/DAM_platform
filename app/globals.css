@@ -511,4 +511,13 @@ thead tr th:last-child {
   body {
     @apply bg-background text-foreground;
   }
+  a {
+    @apply cursor-pointer;
+  }
+  button:not(:disabled) {
+    @apply cursor-pointer;
+  }
+  button:disabled {
+    @apply cursor-not-allowed;
+  }
 }
