@@ -65,7 +65,7 @@ export function PageHeader({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {search && searchPosition === "header" && (
             <div className={`relative ${search.maxWidth || "w-64"}`}>
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
@@ -112,7 +112,7 @@ export function PageHeader({
 
       {/* Search below header */}
       {search && searchPosition === "below" && (
-        <div className="mb-6 flex justify-end">
+        <div className="mt-6 mb-6 flex justify-end">
           <div className={`relative ${search.maxWidth || "max-w-[400px] w-full"}`}>
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
             <Input
