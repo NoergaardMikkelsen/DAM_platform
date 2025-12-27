@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { Sidebar } from "@/components/layout/sidebar"
 import { SidebarVisibility } from "@/components/layout/sidebar-visibility"
+import { Toaster } from "@/components/ui/toaster"
 
 interface TenantLayoutClientProps {
   tenant: any
@@ -60,6 +61,7 @@ export default function TenantLayoutClient({ tenant, userData, role, children }:
               {children}
             </main>
           </div>
+          <Toaster />
         </div>
       )}
     </>

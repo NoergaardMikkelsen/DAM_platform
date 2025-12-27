@@ -214,9 +214,25 @@ export default function ClientDetailPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/system-admin/clients" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Clients
+        <Link href="/system-admin/clients" className="mb-4">
+          <Button variant="secondary" className="flex items-center gap-2">
+            <svg
+              viewBox="0 8 25 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4"
+              style={{ transform: 'scaleX(-1)' }}
+            >
+              <path
+                d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+            Back to Clients
+          </Button>
         </Link>
 
         <div className="flex items-center justify-between">

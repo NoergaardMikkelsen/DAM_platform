@@ -52,6 +52,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { uploadAsset, getImageDimensions, getVideoDimensions } from "@/lib/utils/storage"
 import { BatchAssetLoader } from "@/components/asset-preview"
+import { useToast } from "@/hooks/use-toast"
 
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -139,6 +140,7 @@ export default function AssetDetailPage() {
 
   const router = useRouter()
   const { tenant } = useTenant()
+  const { toast } = useToast()
   const supabaseRef = useRef(createClient())
   const [isNavigating, startNavigation] = useTransition()
 
@@ -180,7 +182,12 @@ export default function AssetDetailPage() {
   const [navIndex, setNavIndex] = useState<number>(-1)
   const [videoErrorCount, setVideoErrorCount] = useState(0)
   const [isReplacing, setIsReplacing] = useState(false)
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
+  const [versionDropdownOpen, setVersionDropdownOpen] = useState(false)
+  const [editDropdownOpen, setEditDropdownOpen] = useState(false)
+  const [downloadDropdownOpen, setDownloadDropdownOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const downloadDropdownRef = useRef<HTMLButtonElement | null>(null)
   const [previousVersion, setPreviousVersion] = useState<any | null>(null)
   const [previousPreviewUrl, setPreviousPreviewUrl] = useState<string | null>(null)
 
@@ -987,30 +994,72 @@ export default function AssetDetailPage() {
     setIsDownloadingCustom(false)
   }
 
-  const handleShare = async () => {
+  const handleShare = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    if (!asset) return
+    // Close all dropdowns when opening share dialog
+    setVersionDropdownOpen(false)
+    setEditDropdownOpen(false)
+    setDownloadDropdownOpen(false)
+    setIsShareDialogOpen(true)
+  }
+
+  const handleShareFromDialog = async () => {
     if (!asset) return
     const url = window.location.href
     if (navigator.share) {
       try {
         await navigator.share({ title: asset.title, url })
         await logAssetEvent("share", { label: "share", source: "share" })
+        setIsShareDialogOpen(false)
+        toast({
+          title: "Shared!",
+          description: "Link has been shared successfully.",
+        })
       } catch (error) {
+        // User cancelled or error - silently fail
         console.error("Share failed", error)
       }
     } else {
       await handleCopyLink()
+      setIsShareDialogOpen(false)
     }
   }
 
   const handleCopyLink = async () => {
     if (!asset) return
-    const url = window.location.href
+    const url = typeof window !== 'undefined' ? window.location.href : ''
     setIsCopyingLink(true)
     try {
-      await navigator.clipboard.writeText(url)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url)
+        toast({
+          title: "Link copied!",
+          description: "Link has been copied to clipboard.",
+        })
+      } else {
+        // Fallback for browsers without clipboard API
+        const textArea = document.createElement('textarea')
+        textArea.value = url
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        toast({
+          title: "Link copied!",
+          description: "Link has been copied to clipboard.",
+        })
+      }
     } catch (error) {
       console.error("Copy failed", error)
-      setErrorMessage("Kunne ikke kopiere link.")
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy link to clipboard.",
+        variant: "destructive",
+      })
     } finally {
       setIsCopyingLink(false)
     }
@@ -1115,23 +1164,43 @@ export default function AssetDetailPage() {
       <div className="relative flex min-h-screen flex-1">
         <div className="relative mx-auto flex w-full max-w-5xl flex-col px-6 pb-32 pt-6">
           {/* Header */}
-          <div className="mb-6 flex w-full items-center justify-between text-sm text-gray-500">
+          <div className="mb-6 flex w-full items-center justify-between text-sm text-gray-500 relative">
             <div className="flex items-center gap-3">
-              <Link
-                href="/assets"
-                className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700  transition hover:border-gray-300 hover:bg-white"
-              >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-        </Link>
+              <Link href="/assets">
+                <Button variant="secondary" className="flex items-center gap-2">
+                  <svg
+                    viewBox="0 8 25 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4"
+                    style={{ transform: 'scaleX(-1)' }}
+                  >
+                    <path
+                      d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.5"
+                    />
+                  </svg>
+                  Back
+                </Button>
+              </Link>
               <span className="truncate text-sm text-gray-500">{asset.title}</span>
             </div>
             <button
               aria-label="Toggle favorite"
               onClick={handleFavorite}
-              className={`flex h-10 w-10 items-center justify-center rounded-full border cursor-pointer ${isFavorited ? "border-rose-200 bg-rose-50 text-rose-500" : "border-gray-200 bg-white text-gray-500"}  transition hover:border-rose-200 hover:text-rose-200`}
+              className="pointer-events-auto rounded-full flex items-center justify-center hover:opacity-80 transition-all z-10 border border-gray-200 bg-white"
+              style={{
+                width: '40px',
+                height: '40px',
+              }}
             >
-              <Heart className={`h-5 w-5 ${isFavorited ? "fill-rose-500" : ""}`} />
+              <Heart
+                className={`transition-all ${isFavorited ? "fill-rose-500 text-rose-500 scale-110" : "text-gray-500"}`}
+                style={{ width: '20px', height: '20px' }}
+              />
             </button>
         </div>
 
@@ -1314,7 +1383,17 @@ export default function AssetDetailPage() {
           <div className="pointer-events-auto px-4">
             <div className="inline-flex items-center justify-center gap-3 rounded-[18px] border border-gray-200 bg-white/96 px-4 py-3  backdrop-blur sm:px-5">
               {/* Version dropup (left) */}
-              <DropdownMenu>
+              <DropdownMenu 
+                open={versionDropdownOpen} 
+                onOpenChange={(open) => {
+                  setVersionDropdownOpen(open)
+                  if (open) {
+                    setEditDropdownOpen(false)
+                    setDownloadDropdownOpen(false)
+                    setIsShareDialogOpen(false)
+                  }
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="secondary" className="flex items-center gap-2">
                     <History className="h-4 w-4" />
@@ -1352,7 +1431,17 @@ export default function AssetDetailPage() {
               </DropdownMenu>
 
               {/* Edit (transform) dropup */}
-              <DropdownMenu>
+              <DropdownMenu 
+                open={editDropdownOpen} 
+                onOpenChange={(open) => {
+                  setEditDropdownOpen(open)
+                  if (open) {
+                    setVersionDropdownOpen(false)
+                    setDownloadDropdownOpen(false)
+                    setIsShareDialogOpen(false)
+                  }
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="secondary" className="flex items-center gap-2">
                     <Wand2 className="h-4 w-4" />
@@ -1367,33 +1456,34 @@ export default function AssetDetailPage() {
                   {isImage && (
                     <>
                       <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
-                        Crop / Transform
+                        Transform
                       </DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                        onSelect={() => {
-                          handleCustomDownload()
-                        }}
+                        disabled
+                        className="cursor-not-allowed text-sm rounded-2xl px-3 py-2.5 text-gray-400 focus:bg-transparent"
                       >
                         <div className="flex items-center gap-2">
-                          <SlidersHorizontal className="h-4 w-4 text-gray-600" />
-                          <span>Apply custom resize (download)</span>
+                          <SlidersHorizontal className="h-4 w-4 text-gray-400" />
+                          <span>Crop & resize</span>
+                          <span className="ml-auto text-xs text-gray-400">Coming soon</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                        onSelect={() => {
-                          handlePresetDownload()
-                        }}
+                        disabled
+                        className="cursor-not-allowed text-sm rounded-2xl px-3 py-2.5 text-gray-400 focus:bg-transparent"
                       >
                         <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-gray-600" />
-                          <span>Apply current preset download</span>
+                          <Wand2 className="h-4 w-4 text-gray-400" />
+                          <span>Adjustments</span>
+                          <span className="ml-auto text-xs text-gray-400">Coming soon</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>
                   )}
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
+                    Actions
+                  </DropdownMenuLabel>
                   <DropdownMenuItem
                     className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-red-600 focus:bg-red-50 focus:text-red-700"
                     onSelect={() => {
@@ -1409,9 +1499,22 @@ export default function AssetDetailPage() {
               </DropdownMenu>
 
               {/* Download dropup (right, primary) */}
-              <DropdownMenu>
+              <DropdownMenu 
+                open={downloadDropdownOpen} 
+                onOpenChange={(open) => {
+                  setDownloadDropdownOpen(open)
+                  if (open) {
+                    setVersionDropdownOpen(false)
+                    setEditDropdownOpen(false)
+                    setIsShareDialogOpen(false)
+                  }
+                }}
+              >
                 <DropdownMenuTrigger asChild>
-                  <Button className="flex items-center gap-2 rounded-full bg-[#e65872] text-white hover:bg-[#d74f68] border-transparent">
+                  <Button 
+                    ref={downloadDropdownRef}
+                    className="flex items-center gap-2 rounded-full bg-[#e65872] text-white hover:bg-[#d74f68] border-transparent"
+                  >
                     <Download className="h-4 w-4" />
                     <span className="hidden sm:inline">Download</span>
                   </Button>
@@ -1626,20 +1729,22 @@ export default function AssetDetailPage() {
                 </AccordionItem>
 
                 <AccordionItem value="tags">
-                  <div className="flex items-center justify-between">
-                    <AccordionTrigger className="text-sm font-semibold text-gray-800 flex-1">Tags</AccordionTrigger>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditTags()
-                      }}
-                      className="mr-2 h-8 w-8 p-0 hover:bg-gray-100"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <AccordionTrigger className="text-sm font-semibold text-gray-800">
+                    <div className="flex items-center gap-2 flex-1">
+                      <span>Tags</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditTags()
+                        }}
+                        className="h-6 w-6 p-0 hover:bg-gray-100"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </AccordionTrigger>
                   <AccordionContent>
                     {tags.filter(tag => {
                       // Hide collection-generating and file_type tags (shown at top)
@@ -1790,11 +1895,30 @@ export default function AssetDetailPage() {
             {/* Actions pinned to bottom of sidebar */}
             <div className="mt-4 border-t border-gray-100 pt-4">
               <div className="flex gap-3">
-                <Button variant="secondary" className="flex-1" onClick={handleCopyLink} disabled={isCopyingLink}>
+                <Button 
+                  variant="secondary" 
+                  className="flex-1" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleCopyLink()
+                  }} 
+                  disabled={isCopyingLink}
+                  type="button"
+                >
                   <Link2 className="mr-2 h-4 w-4" />
                   Copy link
                 </Button>
-                <Button variant="secondary" className="flex-1" onClick={handleShare}>
+                <Button 
+                  variant="secondary" 
+                  className="flex-1" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleShare(e)
+                  }}
+                  type="button"
+                >
                   <Share2 className="mr-2 h-4 w-4" />
                   Share
                 </Button>
@@ -1803,6 +1927,42 @@ export default function AssetDetailPage() {
           </div>
         </div>
       </aside>
+
+      {/* Share Dialog */}
+      <Dialog 
+        open={isShareDialogOpen} 
+        onOpenChange={(open) => {
+          setIsShareDialogOpen(open)
+          if (!open) {
+            // When closing, just close the dialog
+            return
+          }
+          // When opening, close all dropdowns
+          setVersionDropdownOpen(false)
+          setEditDropdownOpen(false)
+          setDownloadDropdownOpen(false)
+        }}
+      >
+        <DialogContent className="rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-900">Share Asset</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
+              <p className="text-sm font-medium text-gray-700">Share functionality</p>
+              <p className="mt-2 text-sm text-gray-500">Not implemented yet</p>
+              <p className="mt-1 text-xs text-gray-400">
+                This will allow you to invite users to view or collaborate on this asset.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setIsShareDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
