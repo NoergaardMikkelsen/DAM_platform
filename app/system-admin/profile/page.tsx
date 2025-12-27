@@ -207,17 +207,17 @@ export default function SystemAdminProfilePage() {
     }
 
     return (
-      <div className="flex items-start gap-8">
-        <div className="flex flex-col items-center gap-4">
+      <div className="flex items-start gap-12">
+        <div className="flex flex-col items-center gap-4 shrink-0">
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-black text-2xl font-bold text-white">
             {initials}
           </div>
           <div className="text-center">
-            <div className="font-semibold text-gray-900">{userData?.full_name}</div>
-            <div className="text-sm text-gray-500">
+            <div className="font-semibold text-gray-900 text-lg">{userData?.full_name}</div>
+            <div className="text-sm text-gray-500 mt-1">
               System Administrator
             </div>
-            <div className="mt-2">
+            <div className="mt-3">
               <RoleBadge
                 role="superadmin"
                 isSystemAdminContext={true}
@@ -226,7 +226,7 @@ export default function SystemAdminProfilePage() {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {!isEditing ? (
             <div className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
@@ -327,30 +327,25 @@ export default function SystemAdminProfilePage() {
 
   return (
     <div className="p-8">
-      <h1 className="mb-8 text-3xl font-bold text-gray-900">Profile</h1>
+      <h1 className="mb-6 text-3xl font-bold text-gray-900">Profile</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Activity
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Settings
-          </TabsTrigger>
+        <TabsList className="mb-0">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile">
-          {profileContent()}
+        <TabsContent value="profile" className="mt-0">
+          <Card className="border-0 rounded-t-none">
+            <CardContent className="pt-6">
+              {profileContent()}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="activity">
-          <Card>
+        <TabsContent value="activity" className="mt-0">
+          <Card className="border-0 rounded-t-none">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
@@ -394,8 +389,8 @@ export default function SystemAdminProfilePage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings">
-          <Card>
+        <TabsContent value="settings" className="mt-0">
+          <Card className="border-0 rounded-t-none">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
