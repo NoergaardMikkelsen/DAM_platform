@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
 import { DashboardHeaderSkeleton, StatsGridSkeleton } from "@/components/skeleton-loaders"
 import { syncSessionAcrossSubdomains } from "@/lib/utils/session-sync"
+import { formatDate } from "@/lib/utils/date"
 
 interface SystemStats {
   totalClients: number
@@ -361,13 +362,7 @@ export default function SystemAdminDashboard() {
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{activity.action}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {new Date(activity.timestamp).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {formatDate(activity.timestamp, "withTime")}
                     </p>
                   </div>
                 </div>

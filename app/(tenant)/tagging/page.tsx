@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { CreateTagModal } from "@/components/create-tag-modal"
+import { formatDate } from "@/lib/utils/date"
 
 interface Tag {
   id: string
@@ -500,7 +501,7 @@ export default function TaggingPage() {
                     : tag.tag_type?.replace("_", " ") || "Unknown"}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
-                  {tag.users?.full_name || new Date(tag.created_at).toLocaleDateString("en-GB")}
+                  {tag.users?.full_name || formatDate(tag.created_at, "short")}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">{tag.asset_count || 0}</td>
                 <td className="px-6 py-4 text-right">

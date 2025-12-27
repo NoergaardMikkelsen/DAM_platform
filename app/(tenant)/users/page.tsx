@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { CreateUserModal } from "@/components/create-user-modal"
+import { formatDate } from "@/lib/utils/date"
 
 interface UserWithRole {
   id: string
@@ -198,11 +199,7 @@ export default function UsersPage() {
                   />
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
-                  {new Date(clientUser.created_at).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatDate(clientUser.created_at, "short")}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { RoleBadge } from "@/components/role-badge"
+import { formatDate } from "@/lib/utils/date"
 
 interface SystemAdminData {
   id: string
@@ -247,14 +248,7 @@ export default function SystemAdminProfilePage() {
                 <div className="space-y-2">
                   <Label>Member since</Label>
                   <p className="text-gray-900">
-                    {userData?.created_at
-                      ? new Date(userData.created_at).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })
-                      : "Unknown"
-                    }
+                    {userData?.created_at ? formatDate(userData.created_at, "long") : "Unknown"}
                   </p>
                 </div>
               </div>
@@ -297,14 +291,7 @@ export default function SystemAdminProfilePage() {
                 <div className="space-y-2">
                   <Label>Member since</Label>
                   <p className="text-gray-900 pt-2">
-                    {userData?.created_at
-                      ? new Date(userData.created_at).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })
-                      : "Unknown"
-                    }
+                    {userData?.created_at ? formatDate(userData.created_at, "long") : "Unknown"}
                   </p>
                 </div>
               </div>
@@ -364,12 +351,7 @@ export default function SystemAdminProfilePage() {
                           <p className="text-xs text-gray-500">{activity.details}</p>
                         </div>
                         <span className="text-xs text-gray-500">
-                          {new Date(activity.timestamp).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {formatDate(activity.timestamp, "withTime")}
                         </span>
                       </div>
                     ))}

@@ -53,6 +53,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { uploadAsset, getImageDimensions, getVideoDimensions } from "@/lib/utils/storage"
 import { BatchAssetLoader } from "@/components/asset-preview"
 import { useToast } from "@/hooks/use-toast"
+import { formatDate } from "@/lib/utils/date"
 
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -1748,11 +1749,7 @@ export default function AssetDetailPage() {
                       <InfoRow label="Uploaded by" value={uploader?.full_name || "-"} />
                       <InfoRow
                         label="Uploaded"
-                        value={new Date(asset.created_at).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        value={formatDate(asset.created_at, "short")}
                       />
                     </div>
                   </AccordionContent>
@@ -1824,11 +1821,7 @@ export default function AssetDetailPage() {
                               </div>
                             </div>
                             <div className="text-xs text-gray-500">
-                              {new Date(version.created_at).toLocaleDateString("en-GB", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
+                              {formatDate(version.created_at, "short")}
                             </div>
                           </div>
                         ))}
@@ -1854,11 +1847,7 @@ export default function AssetDetailPage() {
                               <div className="text-sm text-gray-800 capitalize">{event.event_type}</div>
                             </div>
                             <div className="text-xs text-gray-500">
-                              {new Date(event.created_at).toLocaleDateString("en-GB", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
+                              {formatDate(event.created_at, "short")}
                             </div>
                           </div>
                         ))}

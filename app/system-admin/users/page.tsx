@@ -15,6 +15,7 @@ import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
+import { formatDate } from "@/lib/utils/date"
 
 interface SystemUser {
   id: string
@@ -738,11 +739,7 @@ export default function SystemUsersPage() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
-                  {new Date(user.created_at).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatDate(user.created_at, "short")}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">

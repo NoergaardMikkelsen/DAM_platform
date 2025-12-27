@@ -12,6 +12,7 @@ import Link from "next/link"
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
+import { formatDate } from "@/lib/utils/date"
 
 interface Tag {
   id: string
@@ -302,11 +303,7 @@ export default function TagDetailPage() {
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Created At</Label>
                   <p className="text-gray-900">
-                    {new Date(tag.created_at).toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    {formatDate(tag.created_at, "long")}
                   </p>
                 </div>
               </>

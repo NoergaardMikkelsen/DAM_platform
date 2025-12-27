@@ -13,6 +13,7 @@ import Link from "next/link"
 import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
+import { formatDate } from "@/lib/utils/date"
 
 interface UserProfile {
   id: string
@@ -379,11 +380,7 @@ export default function UserDetailPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700">Member since</Label>
                 <p className="text-gray-900">
-                  {new Date(user.created_at).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
+                  {formatDate(user.created_at, "long")}
                 </p>
               </div>
               <div>
