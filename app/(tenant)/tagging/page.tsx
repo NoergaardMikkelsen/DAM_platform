@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/client"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ChevronDown } from "lucide-react"
@@ -30,8 +29,9 @@ import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION } from "@/lib/constants"
 import { logError } from "@/lib/utils/logger"
-import { PageHeader } from "@/components/page-header"
 import { useSearchFilter } from "@/hooks/use-search-filter"
+import { TablePage, TableColumn } from "@/components/table-page"
+import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Tag {
   id: string
@@ -350,21 +350,161 @@ export default function TaggingPage() {
     loadTags()
   }
 
-  // Show loading skeleton while checking access (before redirect happens)
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <ListPageHeaderSkeleton showCreateButton={true} />
-        <SearchSkeleton />
-        <TabsSkeleton count={3} />
-        <TableSkeleton rows={8} columns={4} />
-      </div>
-    )
-  }
+  const columns: TableColumn<Tag>[] = [
+    {
+      header: "Tag",
+      render: (tag) => tag.label,
+    },
+    {
+      header: "Dimension",
+      render: (tag) =>
+        tag.dimension_key
+          ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+          : tag.tag_type?.replace("_", " ") || "Unknown",
+    },
+    {
+      header: "Created by",
+      render: (tag) => tag.users?.full_name || formatDate(tag.created_at, "short"),
+    },
+    {
+      header: "Assets",
+      render: (tag) => tag.asset_count || 0,
+    },
+    {
+      header: "Actions",
+      align: "right",
+      render: (tag) => (
+        <div className="flex items-center justify-end gap-2">
+          {tag.is_system ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 text-xs text-gray-500 cursor-help">
+                  <Info className="h-4 w-4" />
+                  <span>Read-only</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>System tags can only be edited from the system admin area</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <>
+              <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Pencil className="h-4 w-4 text-gray-600" />
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const supabase = supabaseRef.current
+                  const { data: childTags } = await supabase
+                    .from("tags")
+                    .select("id")
+                    .eq("parent_id", tag.id)
+                  
+                  setChildTagsCount(childTags?.length || 0)
+                  setTagToDelete(tag)
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-red-600" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ]
+
+  const customTabsContent = (
+    <TabsList suppressHydrationWarning>
+      <TabsTrigger value="all">All Tags</TabsTrigger>
+      {dimensions.slice(0, 4).map((dim) => (
+        <TabsTrigger key={dim.dimension_key} value={dim.dimension_key}>
+          {dim.label}
+        </TabsTrigger>
+      ))}
+      {(dimensions.length > 4 || tags.some(t => !t.dimension_key)) && (() => {
+        const hasActiveInDropdown = dimensions.slice(4).some(dim => dimensionFilter === dim.dimension_key) || 
+                                   (tags.some(t => !t.dimension_key) && dimensionFilter === 'legacy')
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={`relative cursor-pointer inline-flex h-[35px] items-center justify-center gap-2 px-6 py-2 text-sm font-thin whitespace-nowrap transition-all ${
+                  hasActiveInDropdown 
+                    ? 'bg-white text-gray-900 font-light' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                style={{
+                  marginRight: '-8px',
+                  borderRadius: 0,
+                  WebkitMaskImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E\")",
+                  maskImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E\")",
+                  WebkitMaskSize: '100% 100%',
+                  maskSize: '100% 100%',
+                  WebkitMaskRepeat: 'no-repeat',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskPosition: 'center',
+                  maskPosition: 'center',
+                  boxShadow: hasActiveInDropdown ? '2px 3px 5px 0 rgba(0, 0, 0, 0.05)' : 'none',
+                  zIndex: hasActiveInDropdown ? 20 : 1,
+                }}
+              >
+                More <ChevronDown className="h-3 w-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[180px] bg-white border border-gray-200 shadow-lg rounded-md p-1">
+              {dimensions.slice(4).map((dim) => (
+                <DropdownMenuItem
+                  key={dim.dimension_key}
+                  onClick={() => setDimensionFilter(dim.dimension_key)}
+                  className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
+                    dimensionFilter === dim.dimension_key 
+                      ? 'bg-white text-gray-900 font-light' 
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {dim.label}
+                </DropdownMenuItem>
+              ))}
+              {tags.some(t => !t.dimension_key) && (
+                <DropdownMenuItem
+                  onClick={() => setDimensionFilter('legacy')}
+                  className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
+                    dimensionFilter === 'legacy' 
+                      ? 'bg-white text-gray-900 font-light' 
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Legacy
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      })()}
+      {dimensions.length <= 4 && tags.some(t => !t.dimension_key) && (
+        <TabsTrigger value="legacy">Legacy</TabsTrigger>
+      )}
+    </TabsList>
+  )
+
+  const loadingSkeleton = (
+    <>
+      <ListPageHeaderSkeleton showCreateButton={true} />
+      <SearchSkeleton />
+      <TabsSkeleton count={3} />
+      <TableSkeleton rows={8} columns={5} />
+    </>
+  )
 
   return (
-    <div className="p-8">
-      <PageHeader
+    <TooltipProvider>
+      <TablePage
         title="Tagging"
         createButton={{
           label: "Create new tag",
@@ -377,173 +517,57 @@ export default function TaggingPage() {
           onChange: setSearchQuery,
           position: "below",
         }}
-      />
-      <CreateTagModal
-        open={isCreateModalOpen}
-        onOpenChange={setIsCreateModalOpen}
-        onSuccess={handleCreateSuccess}
-      />
-
-      {/* Tabs - Show all dimensions */}
-      <Tabs value={dimensionFilter} onValueChange={setDimensionFilter} className="mb-0">
-        <TabsList suppressHydrationWarning>
-          <TabsTrigger value="all">All Tags</TabsTrigger>
-          {dimensions.slice(0, 4).map((dim) => (
-            <TabsTrigger key={dim.dimension_key} value={dim.dimension_key}>
-              {dim.label}
-            </TabsTrigger>
-          ))}
-          {(dimensions.length > 4 || tags.some(t => !t.dimension_key)) && (() => {
-            const hasActiveInDropdown = dimensions.slice(4).some(dim => dimensionFilter === dim.dimension_key) || 
-                                       (tags.some(t => !t.dimension_key) && dimensionFilter === 'legacy')
-            return (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={`relative cursor-pointer inline-flex h-[35px] items-center justify-center gap-2 px-6 py-2 text-sm font-thin whitespace-nowrap transition-all ${
-                      hasActiveInDropdown 
-                        ? 'bg-white text-gray-900 font-light' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    style={{
-                      marginRight: '-8px',
-                      borderRadius: 0,
-                      WebkitMaskImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E\")",
-                      maskImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E\")",
-                      WebkitMaskSize: '100% 100%',
-                      maskSize: '100% 100%',
-                      WebkitMaskRepeat: 'no-repeat',
-                      maskRepeat: 'no-repeat',
-                      WebkitMaskPosition: 'center',
-                      maskPosition: 'center',
-                      boxShadow: hasActiveInDropdown ? '2px 3px 5px 0 rgba(0, 0, 0, 0.05)' : 'none',
-                      zIndex: hasActiveInDropdown ? 20 : 1,
-                    }}
-                  >
-                    More <ChevronDown className="h-3 w-3" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[180px] bg-white border border-gray-200 shadow-lg rounded-md p-1">
-                  {dimensions.slice(4).map((dim) => (
-                    <DropdownMenuItem
-                      key={dim.dimension_key}
-                      onClick={() => setDimensionFilter(dim.dimension_key)}
-                      className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
-                        dimensionFilter === dim.dimension_key 
-                          ? 'bg-white text-gray-900 font-light' 
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      {dim.label}
-                    </DropdownMenuItem>
-                  ))}
-                  {tags.some(t => !t.dimension_key) && (
-                    <DropdownMenuItem
-                      onClick={() => setDimensionFilter('legacy')}
-                      className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
-                        dimensionFilter === 'legacy' 
-                          ? 'bg-white text-gray-900 font-light' 
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      Legacy
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )
-          })()}
-          {dimensions.length <= 4 && tags.some(t => !t.dimension_key) && (
-            <TabsTrigger value="legacy">Legacy</TabsTrigger>
-          )}
-        </TabsList>
-      </Tabs>
-
-      {/* Tags Table */}
-      <TooltipProvider>
-        <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
-          <table className="w-full">
-          <thead>
-            <tr className="rounded-[20px] bg-[#F9F9F9]">
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6">Tag</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Dimension</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Created by</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Assets</th>
-              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 last:pr-6">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedTags.map((tag) => (
-              <tr
-                key={tag.id}
-                className={`border-b border-gray-100 last:border-b-0 ${!tag.is_system ? 'hover:bg-gray-50/50 cursor-pointer' : 'opacity-75'}`}
-                onClick={!tag.is_system ? () => router.push(`/tagging/${tag.id}`) : undefined}
-              >
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                  {tag.label}
+        tabs={{
+          value: dimensionFilter,
+          onChange: setDimensionFilter,
+          content: customTabsContent,
+        }}
+        columns={columns}
+        data={filteredTags}
+        renderRow={(tag) => (
+          <tr
+            key={tag.id}
+            className={`border-b border-gray-100 last:border-b-0 ${!tag.is_system ? 'hover:bg-gray-50/50 cursor-pointer' : 'opacity-75'}`}
+            onClick={!tag.is_system ? () => router.push(`/tagging/${tag.id}`) : undefined}
+          >
+            {columns.map((column, colIndex) => {
+              const align = column.align || "left"
+              return (
+                <td
+                  key={colIndex}
+                  className={`px-6 py-4 text-sm ${
+                    align === 'right' ? 'text-right' : 'text-left'
+                  } ${
+                    colIndex === 0 ? 'text-gray-900 font-medium' : 'text-gray-600'
+                  }`}
+                >
+                  {column.render(tag)}
                 </td>
-                <td className="px-6 py-4 text-sm capitalize text-gray-600">
-                  {tag.dimension_key 
-                    ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-                    : tag.tag_type?.replace("_", " ") || "Unknown"}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  {tag.users?.full_name || formatDate(tag.created_at, "short")}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">{tag.asset_count || 0}</td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {tag.is_system ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center gap-1 text-xs text-gray-500 cursor-help">
-                            <Info className="h-4 w-4" />
-                            <span>Read-only</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>System tags can only be edited from the system admin area</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <>
-                        <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Pencil className="h-4 w-4 text-gray-600" />
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={async (e) => {
-                            e.stopPropagation()
-                            // Check for child tags before showing dialog
-                            const supabase = supabaseRef.current
-                            const { data: childTags } = await supabase
-                              .from("tags")
-                              .select("id")
-                              .eq("parent_id", tag.id)
-                            
-                            setChildTagsCount(childTags?.length || 0)
-                            setTagToDelete(tag)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      </TooltipProvider>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog 
+              )
+            })}
+          </tr>
+        )}
+        getRowKey={(tag) => tag.id}
+        pagination={{
+          currentPage,
+          itemsPerPage,
+          totalPages,
+          paginatedItems: paginatedTags,
+          goToPage,
+          nextPage,
+          prevPage,
+          isFirstPage,
+          isLastPage,
+        }}
+        isLoading={isLoading}
+        loadingSkeleton={loadingSkeleton}
+      >
+        <CreateTagModal
+          open={isCreateModalOpen}
+          onOpenChange={setIsCreateModalOpen}
+          onSuccess={handleCreateSuccess}
+        />
+        <AlertDialog 
           open={!!tagToDelete} 
           onOpenChange={(open) => {
             if (!open) {
@@ -579,118 +603,7 @@ export default function TaggingPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-      {/* Pagination - Fixed in bottom right corner */}
-      {filteredTags.length > 0 && (
-        <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
-          <button
-            className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            onClick={prevPage}
-            disabled={isFirstPage}
-            >
-              <svg
-                viewBox="0 8 25 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-                style={{ transform: 'scaleX(-1)' }}
-              >
-                <path
-                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                  stroke="black"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                />
-              </svg>
-            </button>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-1 bg-[#E6E6E6] rounded-[30px] p-1">
-                <button
-                  onClick={() => goToPage(1)}
-                  className={`flex items-center justify-center transition-all cursor-pointer ${
-                    currentPage === 1
-                      ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                      : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  1
-                </button>
-                {totalPages > 2 && (
-                  <>
-                    {currentPage <= 2 ? (
-                      <button
-                        onClick={() => goToPage(2)}
-                        className={`flex items-center justify-center transition-all cursor-pointer ${
-                          currentPage === 2
-                            ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                            : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        2
-                      </button>
-                    ) : (
-                      <>
-                        {currentPage > 3 && (
-                          <>
-                            <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
-                          </>
-                        )}
-                        <button
-                          onClick={() => goToPage(currentPage)}
-                          className="h-9 w-9 rounded-full bg-white text-gray-900 flex items-center justify-center cursor-pointer"
-                        >
-                          {currentPage}
-                        </button>
-                      </>
-                    )}
-                    {totalPages > 3 && currentPage < totalPages && (
-                      <>
-                        {currentPage < totalPages - 1 && (
-                          <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
-                        )}
-                        <button
-                          onClick={() => goToPage(totalPages)}
-                          className={`flex items-center justify-center transition-all cursor-pointer ${
-                            currentPage === totalPages
-                              ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                              : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-gray-900">
-                1
-              </div>
-            )}
-            <button
-              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              onClick={nextPage}
-              disabled={isLastPage}
-            >
-              <svg
-                viewBox="0 8 25 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-              >
-                <path
-                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                  stroke="black"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
-    </div>
+      </TablePage>
+    </TooltipProvider>
   )
 }

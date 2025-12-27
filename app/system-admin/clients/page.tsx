@@ -4,18 +4,19 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Pencil, Plus, Search, Trash2, Building } from "lucide-react"
+import { Settings, Pencil, Trash2, Building } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { usePagination } from "@/hooks/use-pagination"
 import { STORAGE_LIMITS, PAGINATION } from "@/lib/constants"
 import { logError } from "@/lib/utils/logger"
-import { PageHeader } from "@/components/page-header"
 import { useSearchFilter } from "@/hooks/use-search-filter"
+import { TablePage, TableColumn } from "@/components/table-page"
+import { EmptyState } from "@/components/empty-state"
 
 interface Client {
   id: string
@@ -62,6 +63,7 @@ export default function ClientsPage() {
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null)
   const [editClientLoading, setEditClientLoading] = useState(false)
   const [editClientError, setEditClientError] = useState<string | null>(null)
+  const router = useRouter()
   const supabaseRef = useRef(createClient())
 
   // Use search filter hook
@@ -384,69 +386,12 @@ export default function ClientsPage() {
     window.location.href = finalUrl
   }
 
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <ListPageHeaderSkeleton showCreateButton={true} />
-        <SearchSkeleton />
-        <TabsSkeleton count={3} />
-        <TableSkeleton rows={8} columns={4} />
-      </div>
-    )
-  }
-
-  return (
-    <div className="p-8">
-      <PageHeader
-        title="Clients"
-        createButton={{
-          label: "Create new client",
-          href: "/system-admin/clients/create",
-          className: "bg-black hover:bg-gray-800 text-white",
-        }}
-        search={{
-          placeholder: "Search client",
-          value: searchQuery,
-          onChange: setSearchQuery,
-          position: "below",
-        }}
-      />
-
-      {/* Tabs */}
-      <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-0">
-        <TabsList suppressHydrationWarning>
-          <TabsTrigger value="all">All clients</TabsTrigger>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="inactive">Inactive</TabsTrigger>
-          <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Clients Table */}
-      <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
-        <table className="w-full">
-          <thead>
-            <tr className="rounded-[20px] bg-[#F9F9F9]">
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6">Client</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Users</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Storage</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 last:pr-6">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedClients.map((client) => {
-              const storageUsedGB = Math.round(client.storage_used_bytes / STORAGE_LIMITS.BYTES_PER_GB)
-              const storageLimitGB = client.storage_limit_mb / 1024 || STORAGE_LIMITS.DEFAULT_GB
-              const storagePercentage = client.storage_percentage || 0
-
-              return (
-                <tr key={client.id} className="border-b border-gray-100 last:border-b-0">
-                  <td className="px-6 py-4">
+  const columns: TableColumn<Client>[] = [
+    {
+      header: "Client",
+      render: (client) => (
                     <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden"
-                      >
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden">
                         {client.logo_collapsed_url ? (
                           <img
                             src={client.logo_collapsed_url}
@@ -464,9 +409,21 @@ export default function ClientsPage() {
                         <div className="text-sm text-gray-500">{client.slug}</div>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{client.user_count || 0} users</td>
-                  <td className="px-6 py-4">
+      ),
+    },
+    {
+      header: "Users",
+      render: (client) => `${client.user_count || 0} users`,
+    },
+    {
+      header: "Storage",
+      render: (client) => {
+        const storageUsedGB = Math.round(client.storage_used_bytes / STORAGE_LIMITS.BYTES_PER_GB)
+        const storageLimitGB = client.storage_limit_mb / 1024 || STORAGE_LIMITS.DEFAULT_GB
+        const storagePercentage = client.storage_percentage || 0
+        
+        return (
+          <div>
                     <div className="mb-1 text-sm font-medium text-gray-900">
                       {storageUsedGB} GB af {storageLimitGB} GB
                     </div>
@@ -476,8 +433,13 @@ export default function ClientsPage() {
                         style={{ width: `${Math.min(storagePercentage, 100)}%` }}
                       />
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
+          </div>
+        )
+      },
+    },
+    {
+      header: "Status",
+      render: (client) => (
                     <Badge
                       variant={client.status === "active" ? "default" : "secondary"}
                       className={
@@ -486,8 +448,12 @@ export default function ClientsPage() {
                     >
                       {client.status}
                     </Badge>
-                  </td>
-                  <td className="px-6 py-4 text-right">
+      ),
+    },
+    {
+      header: "Actions",
+      align: "right",
+      render: (client) => (
                     <div className="flex items-center justify-end gap-2">
                       <Button
                         variant="ghost"
@@ -512,136 +478,78 @@ export default function ClientsPage() {
                         →
                       </Button>
                     </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      ),
+    },
+  ]
 
-      {/* Pagination - Fixed in bottom right corner */}
-      {filteredClients.length > 0 && (
-        <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
-          <button
-            className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            onClick={prevPage}
-            disabled={isFirstPage}
-            >
-              <svg
-                viewBox="0 8 25 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-                style={{ transform: 'scaleX(-1)' }}
-              >
-                <path
-                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                  stroke="black"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                />
-              </svg>
-            </button>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-1 bg-[#E6E6E6] rounded-[30px] p-1">
-                <button
-                  onClick={() => goToPage(1)}
-                  className={`flex items-center justify-center transition-all cursor-pointer ${
-                    currentPage === 1
-                      ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                      : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  1
-                </button>
-                {totalPages > 2 && (
-                  <>
-                    {currentPage <= 2 ? (
-                      <button
-                        onClick={() => goToPage(2)}
-                        className={`flex items-center justify-center transition-all cursor-pointer ${
-                          currentPage === 2
-                            ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                            : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        2
-                      </button>
-                    ) : (
-                      <>
-                        {currentPage > 3 && (
-                          <>
-                            <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
-                          </>
-                        )}
-                        <button
-                          onClick={() => goToPage(currentPage)}
-                          className="h-9 w-9 rounded-full bg-white text-gray-900 flex items-center justify-center cursor-pointer"
-                        >
-                          {currentPage}
-                        </button>
-                      </>
-                    )}
-                    {totalPages > 3 && currentPage < totalPages && (
-                      <>
-                        {currentPage < totalPages - 1 && (
-                          <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
-                        )}
-                        <button
-                          onClick={() => goToPage(totalPages)}
-                          className={`flex items-center justify-center transition-all cursor-pointer ${
-                            currentPage === totalPages
-                              ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                              : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-gray-900">
-                1
-              </div>
-            )}
-            <button
-              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              onClick={nextPage}
-              disabled={isLastPage}
-            >
-              <svg
-                viewBox="0 8 25 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-              >
-                <path
-                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                  stroke="black"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
+  const loadingSkeleton = (
+    <>
+      <ListPageHeaderSkeleton showCreateButton={true} />
+      <SearchSkeleton />
+      <TabsSkeleton count={4} />
+      <TableSkeleton rows={8} columns={5} />
+    </>
+  )
 
-      {clients?.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Settings className="mb-4 h-8 w-8 text-gray-400" />
-          <p className="text-gray-600">Ready to set up your first client</p>
-          <Link href="/system-admin/clients/create">
-            <Button className="mt-4 bg-black hover:bg-gray-800 text-white">Create your first client</Button>
-          </Link>
-        </div>
-      )}
-
+  return (
+    <TablePage
+      title="Clients"
+      createButton={{
+        label: "Create new client",
+        href: "/system-admin/clients/create",
+        className: "bg-black hover:bg-gray-800 text-white",
+      }}
+      search={{
+        placeholder: "Search client",
+        value: searchQuery,
+        onChange: setSearchQuery,
+        position: "below",
+      }}
+      tabs={{
+        value: statusFilter,
+        onChange: setStatusFilter,
+        items: [
+          { value: "all", label: "All clients" },
+          { value: "active", label: "Active" },
+          { value: "inactive", label: "Inactive" },
+          { value: "deactivated", label: "Deactivated" },
+        ],
+      }}
+      columns={columns}
+      data={filteredClients}
+      getRowKey={(client) => client.id}
+      pagination={{
+        currentPage,
+        itemsPerPage,
+        totalPages,
+        paginatedItems: paginatedClients,
+        goToPage,
+        nextPage,
+        prevPage,
+        isFirstPage,
+        isLastPage,
+      }}
+      emptyState={
+        filteredClients.length === 0 && clients.length === 0
+          ? {
+              icon: Settings,
+              title: "Ready to set up your first client",
+              action: {
+                label: "Create your first client",
+                onClick: () => router.push("/system-admin/clients/create"),
+              },
+            }
+          : filteredClients.length === 0
+          ? {
+              icon: Settings,
+              title: "No clients found",
+              description: "Try adjusting your filters or search query.",
+            }
+          : undefined
+      }
+      isLoading={isLoading}
+      loadingSkeleton={loadingSkeleton}
+    >
       {/* Edit Client Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -843,7 +751,7 @@ export default function ClientsPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </TablePage>
   )
 }
 

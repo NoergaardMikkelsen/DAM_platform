@@ -3,14 +3,13 @@
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { RoleBadge } from "@/components/role-badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Pencil, Plus, Search, Trash2, Shield, Users, Building } from "lucide-react"
+import { Pencil, Trash2, Users, Building } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -18,10 +17,10 @@ import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } f
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION, DEFAULT_ROLES } from "@/lib/constants"
 import { formatDate } from "@/lib/utils/date"
-import { PageHeader } from "@/components/page-header"
 import { useSearchFilter } from "@/hooks/use-search-filter"
 import { logError } from "@/lib/utils/logger"
 import { EmptyState } from "@/components/empty-state"
+import { TablePage, TableColumn } from "@/components/table-page"
 
 interface SystemUser {
   id: string
@@ -442,20 +441,69 @@ export default function SystemUsersPage() {
   // This UI no longer provides direct toggle functionality
   // Superadmin management should be done through client management interface
 
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <ListPageHeaderSkeleton showCreateButton={true} />
-        <SearchSkeleton />
-        <TabsSkeleton count={4} />
-        <TableSkeleton rows={8} columns={5} />
-      </div>
-    )
-  }
+  const columns: TableColumn<SystemUser>[] = [
+    {
+      header: "Name",
+      render: (user) => user.full_name || "N/A",
+    },
+    {
+      header: "Email",
+      render: (user) => user.email,
+    },
+    {
+      header: "Role",
+      render: (user) => (
+        <RoleBadge
+          role={user.is_superadmin ? "superadmin" : (user.highest_role as "admin" | "user" | null)}
+          isSystemAdminContext={true}
+        />
+      ),
+    },
+    {
+      header: "Clients",
+      render: (user) => (
+        <div className="flex items-center gap-1">
+          <Building className="w-4 h-4" />
+          {user.client_count}
+        </div>
+      ),
+    },
+    {
+      header: "Created",
+      render: (user) => formatDate(user.created_at, "short"),
+    },
+    {
+      header: "Actions",
+      align: "right",
+      render: (user) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => handleEditUser(user)}
+          >
+            <Pencil className="h-4 w-4 text-gray-600" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Trash2 className="h-4 w-4 text-red-600" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  const loadingSkeleton = (
+    <>
+      <ListPageHeaderSkeleton showCreateButton={true} />
+      <SearchSkeleton />
+      <TabsSkeleton count={4} />
+      <TableSkeleton rows={8} columns={6} />
+    </>
+  )
 
   return (
-    <div className="p-8">
-      <PageHeader
+    <TablePage
         title="System Users"
         search={{
           placeholder: "Search users",
@@ -463,419 +511,267 @@ export default function SystemUsersPage() {
           onChange: setSearchQuery,
           position: "below",
         }}
-      />
-      <div className="mb-8 flex items-center justify-end">
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-black hover:bg-gray-800 text-white">
-              <Plus className="mr-2 h-4 w-4" />
-              Invite new user
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Invite New User</DialogTitle>
-              <DialogDescription>
-                Create a new user account and assign them to specific clients.
-              </DialogDescription>
-            </DialogHeader>
+        createButton={{
+          label: "Invite new user",
+          onClick: () => setIsCreateModalOpen(true),
+          className: "bg-black hover:bg-gray-800 text-white",
+        }}
+      tabs={{
+        value: userTypeFilter,
+        onChange: setUserTypeFilter,
+        items: [
+          { value: "all", label: "All users" },
+          { value: "superadmin", label: "Superadmins" },
+          { value: "client-users", label: "Client Users" },
+          { value: "no-clients", label: "No Clients" },
+        ],
+      }}
+      columns={columns}
+      data={filteredUsers}
+      getRowKey={(user) => user.id}
+      pagination={{
+        currentPage,
+        itemsPerPage,
+        totalPages,
+        paginatedItems: paginatedUsers,
+        goToPage,
+        nextPage,
+        prevPage,
+        isFirstPage,
+        isLastPage,
+      }}
+      isLoading={isLoading}
+      loadingSkeleton={loadingSkeleton}
+    >
+      {/* Create User Modal */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Invite New User</DialogTitle>
+            <DialogDescription>
+              Create a new user account and assign them to specific clients.
+            </DialogDescription>
+          </DialogHeader>
 
-            <form onSubmit={handleCreateUser} className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name *</Label>
-                  <Input
-                    id="fullName"
-                    required
-                    value={createUserForm.fullName}
-                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, fullName: e.target.value }))}
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    value={createUserForm.email}
-                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="john@example.com"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={createUserForm.password}
-                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="••••••••"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">System Role *</Label>
-                  <Select
-                    value={createUserForm.role}
-                    onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="superadmin">Superadmin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label>Assign to Clients</Label>
-                <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
-                  {clients.map((client) => (
-                    <div key={client.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`client-${client.id}`}
-                        checked={selectedClients.includes(client.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedClients(prev => [...prev, client.id])
-                          } else {
-                            setSelectedClients(prev => prev.filter(id => id !== client.id))
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`client-${client.id}`} className="text-sm">
-                        {client.name} ({client.slug})
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                {clients.length === 0 && (
-                  <EmptyState
-                    icon={Users}
-                    title="No active clients found"
-                    description="This user is not associated with any active clients."
-                  />
-                )}
-              </div>
-
-              {createUserError && (
-                <p className="text-sm text-red-500">{createUserError}</p>
-              )}
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setIsCreateModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-black hover:bg-gray-800 text-white"
-                  disabled={createUserLoading}
-                >
-                  {createUserLoading ? "Creating..." : "Create User"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit User Modal */}
-        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Edit User</DialogTitle>
-              <DialogDescription>
-                Update user information and client access for {editingUser?.full_name || editingUser?.email}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleEditUserSubmit} className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="editFullName">Full Name</Label>
-                  <Input
-                    id="editFullName"
-                    required
-                    value={editUserForm.fullName}
-                    onChange={(e) => setEditUserForm(prev => ({ ...prev, fullName: e.target.value }))}
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editEmail">Email</Label>
-                  <Input
-                    id="editEmail"
-                    type="email"
-                    required
-                    value={editUserForm.email}
-                    disabled
-                    className="bg-gray-50"
-                    title="Email cannot be changed"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="editRole">System Role</Label>
-                  <Select
-                    value={editUserForm.role}
-                    onValueChange={(value) => setEditUserForm(prev => ({ ...prev, role: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="superadmin">Superadmin</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label>Assign to Clients</Label>
-                <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
-                  {clients.map((client) => (
-                    <div key={client.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`edit-client-${client.id}`}
-                        checked={editSelectedClients.includes(client.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setEditSelectedClients(prev => [...prev, client.id])
-                          } else {
-                            setEditSelectedClients(prev => prev.filter(id => id !== client.id))
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`edit-client-${client.id}`} className="text-sm">
-                        {client.name} ({client.slug})
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                {clients.length === 0 && (
-                  <EmptyState
-                    icon={Users}
-                    title="No active clients found"
-                    description="This user is not associated with any active clients."
-                  />
-                )}
-              </div>
-
-              {editUserError && (
-                <p className="text-sm text-red-500">{editUserError}</p>
-              )}
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setIsEditModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-black hover:bg-gray-800 text-white"
-                  disabled={editUserLoading}
-                >
-                  {editUserLoading ? "Updating..." : "Update User"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={userTypeFilter} onValueChange={setUserTypeFilter} className="mb-0">
-        <TabsList suppressHydrationWarning>
-          <TabsTrigger value="all">All users</TabsTrigger>
-          <TabsTrigger value="superadmin">Superadmins</TabsTrigger>
-          <TabsTrigger value="client-users">Client Users</TabsTrigger>
-          <TabsTrigger value="no-clients">No Clients</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Users Table */}
-      <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
-        <table className="w-full">
-          <thead>
-            <tr className="rounded-[20px] bg-[#F9F9F9]">
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6">Name</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Email</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Role</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Clients</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Created</th>
-              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 last:pr-6">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedUsers.map((user) => (
-              <tr key={user.id} className="border-b border-gray-100 last:border-b-0">
-                <td className="px-6 py-4 text-sm text-gray-900">{user.full_name || "N/A"}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
-                <td className="px-6 py-4">
-                  <RoleBadge
-                    role={user.is_superadmin ? "superadmin" : (user.highest_role as "admin" | "user" | null)}
-                    isSystemAdminContext={true}
-                  />
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Building className="w-4 h-4" />
-                    {user.client_count}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  {formatDate(user.created_at, "short")}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleEditUser(user)}
-                    >
-                      <Pencil className="h-4 w-4 text-gray-600" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination - Fixed in bottom right corner */}
-      {filteredUsers.length > 0 && (
-        <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
-          <button
-            className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            onClick={prevPage}
-            disabled={isFirstPage}
-            >
-              <svg
-                viewBox="0 8 25 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-                style={{ transform: 'scaleX(-1)' }}
-              >
-                <path
-                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                  stroke="black"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
+          <form onSubmit={handleCreateUser} className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name *</Label>
+                <Input
+                  id="fullName"
+                  required
+                  value={createUserForm.fullName}
+                  onChange={(e) => setCreateUserForm(prev => ({ ...prev, fullName: e.target.value }))}
+                  placeholder="John Doe"
                 />
-              </svg>
-            </button>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-1 bg-[#E6E6E6] rounded-[30px] p-1">
-                <button
-                  onClick={() => goToPage(1)}
-                  className={`flex items-center justify-center transition-all cursor-pointer ${
-                    currentPage === 1
-                      ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                      : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                  }`}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={createUserForm.email}
+                  onChange={(e) => setCreateUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="john@example.com"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={createUserForm.password}
+                  onChange={(e) => setCreateUserForm(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="••••••••"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">System Role *</Label>
+                <Select
+                  value={createUserForm.role}
+                  onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value }))}
                 >
-                  1
-                </button>
-                {totalPages > 2 && (
-                  <>
-                    {currentPage <= 2 ? (
-                      <button
-                        onClick={() => goToPage(2)}
-                        className={`flex items-center justify-center transition-all cursor-pointer ${
-                          currentPage === 2
-                            ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                            : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        2
-                      </button>
-                    ) : (
-                      <>
-                        {currentPage > 3 && (
-                          <>
-                            <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
-                          </>
-                        )}
-                        <button
-                          onClick={() => goToPage(currentPage)}
-                          className="h-9 w-9 rounded-full bg-white text-gray-900 flex items-center justify-center cursor-pointer"
-                        >
-                          {currentPage}
-                        </button>
-                      </>
-                    )}
-                    {totalPages > 3 && currentPage < totalPages && (
-                      <>
-                        {currentPage < totalPages - 1 && (
-                          <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
-                        )}
-                        <button
-                          onClick={() => goToPage(totalPages)}
-                          className={`flex items-center justify-center transition-all cursor-pointer ${
-                            currentPage === totalPages
-                              ? 'h-9 w-9 rounded-full bg-white text-gray-900'
-                              : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="superadmin">Superadmin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            ) : (
-              <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-gray-900">
-                1
+            </div>
+
+            <div className="space-y-3">
+              <Label>Assign to Clients</Label>
+              <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+                {clients.map((client) => (
+                  <div key={client.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`client-${client.id}`}
+                      checked={selectedClients.includes(client.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedClients(prev => [...prev, client.id])
+                        } else {
+                          setSelectedClients(prev => prev.filter(id => id !== client.id))
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`client-${client.id}`} className="text-sm">
+                      {client.name} ({client.slug})
+                    </Label>
+                  </div>
+                ))}
               </div>
+              {clients.length === 0 && (
+                <EmptyState
+                  icon={Users}
+                  title="No active clients found"
+                  description="This user is not associated with any active clients."
+                />
+              )}
+            </div>
+
+            {createUserError && (
+              <p className="text-sm text-red-500">{createUserError}</p>
             )}
-            <button
-              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              onClick={nextPage}
-              disabled={isLastPage}
-            >
-              <svg
-                viewBox="0 8 25 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
+
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsCreateModalOpen(false)}
               >
-                <path
-                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                  stroke="black"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-black hover:bg-gray-800 text-white"
+                disabled={createUserLoading}
+              >
+                {createUserLoading ? "Creating..." : "Create User"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information and client access for {editingUser?.full_name || editingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditUserSubmit} className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="editFullName">Full Name</Label>
+                <Input
+                  id="editFullName"
+                  required
+                  value={editUserForm.fullName}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, fullName: e.target.value }))}
+                  placeholder="John Doe"
                 />
-              </svg>
-            </button>
-          </div>
-        )}
-    </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editEmail">Email</Label>
+                <Input
+                  id="editEmail"
+                  type="email"
+                  required
+                  value={editUserForm.email}
+                  disabled
+                  className="bg-gray-50"
+                  title="Email cannot be changed"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="editRole">System Role</Label>
+                <Select
+                  value={editUserForm.role}
+                  onValueChange={(value) => setEditUserForm(prev => ({ ...prev, role: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="superadmin">Superadmin</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Assign to Clients</Label>
+              <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+                {clients.map((client) => (
+                  <div key={client.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`edit-client-${client.id}`}
+                      checked={editSelectedClients.includes(client.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setEditSelectedClients(prev => [...prev, client.id])
+                        } else {
+                          setEditSelectedClients(prev => prev.filter(id => id !== client.id))
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`edit-client-${client.id}`} className="text-sm">
+                      {client.name} ({client.slug})
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {clients.length === 0 && (
+                <EmptyState
+                  icon={Users}
+                  title="No active clients found"
+                  description="This user is not associated with any active clients."
+                />
+              )}
+            </div>
+
+            {editUserError && (
+              <p className="text-sm text-red-500">{editUserError}</p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsEditModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-black hover:bg-gray-800 text-white"
+                disabled={editUserLoading}
+              >
+                {editUserLoading ? "Updating..." : "Update User"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </TablePage>
   )
 }
 
