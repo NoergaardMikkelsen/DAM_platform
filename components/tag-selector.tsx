@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Check, Plus, AlertTriangle, Search } from "lucide-react"
 import type { Tag, TagDimension } from "@/lib/types/database"
+import { fuzzyMatch } from "@/lib/utils/tags"
+import { useTags } from "@/lib/hooks/use-tags"
 
 interface TagSelectorProps {
   dimension: TagDimension
@@ -17,32 +19,6 @@ interface TagSelectorProps {
   clientId: string
   userId: string | null
   className?: string
-}
-
-// Fuzzy match function for finding similar tags
-function fuzzyMatch(str1: string, str2: string): boolean {
-  const s1 = str1.toLowerCase().trim()
-  const s2 = str2.toLowerCase().trim()
-  
-  // Exact match
-  if (s1 === s2) return true
-  
-  // One contains the other
-  if (s1.includes(s2) || s2.includes(s1)) return true
-  
-  // Levenshtein-like: if strings are similar length and share most characters
-  const longer = s1.length > s2.length ? s1 : s2
-  const shorter = s1.length > s2.length ? s2 : s1
-  
-  if (longer.length < 3) return false // Too short for fuzzy matching
-  
-  // Check if shorter string is mostly contained in longer
-  let matches = 0
-  for (const char of shorter) {
-    if (longer.includes(char)) matches++
-  }
-  
-  return matches / shorter.length > 0.7 // 70% character match
 }
 
 export function TagSelector({
@@ -62,75 +38,15 @@ export function TagSelector({
     }
     return selectedTagId === tagId
   }
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const supabase = createClient()
-
-  useEffect(() => {
-    loadTags()
-  }, [dimension.dimension_key, clientId])
-
-  const loadTags = async () => {
-    setIsLoading(true)
-    try {
-      // Get parent tag for this dimension (if hierarchical)
-      let parentTagId: string | null = null
-      if (dimension.is_hierarchical) {
-        const { data: parentTag } = await supabase
-          .from("tags")
-          .select("id")
-          .eq("dimension_key", dimension.dimension_key)
-          .is("parent_id", null)
-          .eq("client_id", clientId)
-          .single()
-
-        parentTagId = parentTag?.id || null
-      }
-
-      // Get child tags (sub-tags) for this dimension
-      // IMPORTANT: For hierarchical dimensions, exclude parent tags (where parent_id IS NULL)
-      // Parent tags are structural only and not meant to be selected
-      const query = supabase
-        .from("tags")
-        .select(`
-          *,
-          asset_tags(count)
-        `)
-        .eq("dimension_key", dimension.dimension_key)
-        .or(`client_id.eq.${clientId},client_id.is.null`)
-        .order("sort_order", { ascending: true })
-        .order("label", { ascending: true })
-
-      if (dimension.is_hierarchical && parentTagId) {
-        // For hierarchical: only show child tags (tags with this parent)
-        query.eq("parent_id", parentTagId)
-      } else if (dimension.is_hierarchical) {
-        // For hierarchical but no parent yet: exclude parent tags themselves
-        // Parent tags have parent_id IS NULL and are structural only
-        query.not("parent_id", "is", null)
-      }
-      // For flat dimensions: show all tags (no parent_id filtering needed)
-
-      const { data: tags, error } = await query
-
-      if (error) {
-        console.error("Error loading tags:", error)
-      } else {
-        // Add asset count to tags
-        const tagsWithCounts = (tags || []).map((tag: any) => ({
-          ...tag,
-          asset_count: tag.asset_tags?.[0]?.count || 0,
-        }))
-        setAvailableTags(tagsWithCounts)
-      }
-    } catch (error) {
-      console.error("Error loading tags:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  
+  // Use shared hook for loading tags
+  const { availableTags, isLoading, reload } = useTags(dimension, clientId, {
+    includeAssetCounts: true,
+    excludeParentTags: true,
+  })
 
   // Filter tags based on search query
   const filteredTags = useMemo(() => {
@@ -171,7 +87,7 @@ export function TagSelector({
     try {
       const newTagId = await onCreate(searchQuery.trim())
       if (newTagId) {
-        await loadTags() // Reload tags to include new one
+        reload?.() // Reload tags to include new one
         onSelect(newTagId)
         setSearchQuery("")
       }
@@ -211,7 +127,7 @@ export function TagSelector({
             <span>Tag "{exactMatch.label}" already exists</span>
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="mt-2 w-full"
             onClick={() => {
@@ -237,7 +153,7 @@ export function TagSelector({
             {similarMatches.map((tag) => (
               <Button
                 key={tag.id}
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => {
                   if (!isMultiSelect || !isSelected(tag.id)) {
@@ -248,7 +164,7 @@ export function TagSelector({
                 className="text-blue-700"
               >
                 {tag.label}
-                {tag.asset_count > 0 && (
+                {(tag.asset_count ?? 0) > 0 && (
                   <Badge variant="secondary" className="ml-2">
                     {tag.asset_count}
                   </Badge>
@@ -301,7 +217,7 @@ export function TagSelector({
                 )}
                 <span className="text-sm font-medium">{tag.label}</span>
               </div>
-              {tag.asset_count > 0 && (
+              {(tag.asset_count ?? 0) > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   {tag.asset_count}
                 </Badge>
@@ -320,7 +236,7 @@ export function TagSelector({
             onClick={handleCreate}
             disabled={isCreating}
             className="w-full"
-            variant="outline"
+            variant="secondary"
           >
             <Plus className="mr-2 h-4 w-4" />
             {isCreating ? "Creating..." : `Create "${searchQuery.trim()}"`}

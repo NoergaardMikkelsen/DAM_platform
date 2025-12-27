@@ -130,84 +130,13 @@ export default function AssetsPage() {
     } else {
       // Build collections for each dimension - load asynchronously in background (don't await)
       ;(async () => {
-        const collectionPromises = dimensions.map(async (dimension: any) => {
-          // Get parent tag if hierarchical
-          let parentTagId: string | null = null
-          if (dimension.is_hierarchical) {
-            const { data: parentTag } = await supabase
-              .from("tags")
-              .select("id")
-              .eq("dimension_key", dimension.dimension_key)
-              .is("parent_id", null)
-              .or(`client_id.eq.${clientId},client_id.is.null`)
-              .maybeSingle()
-
-            parentTagId = parentTag?.id || null
-          }
-
-          // Get tags for this dimension
-          // For hierarchical dimensions, only get child tags (exclude parent tags)
-          const query = supabase
-            .from("tags")
-            .select("id, label, slug")
-            .eq("dimension_key", dimension.dimension_key)
-            .or(`client_id.eq.${clientId},client_id.is.null`)
-            .order("sort_order", { ascending: true })
-
-          if (dimension.is_hierarchical) {
-            // For hierarchical dimensions, always exclude parent tags (parent_id IS NULL)
-            // Only show child tags
-            if (parentTagId) {
-              // If parent tag exists, only show its children
-              query.eq("parent_id", parentTagId)
-            } else {
-              // If no parent tag exists, show all child tags (parent_id IS NOT NULL)
-              query.not("parent_id", "is", null)
-            }
-          }
-
-          const { data: tags } = await query
-
-          if (!tags || tags.length === 0) return []
-
-          // Get asset-tag relationships for this dimension
-          const { data: assetTags } = await supabase
-            .from("asset_tags")
-            .select("asset_id, tag_id")
-            .in("tag_id", tags.map((t: any) => t.id))
-
-          // Build map of tag_id -> asset_ids
-          const tagAssetMap = new Map<string, string[]>()
-          assetTags?.forEach((at: any) => {
-            const current = tagAssetMap.get(at.tag_id) || []
-            tagAssetMap.set(at.tag_id, [...current, at.asset_id])
-          })
-
-          // Create collections for each tag
-          const dimensionCollections = tags
-            .map((tag: any) => {
-              const assetIds = tagAssetMap.get(tag.id) || []
-              const tagAssets = (assetsData || []).filter((a: Asset) => assetIds.includes(a.id))
-
-              return {
-                id: tag.id,
-                label: tag.label,
-                slug: tag.slug,
-                assetCount: tagAssets.length,
-                previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
-                  ...asset,
-                  thumbnail_path: asset.current_version?.thumbnail_path || null
-                })),
-              }
-            })
-            .filter((c: Collection) => c.assetCount > 0)
-
-          return dimensionCollections
-        })
-
-        // Wait for collections to finish loading (in background)
-        const dimensionCollectionsResults = await Promise.all(collectionPromises)
-        const allCollections = dimensionCollectionsResults.flat()
+        const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
+        const allCollections = await loadCollectionsFromDimensions(
+          supabase,
+          dimensions,
+          clientId,
+          assetsData || []
+        )
 
         // Update collections when ready
         setCollections(allCollections)

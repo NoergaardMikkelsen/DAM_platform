@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { X, Plus, AlertTriangle } from "lucide-react"
 import type { Tag, TagDimension } from "@/lib/types/database"
+import { fuzzyMatch } from "@/lib/utils/tags"
+import { useTags } from "@/lib/hooks/use-tags"
 
 interface TagBadgeSelectorProps {
   dimension: TagDimension
@@ -20,27 +22,6 @@ interface TagBadgeSelectorProps {
   className?: string
 }
 
-// Fuzzy match function for finding similar tags
-function fuzzyMatch(str1: string, str2: string): boolean {
-  const s1 = str1.toLowerCase().trim()
-  const s2 = str2.toLowerCase().trim()
-  
-  if (s1 === s2) return true
-  if (s1.includes(s2) || s2.includes(s1)) return true
-  
-  const longer = s1.length > s2.length ? s1 : s2
-  const shorter = s1.length > s2.length ? s2 : s1
-  
-  if (longer.length < 3) return false
-  
-  let matches = 0
-  for (const char of shorter) {
-    if (longer.includes(char)) matches++
-  }
-  
-  return matches / shorter.length > 0.7
-}
-
 export function TagBadgeSelector({
   dimension,
   selectedTagId,
@@ -52,7 +33,6 @@ export function TagBadgeSelector({
   userId,
   className = "",
 }: TagBadgeSelectorProps) {
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [createValue, setCreateValue] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -68,9 +48,11 @@ export function TagBadgeSelector({
     return selectedTagId === tagId
   }
 
-  useEffect(() => {
-    loadTags()
-  }, [dimension.dimension_key, clientId])
+  // Use shared hook for loading tags
+  const { availableTags, reload } = useTags(dimension, clientId, {
+    includeAssetCounts: true,
+    excludeParentTags: true,
+  })
 
   // Close create popover when clicking outside
   useEffect(() => {
@@ -96,59 +78,6 @@ export function TagBadgeSelector({
       createInputRef.current.focus()
     }
   }, [showCreate])
-
-  const loadTags = async () => {
-    try {
-      // Get parent tag for this dimension (if hierarchical)
-      let parentTagId: string | null = null
-      if (dimension.is_hierarchical) {
-        const { data: parentTag } = await supabase
-          .from("tags")
-          .select("id")
-          .eq("dimension_key", dimension.dimension_key)
-          .is("parent_id", null)
-          .or(`client_id.eq.${clientId},client_id.is.null`)
-          .maybeSingle()
-
-        parentTagId = parentTag?.id || null
-      }
-
-      // Get child tags (sub-tags) for this dimension
-      const query = supabase
-        .from("tags")
-        .select(`
-          *,
-          asset_tags(count)
-        `)
-        .eq("dimension_key", dimension.dimension_key)
-        .or(`client_id.eq.${clientId},client_id.is.null`)
-        .order("sort_order", { ascending: true })
-        .order("label", { ascending: true })
-
-      if (dimension.is_hierarchical && parentTagId) {
-        // For hierarchical: only show child tags (tags with this parent)
-        query.eq("parent_id", parentTagId)
-      } else if (dimension.is_hierarchical) {
-        // For hierarchical but no parent yet: exclude parent tags themselves
-        query.not("parent_id", "is", null)
-      }
-
-      const { data: tags, error } = await query
-
-      if (error) {
-        console.error("Error loading tags:", error)
-      } else {
-        // Add asset count to tags
-        const tagsWithCounts = (tags || []).map((tag: any) => ({
-          ...tag,
-          asset_count: tag.asset_tags?.[0]?.count || 0,
-        }))
-        setAvailableTags(tagsWithCounts)
-      }
-    } catch (error) {
-      console.error("Error loading tags:", error)
-    }
-  }
 
   // Find exact match
   const exactMatch = useMemo(() => {
@@ -189,7 +118,7 @@ export function TagBadgeSelector({
   const handleSelectTag = (tag: Tag) => {
     if (isMultiSelect && onToggle) {
       onToggle(tag.id)
-    } else {
+    } else if (onSelect) {
       onSelect(tag.id)
     }
   }
@@ -215,12 +144,12 @@ export function TagBadgeSelector({
       const newTagId = await onCreate(trimmedValue)
       if (newTagId) {
         setCreateValue("")
-        await loadTags()
+        reload?.()
         setTimeout(() => {
           if (isMultiSelect && onToggle) {
             onToggle(newTagId)
           } else {
-            onSelect(newTagId)
+            onSelect?.(newTagId)
           }
           setShowCreate(false)
         }, 100)
@@ -235,7 +164,7 @@ export function TagBadgeSelector({
   const handleRemoveTag = (tagId: string) => {
     if (isMultiSelect && onToggle) {
       onToggle(tagId)
-    } else {
+    } else if (onSelect) {
       onSelect(null)
     }
   }
@@ -317,7 +246,7 @@ export function TagBadgeSelector({
                             "{exactMatch.label}" already exists
                           </p>
                           <Button
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             onClick={() => {
                               handleSelectTag(exactMatch)
@@ -400,7 +329,7 @@ export function TagBadgeSelector({
                         {isCreating ? "Creating..." : "Create"}
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => {
                           setShowCreate(false)
                           setCreateValue("")
