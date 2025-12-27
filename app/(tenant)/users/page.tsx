@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
+import { CreateUserModal } from "@/components/create-user-modal"
 
 interface UserWithRole {
   id: string
@@ -38,6 +39,7 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -109,6 +111,10 @@ export default function UsersPage() {
     setCurrentPage(1)
   }
 
+  const handleCreateSuccess = () => {
+    loadUsers()
+  }
+
   // Show loading skeleton while checking access (before redirect happens)
   if (isLoading) {
     return (
@@ -125,13 +131,19 @@ export default function UsersPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Users</h1>
-        <Link href="/users/create">
-          <Button style={{ backgroundColor: tenant.primary_color }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create new user
-          </Button>
-        </Link>
+        <Button
+          onClick={() => setIsCreateModalOpen(true)}
+          style={{ backgroundColor: tenant.primary_color }}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Create new user
+        </Button>
       </div>
+      <CreateUserModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onSuccess={handleCreateSuccess}
+      />
 
       {/* Search */}
       <div className="mb-6 flex justify-end">

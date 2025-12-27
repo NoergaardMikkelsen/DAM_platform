@@ -25,6 +25,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
+import { CreateTagModal } from "@/components/create-tag-modal"
 
 interface Tag {
   id: string
@@ -63,6 +64,7 @@ export default function TaggingPage() {
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [childTagsCount, setChildTagsCount] = useState<number>(0)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -346,6 +348,10 @@ export default function TaggingPage() {
     }
   }
 
+  const handleCreateSuccess = () => {
+    loadTags()
+  }
+
   // Show loading skeleton while checking access (before redirect happens)
   if (isLoading) {
     return (
@@ -362,13 +368,19 @@ export default function TaggingPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Tagging</h1>
-        <Link href="/tagging/create">
-          <Button style={{ backgroundColor: tenant.primary_color }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create new tag
-          </Button>
-        </Link>
+        <Button
+          onClick={() => setIsCreateModalOpen(true)}
+          style={{ backgroundColor: tenant.primary_color }}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Create new tag
+        </Button>
       </div>
+      <CreateTagModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onSuccess={handleCreateSuccess}
+      />
 
       {/* Search */}
       <div className="mb-6 flex justify-end">
