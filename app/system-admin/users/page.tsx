@@ -457,7 +457,7 @@ export default function SystemUsersPage() {
         <h1 className="text-3xl font-bold text-gray-900">System Users</h1>
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-black hover:bg-gray-800 text-white rounded-[25px]">
+            <Button className="bg-black hover:bg-gray-800 text-white">
               <Plus className="mr-2 h-4 w-4" />
               Invite new user
             </Button>

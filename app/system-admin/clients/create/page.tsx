@@ -570,7 +570,7 @@ export default function CreateClientPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" className="bg-black hover:bg-gray-800 text-white rounded-[25px]" disabled={isLoading}>
+              <Button type="submit" className="bg-black hover:bg-gray-800 text-white" disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create client"}
               </Button>
             </div>

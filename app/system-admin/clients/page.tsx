@@ -410,7 +410,7 @@ export default function ClientsPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
         <Link href="/system-admin/clients/create">
-          <Button className="bg-black hover:bg-gray-800 text-white rounded-[25px]">
+          <Button className="bg-black hover:bg-gray-800 text-white">
             <Plus className="mr-2 h-4 w-4" />
             Create new client
           </Button>
@@ -525,7 +525,7 @@ export default function ClientsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-[25px] bg-black text-white hover:bg-gray-800"
+                        className="h-8 w-8 bg-black text-white hover:bg-gray-800"
                         onClick={() => handleNavigateToClient(client.slug)}
                       >
                         →
@@ -660,7 +660,7 @@ export default function ClientsPage() {
           <Settings className="mb-4 h-8 w-8 text-gray-400" />
           <p className="text-gray-600">Ready to set up your first client</p>
           <Link href="/system-admin/clients/create">
-            <Button className="mt-4 bg-black hover:bg-gray-800 text-white rounded-[25px]">Create your first client</Button>
+            <Button className="mt-4 bg-black hover:bg-gray-800 text-white">Create your first client</Button>
           </Link>
         </div>
       )}

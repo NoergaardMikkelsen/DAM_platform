@@ -213,7 +213,7 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
             <Button variant="outline" onClick={handleClear} className="flex-1 bg-transparent">
               Clear
             </Button>
-            <Button onClick={handleApply} className="flex-1 bg-[#DF475C] hover:bg-[#C82333] rounded-[25px]">
+            <Button onClick={handleApply} className="flex-1 bg-[#DF475C] hover:bg-[#C82333]">
               Apply filters
             </Button>
           </div>

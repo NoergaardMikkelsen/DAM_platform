@@ -363,7 +363,7 @@ export default function TaggingPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Tagging</h1>
         <Link href="/tagging/create">
-          <Button className="rounded-[25px]" style={{ backgroundColor: tenant.primary_color }}>
+          <Button style={{ backgroundColor: tenant.primary_color }}>
             <Plus className="mr-2 h-4 w-4" />
             Create new tag
           </Button>

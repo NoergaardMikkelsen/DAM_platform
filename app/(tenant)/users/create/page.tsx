@@ -193,7 +193,7 @@ export default function CreateUserPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" className="rounded-[25px]" style={{ backgroundColor: tenant.primary_color }} disabled={isLoading}>
+              <Button type="submit" style={{ backgroundColor: tenant.primary_color }} disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create user"}
               </Button>
             </div>

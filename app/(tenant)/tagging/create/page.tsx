@@ -172,7 +172,7 @@ export default function CreateTagPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" className="rounded-[25px]" style={{ backgroundColor: tenant.primary_color }} disabled={isLoading}>
+              <Button type="submit" style={{ backgroundColor: tenant.primary_color }} disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create tag"}
               </Button>
             </div>

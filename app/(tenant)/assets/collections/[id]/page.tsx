@@ -283,7 +283,6 @@ export default function CollectionDetailPage() {
           <Button
             onClick={() => router.push('/assets')}
             variant="secondary"
-            className="rounded-[25px]"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Assets
@@ -314,7 +313,7 @@ export default function CollectionDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="secondary" className="rounded-[25px] cursor-pointer" onClick={() => setIsFilterOpen(true)}>
+            <Button variant="secondary" onClick={() => setIsFilterOpen(true)}>
               <Filter className="mr-2 h-4 w-4" />
               Filters
             </Button>
