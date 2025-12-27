@@ -453,7 +453,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             style={{
               width: '24px',
               height: '20px',
-              transform: isCollapsed ? 'scaleX(-1)' : 'none',
+              transform: isCollapsed ? 'none' : 'scaleX(-1)',
               transition: 'transform 0.3s ease',
             }}
           >
