@@ -9,13 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useState, useEffect } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
-
-interface TagDimension {
-  dimension_key: string
-  label: string
-  allow_user_creation: boolean
-  is_hierarchical: boolean
-}
+import type { TagDimension } from "@/lib/types/database"
+import { createTag } from "@/lib/utils/tag-creation"
 
 interface CreateTagModalProps {
   open: boolean
@@ -72,49 +67,18 @@ export function CreateTagModal({ open, onOpenChange, onSuccess }: CreateTagModal
         throw new Error("Invalid dimension selected")
       }
 
-      // Create slug from label
-      const slug = label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-
-      // Get parent tag if hierarchical
-      let parentId: string | null = null
-      if (selectedDimension.is_hierarchical) {
-        const { data: parentTag } = await supabase
-          .from("tags")
-          .select("id")
-          .eq("dimension_key", dimensionKey)
-          .is("parent_id", null)
-          .or(`client_id.eq.${tenant.id},client_id.is.null`)
-          .maybeSingle()
-        parentId = parentTag?.id || null
-      }
-
-      // Determine tag_type for backward compatibility
-      let tagType = "description"
-      if (dimensionKey === "campaign" || dimensionKey === "brand_assets") {
-        tagType = "category"
-      } else if (dimensionKey === "visual_style") {
-        tagType = "visual_style"
-      } else if (dimensionKey === "usage") {
-        tagType = "usage"
-      } else if (dimensionKey === "file_type") {
-        tagType = "file_type"
-      }
-
-      const { error: insertError } = await supabase.from("tags").insert({
-        client_id: tenant.id,
-        created_by: user.id,
-        dimension_key: dimensionKey,
-        parent_id: parentId,
-        tag_type: tagType,
+      // Use consolidated tag creation utility
+      const tagId = await createTag(supabase, {
         label,
-        slug,
-        is_system: false,
+        dimensionKey,
+        clientId: tenant.id,
+        userId: user.id,
+        dimension: selectedDimension,
       })
 
-      if (insertError) throw insertError
+      if (!tagId) {
+        throw new Error("Failed to create tag")
+      }
 
       // Reset form and close modal
       setLabel("")

@@ -16,6 +16,7 @@ import { useTenant } from "@/lib/context/tenant-context"
 import { TagBadgeSelector } from "@/components/tag-badge-selector"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import type { TagDimension } from "@/lib/types/database"
+import { createTagHandler as createTagHandlerUtil } from "@/lib/utils/tag-creation"
 
 export default function UploadAssetPage() {
   const { tenant } = useTenant()
@@ -155,68 +156,9 @@ export default function UploadAssetPage() {
     return selectedTags[dimensionKey] || []
   }
 
-  // Generic tag creation handler
+  // Generic tag creation handler using consolidated utility
   const createTagHandler = (dimension: TagDimension) => {
-    if (!dimension.allow_user_creation) return undefined
-
-    return async (label: string): Promise<string | null> => {
-      const supabase = supabaseRef.current
-      let parentId: string | null = null
-
-      if (dimension.is_hierarchical) {
-        const { data: parentTag } = await supabase
-          .from("tags")
-          .select("id")
-          .eq("dimension_key", dimension.dimension_key)
-          .is("parent_id", null)
-          .or(`client_id.eq.${clientId},client_id.is.null`)
-          .maybeSingle()
-        parentId = parentTag?.id || null
-      }
-
-      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-
-      // Check if tag already exists before creating
-      const { data: existing } = await supabase
-        .from("tags")
-        .select("id")
-        .eq("dimension_key", dimension.dimension_key)
-        .eq("slug", slug)
-        .or(`client_id.eq.${clientId},client_id.is.null`)
-        .maybeSingle()
-
-      if (existing) {
-        return existing.id
-      }
-
-      // Determine tag_type based on dimension_key (for backward compatibility)
-      let tagType = "description"
-      if (dimension.dimension_key === "campaign" || dimension.dimension_key === "brand_assets") {
-        tagType = "category"
-      } else if (dimension.dimension_key === "visual_style") {
-        tagType = "visual_style"
-      } else if (dimension.dimension_key === "usage") {
-        tagType = "usage"
-      }
-
-      const { data, error } = await supabase
-        .from("tags")
-        .insert({
-          client_id: clientId!,
-          dimension_key: dimension.dimension_key,
-          parent_id: parentId,
-          label: label.trim(),
-          slug,
-          is_system: false,
-          sort_order: 0,
-          created_by: userId,
-          tag_type: tagType,
-        })
-        .select("id")
-        .single()
-
-      return error ? null : data?.id || null
-    }
+    return createTagHandlerUtil(supabaseRef.current, dimension, clientId!, userId!)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
