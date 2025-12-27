@@ -28,6 +28,8 @@ import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } f
 import { CreateTagModal } from "@/components/create-tag-modal"
 import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
+import { PAGINATION } from "@/lib/constants"
+import { logError } from "@/lib/utils/logger"
 
 interface Tag {
   id: string
@@ -81,9 +83,9 @@ export default function TaggingPage() {
     isLastPage,
   } = usePagination(filteredTags, {
     calculateItemsPerPage: true,
-    fixedHeight: 404, // Header(80) + Search(50) + Tabs(50) + Table header(60) + Padding(64) + Pagination(60) + Margin(40)
-    rowHeight: 60,
-    minItemsPerPage: 3,
+    fixedHeight: PAGINATION.DEFAULT_FIXED_HEIGHT,
+    rowHeight: PAGINATION.DEFAULT_ROW_HEIGHT,
+    minItemsPerPage: PAGINATION.MIN_ITEMS_PER_PAGE,
   })
 
   useEffect(() => {
@@ -250,7 +252,7 @@ export default function TaggingPage() {
         .eq("parent_id", tagToDelete.id)
 
       if (childTagsError) {
-        console.error("Error checking child tags:", childTagsError)
+        logError("Error checking child tags:", childTagsError)
       }
 
       // If there are child tags, delete them first (cascade delete)
@@ -264,7 +266,7 @@ export default function TaggingPage() {
           .in("tag_id", childTagIds)
 
         if (childAssetTagsError) {
-          console.error("Error deleting asset_tags for child tags:", childAssetTagsError)
+          logError("Error deleting asset_tags for child tags:", childAssetTagsError)
           alert(`Failed to remove child tags from assets: ${childAssetTagsError.message || childAssetTagsError.code || "Unknown error"}`)
           setIsDeleting(false)
           setTagToDelete(null)
@@ -278,7 +280,7 @@ export default function TaggingPage() {
           .in("id", childTagIds)
 
         if (childTagsDeleteError) {
-          console.error("Error deleting child tags:", childTagsDeleteError)
+          logError("Error deleting child tags:", childTagsDeleteError)
           alert(`Failed to delete child tags: ${childTagsDeleteError.message || childTagsDeleteError.code || "Unknown error"}`)
           setIsDeleting(false)
           setTagToDelete(null)
@@ -294,8 +296,8 @@ export default function TaggingPage() {
         .eq("tag_id", tagToDelete.id)
 
       if (assetTagsError) {
-        console.error("Error deleting asset_tags:", assetTagsError)
-        console.error("Full error object:", JSON.stringify(assetTagsError, null, 2))
+        logError("Error deleting asset_tags:", assetTagsError)
+        logError("Full error object:", JSON.stringify(assetTagsError, null, 2))
         alert(`Failed to remove tag from assets: ${assetTagsError.message || assetTagsError.code || "Unknown error"}`)
         setIsDeleting(false)
         setTagToDelete(null)
@@ -309,8 +311,8 @@ export default function TaggingPage() {
         .eq("id", tagToDelete.id)
 
       if (tagError) {
-        console.error("Error deleting tag:", tagError)
-        console.error("Full error object:", JSON.stringify(tagError, null, 2))
+        logError("Error deleting tag:", tagError)
+        logError("Full error object:", JSON.stringify(tagError, null, 2))
         
         // Check if it's a foreign key constraint error (child tags)
         if (tagError.code === "23503" || tagError.message?.includes("foreign key") || tagError.message?.includes("parent_id")) {
@@ -326,8 +328,8 @@ export default function TaggingPage() {
         await loadTags()
       }
     } catch (error: any) {
-      console.error("Error deleting tag:", error)
-      console.error("Full error object:", JSON.stringify(error, null, 2))
+      logError("Error deleting tag:", error)
+      logError("Full error object:", JSON.stringify(error, null, 2))
       
       // Check if it's a permission error
       if (error?.code === "42501" || error?.message?.includes("permission") || error?.message?.includes("policy")) {

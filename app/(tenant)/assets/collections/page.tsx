@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, ArrowLeft } from "lucide-react"
 import { CollectionCard } from "@/components/collection-card"
+import { EmptyState } from "@/components/empty-state"
+import { FolderOpen } from "lucide-react"
 import { CollectionGridSkeleton, PageHeaderSkeleton, SortingSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -208,9 +210,11 @@ export default function CollectionsPage() {
 
       {/* Collections Grid */}
       {filteredCollections.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <p className="text-gray-600">No collections found</p>
-        </div>
+        <EmptyState
+          icon={FolderOpen}
+          title="No collections found"
+          description="Collections will be automatically created when you tag assets with collection-generating tags."
+        />
       ) : (
         <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
           {filteredCollections.map((collection) => (

@@ -12,6 +12,8 @@ import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { usePagination } from "@/hooks/use-pagination"
+import { STORAGE_LIMITS, PAGINATION } from "@/lib/constants"
+import { logError } from "@/lib/utils/logger"
 
 interface Client {
   id: string
@@ -71,9 +73,9 @@ export default function ClientsPage() {
     isLastPage,
   } = usePagination(filteredClients, {
     calculateItemsPerPage: true,
-    fixedHeight: 404, // Header(80) + Search(50) + Tabs(50) + Table header(60) + Padding(64) + Pagination(60) + Margin(40)
-    rowHeight: 60,
-    minItemsPerPage: 3,
+    fixedHeight: PAGINATION.DEFAULT_FIXED_HEIGHT,
+    rowHeight: PAGINATION.DEFAULT_ROW_HEIGHT,
+    minItemsPerPage: PAGINATION.MIN_ITEMS_PER_PAGE,
   })
 
   useEffect(() => {
@@ -114,7 +116,7 @@ export default function ClientsPage() {
 
 
     if (error) {
-      console.error("Error loading clients:", error)
+      logError("Error loading clients:", error)
       setClients([])
       setFilteredClients([])
       setIsLoading(false)
@@ -139,7 +141,7 @@ export default function ClientsPage() {
           user_count: userResult.count || 0,
           storage_used_bytes: actualStorageUsedBytes, // Override with actual calculation
           storage_percentage: client.storage_limit_mb > 0
-            ? Math.round((actualStorageUsedBytes / (client.storage_limit_mb * 1024 * 1024)) * 100)
+            ? Math.round((actualStorageUsedBytes / (client.storage_limit_mb * STORAGE_LIMITS.BYTES_PER_MB)) * 100)
             : 0
         } as Client
       })
@@ -449,8 +451,8 @@ export default function ClientsPage() {
           </thead>
           <tbody>
             {paginatedClients.map((client) => {
-              const storageUsedGB = Math.round(client.storage_used_bytes / 1024 / 1024 / 1024)
-              const storageLimitGB = 10 // Fixed 10 GB limit per client
+              const storageUsedGB = Math.round(client.storage_used_bytes / STORAGE_LIMITS.BYTES_PER_GB)
+              const storageLimitGB = client.storage_limit_mb / 1024 || STORAGE_LIMITS.DEFAULT_GB
               const storagePercentage = client.storage_percentage || 0
 
               return (
@@ -726,7 +728,7 @@ export default function ClientsPage() {
                   required
                   min="1"
                   value={editClientForm.storage_limit_mb / 1024}
-                  onChange={(e) => setEditClientForm(prev => ({ ...prev, storage_limit_mb: parseInt(e.target.value) * 1024 }))}
+                  onChange={(e) => setEditClientForm(prev => ({ ...prev, storage_limit_mb: parseInt(e.target.value) * (STORAGE_LIMITS.BYTES_PER_GB / STORAGE_LIMITS.BYTES_PER_MB) }))}
                 />
               </div>
             </div>

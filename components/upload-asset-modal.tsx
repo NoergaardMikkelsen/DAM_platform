@@ -17,6 +17,7 @@ import { TagBadgeSelector } from "@/components/tag-badge-selector"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import type { TagDimension } from "@/lib/types/database"
 import { createTagHandler as createTagHandlerUtil } from "@/lib/utils/tag-creation"
+import { logDebug, logError, logWarn } from "@/lib/utils/logger"
 
 interface UploadAssetModalProps {
   open: boolean
@@ -85,7 +86,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        console.error("User not authenticated:", userError)
+        logError("User not authenticated:", userError)
         return
       }
 
@@ -100,13 +101,13 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
         .order("display_order", { ascending: true })
 
       if (dimError) {
-        console.error("Error loading tag dimensions:", dimError)
+        logError("Error loading tag dimensions:", dimError)
         setTagDimensions([])
       } else {
         setTagDimensions(dimensions || [])
       }
     } catch (err) {
-      console.error("Initialization error:", err)
+      logError("Initialization error:", err)
       setError("Failed to initialize upload")
     } finally {
       setIsInitializing(false)
@@ -313,28 +314,28 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
   }
 
   const handleSubmit = async () => {
-    console.log("handleSubmit called", { files: files.length, currentStep, uploadType, isLoading, isUploading: isUploadingRef.current })
+    logDebug("handleSubmit called", { files: files.length, currentStep, uploadType, isLoading, isUploading: isUploadingRef.current })
     
     // Prevent multiple simultaneous uploads using ref (works even before state updates)
     if (isLoading || isUploadingRef.current) {
-      console.log("Upload already in progress, ignoring duplicate call")
+      logDebug("Upload already in progress, ignoring duplicate call")
       return
     }
     
     if (!validateStep(3)) {
-      console.log("Validation failed for step 3")
+      logDebug("Validation failed for step 3")
       setError("Please complete all required fields")
       return
     }
 
     if (!clientId || !userId) {
-      console.error("Missing clientId or userId", { clientId, userId })
+      logError("Missing clientId or userId", { clientId, userId })
       setError("Session expired. Please refresh the page.")
       return
     }
 
     if (files.length === 0) {
-      console.error("No files to upload")
+      logError("No files to upload")
       setError("Please select at least one file")
       return
     }
@@ -343,7 +344,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
     isUploadingRef.current = true
     setIsLoading(true)
     setError(null)
-    console.log("Starting upload for", files.length, "file(s)")
+    logDebug("Starting upload for", files.length, "file(s)")
 
     try {
       const supabase = supabaseRef.current
@@ -354,33 +355,33 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
       // Upload all files
       for (const file of files) {
         try {
-          console.log("Processing file:", { id: file.id, name: file.name, type: file.type, size: file.size })
+          logDebug("Processing file:", { id: file.id, name: file.name, type: file.type, size: file.size })
           
           // Ensure we have a valid File object with type property
           if (!file || !file.type) {
             throw new Error(`File ${file?.name || 'unknown'} is missing type property`)
           }
 
-          console.log("Setting progress to 10%")
+          logDebug("Setting progress to 10%")
           setUploadProgress((prev) => ({ ...prev, [file.id]: 10 }))
 
           let dimensions: { width: number; height: number; duration?: number } | null = null
 
-          console.log("Getting dimensions for file type:", file.type)
+            logDebug("Getting dimensions for file type:", file.type)
           if (file.type.startsWith("image/")) {
-            console.log("Getting image dimensions...")
+            logDebug("Getting image dimensions...")
             dimensions = await getImageDimensions(file)
-            console.log("Image dimensions:", dimensions)
+            logDebug("Image dimensions:", dimensions)
           } else if (file.type.startsWith("video/")) {
-            console.log("Getting video dimensions...")
+            logDebug("Getting video dimensions...")
             dimensions = await getVideoDimensions(file)
-            console.log("Video dimensions:", dimensions)
+            logDebug("Video dimensions:", dimensions)
           }
 
-          console.log("Setting progress to 25%")
+          logDebug("Setting progress to 25%")
           setUploadProgress((prev) => ({ ...prev, [file.id]: 25 }))
 
-          console.log("Uploading asset to storage...")
+          logDebug("Uploading asset to storage...")
           const uploadResult = await uploadAsset({
             clientId,
             file,
@@ -392,7 +393,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
             },
           })
 
-          console.log("Upload result:", uploadResult)
+          logDebug("Upload result:", uploadResult)
           setUploadProgress((prev) => ({ ...prev, [file.id]: 75 }))
 
           // Generate thumbnail for video files
@@ -409,15 +410,15 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
                 thumbnailPath = thumbnailUploadResult.path
               }
             } catch (error) {
-              console.warn("Failed to generate video thumbnail:", error)
+              logWarn("Failed to generate video thumbnail:", error)
             }
           }
 
           setUploadProgress((prev) => ({ ...prev, [file.id]: 85 }))
 
           // Create asset
-          console.log("Creating asset in database...")
-          console.log("Asset data:", {
+          logDebug("Creating asset in database...")
+          logDebug("Asset data:", {
             client_id: clientId,
             uploaded_by: userId,
             title: titles[file.id]?.trim() || file.name || "Untitled",
@@ -453,17 +454,17 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
           console.log("Database insert result:", { newAsset, dbError })
           
           if (dbError) {
-            console.error("Database error:", dbError)
-            console.error("Full error details:", JSON.stringify(dbError, null, 2))
+            logError("Database error:", dbError)
+            logError("Full error details:", JSON.stringify(dbError, null, 2))
             throw new Error(`Database error: ${dbError.message}`)
           }
           
-          console.log("Asset created successfully:", newAsset)
+          logDebug("Asset created successfully:", newAsset)
 
           setUploadProgress((prev) => ({ ...prev, [file.id]: 90 }))
 
           // Create initial asset_version
-          console.log("Creating asset version...")
+          logDebug("Creating asset version...")
           const { data: versionData, error: versionError } = await supabase
             .from("asset_versions")
             .insert({
@@ -483,22 +484,22 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
             .select("id")
             .single()
 
-          console.log("Version insert result:", { versionData, versionError })
+          logDebug("Version insert result:", { versionData, versionError })
           
           if (versionError) {
-            console.error("Failed to create initial asset version:", versionError)
-            console.error("Full version error:", JSON.stringify(versionError, null, 2))
+            logError("Failed to create initial asset version:", versionError)
+            logError("Full version error:", JSON.stringify(versionError, null, 2))
           } else {
-            console.log("Updating asset with version ID...")
+            logDebug("Updating asset with version ID...")
             const { error: updateError } = await supabase
               .from("assets")
               .update({ current_version_id: versionData.id, previous_version_id: null })
               .eq("id", newAsset.id)
             
             if (updateError) {
-              console.error("Failed to update asset with version:", updateError)
+              logError("Failed to update asset with version:", updateError)
             } else {
-              console.log("Asset updated with version successfully")
+              logDebug("Asset updated with version successfully")
             }
           }
 
@@ -543,7 +544,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
 
             const { error: tagError } = await supabase.from("asset_tags").insert(tagInserts)
             if (tagError) {
-              console.error("Tag insertion error:", tagError)
+              logError("Tag insertion error:", tagError)
             }
           }
 
@@ -559,7 +560,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
 
           setUploadProgress((prev) => ({ ...prev, [file.id]: 100 }))
         } catch (fileError) {
-          console.error(`Error uploading file ${file.name || 'file'}:`, fileError)
+          logError(`Error uploading file ${file.name || 'file'}:`, fileError)
           const errorMessage = fileError instanceof Error ? fileError.message : `Failed to upload ${file.name || 'file'}`
           setError(errorMessage)
           // Continue with other files instead of stopping completely
@@ -573,7 +574,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
         if (onSuccess) onSuccess()
       }, 1500)
     } catch (error: unknown) {
-      console.error("Upload error:", error)
+      logError("Upload error:", error)
       setError(error instanceof Error ? error.message : "An error occurred during upload")
     } finally {
       setIsLoading(false)

@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { usePagination } from "@/hooks/use-pagination"
+import { PAGINATION, DEFAULT_ROLES } from "@/lib/constants"
 import { formatDate } from "@/lib/utils/date"
 
 interface SystemUser {
@@ -49,7 +50,7 @@ export default function SystemUsersPage() {
     email: '',
     password: '',
     fullName: '',
-    role: 'admin' // default to admin, can be changed to superadmin
+    role: DEFAULT_ROLES.ADMIN // default to admin, can be changed to superadmin
   })
   const [createUserError, setCreateUserError] = useState<string | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -78,9 +79,9 @@ export default function SystemUsersPage() {
     isLastPage,
   } = usePagination(filteredUsers, {
     calculateItemsPerPage: true,
-    fixedHeight: 404, // Header(80) + Search(50) + Tabs(50) + Table header(60) + Padding(64) + Pagination(60) + Margin(40)
-    rowHeight: 60,
-    minItemsPerPage: 3,
+    fixedHeight: PAGINATION.DEFAULT_FIXED_HEIGHT,
+    rowHeight: PAGINATION.DEFAULT_ROW_HEIGHT,
+    minItemsPerPage: PAGINATION.MIN_ITEMS_PER_PAGE,
   })
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function SystemUsersPage() {
       .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error loading users:", error)
+      logError("Error loading users:", error)
       setIsLoading(false)
       return
     }
@@ -184,7 +185,7 @@ export default function SystemUsersPage() {
       .order("name")
 
     if (error) {
-      console.error("Error loading clients:", error)
+      logError("Error loading clients:", error)
       return
     }
 
@@ -206,7 +207,7 @@ export default function SystemUsersPage() {
       .eq("status", "active")
 
     if (error) {
-      console.error("Error loading user client data:", error)
+      logError("Error loading user client data:", error)
       return
     }
 
@@ -543,7 +544,11 @@ export default function SystemUsersPage() {
                   ))}
                 </div>
                 {clients.length === 0 && (
-                  <p className="text-sm text-gray-500">No active clients found</p>
+                  <EmptyState
+                    icon={Users}
+                    title="No active clients found"
+                    description="This user is not associated with any active clients."
+                  />
                 )}
               </div>
 
@@ -649,7 +654,11 @@ export default function SystemUsersPage() {
                   ))}
                 </div>
                 {clients.length === 0 && (
-                  <p className="text-sm text-gray-500">No active clients found</p>
+                  <EmptyState
+                    icon={Users}
+                    title="No active clients found"
+                    description="This user is not associated with any active clients."
+                  />
                 )}
               </div>
 

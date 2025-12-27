@@ -17,6 +17,7 @@ import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } f
 import { CreateUserModal } from "@/components/create-user-modal"
 import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
+import { PAGINATION } from "@/lib/constants"
 
 interface UserWithRole {
   id: string
@@ -57,9 +58,9 @@ export default function UsersPage() {
     isLastPage,
   } = usePagination(filteredUsers, {
     calculateItemsPerPage: true,
-    fixedHeight: 404, // Header(80) + Search(50) + Tabs(50) + Table header(60) + Padding(64) + Pagination(60) + Margin(40)
-    rowHeight: 60,
-    minItemsPerPage: 3,
+    fixedHeight: PAGINATION.DEFAULT_FIXED_HEIGHT,
+    rowHeight: PAGINATION.DEFAULT_ROW_HEIGHT,
+    minItemsPerPage: PAGINATION.MIN_ITEMS_PER_PAGE,
   })
 
   useEffect(() => {

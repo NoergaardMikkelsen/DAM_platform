@@ -10,6 +10,8 @@ import { Card, CardHeader } from "@/components/ui/card"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
+import { EmptyState } from "@/components/empty-state"
+import { FolderOpen } from "lucide-react"
 import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
@@ -309,9 +311,11 @@ export default function AssetsPage() {
         {isLoadingCollections ? (
           <CollectionGridSkeleton count={6} />
         ) : filteredCollections.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-gray-500">No collections yet. Upload assets with collection-generating tags to create collections.</p>
-          </div>
+          <EmptyState
+            icon={FolderOpen}
+            title="No collections yet"
+            description="Upload assets with collection-generating tags to create collections."
+          />
         ) : (
           <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
             {sortedCollections.slice(0, maxCollections).map((collection, index) => (

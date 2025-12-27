@@ -17,6 +17,7 @@ import { TagBadgeSelector } from "@/components/tag-badge-selector"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import type { TagDimension } from "@/lib/types/database"
 import { createTagHandler as createTagHandlerUtil } from "@/lib/utils/tag-creation"
+import { logError, logWarn } from "@/lib/utils/logger"
 
 export default function UploadAssetPage() {
   const { tenant } = useTenant()
@@ -51,7 +52,7 @@ export default function UploadAssetPage() {
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        console.error("User not authenticated:", userError)
+        logError("User not authenticated:", userError)
         router.push("/login")
         return
       }
@@ -67,14 +68,14 @@ export default function UploadAssetPage() {
         .order("display_order", { ascending: true })
 
       if (dimError) {
-        console.error("Error loading tag dimensions:", dimError)
+        logError("Error loading tag dimensions:", dimError)
         // Fallback: create default dimensions if table doesn't exist yet
         setTagDimensions([])
       } else {
         setTagDimensions(dimensions || [])
       }
     } catch (err) {
-      console.error("Initialization error:", err)
+      logError("Initialization error:", err)
       setError("Failed to initialize upload page")
     } finally {
       setIsInitializing(false)
@@ -231,7 +232,7 @@ export default function UploadAssetPage() {
             thumbnailPath = thumbnailUploadResult.path
           }
         } catch (error) {
-          console.warn("Failed to generate video thumbnail:", error)
+          logWarn("Failed to generate video thumbnail:", error)
         }
       }
 
@@ -282,7 +283,7 @@ export default function UploadAssetPage() {
         .single()
 
       if (versionError) {
-        console.error("Failed to create initial asset version:", versionError)
+        logError("Failed to create initial asset version:", versionError)
       } else {
         await supabase
           .from("assets")
@@ -321,7 +322,7 @@ export default function UploadAssetPage() {
 
         const { error: tagError } = await supabase.from("asset_tags").insert(tagInserts)
         if (tagError) {
-          console.error("Tag insertion error:", tagError)
+          logError("Tag insertion error:", tagError)
         }
       }
 
@@ -342,7 +343,7 @@ export default function UploadAssetPage() {
         router.push("/assets")
       }, 1500)
     } catch (error: unknown) {
-      console.error("Upload error:", error)
+      logError("Upload error:", error)
       setError(error instanceof Error ? error.message : "An error occurred during upload")
       setUploadProgress(0)
     } finally {

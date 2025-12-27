@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { AssetPreview } from "@/components/asset-preview"
 import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
+import { EmptyState } from "@/components/empty-state"
+import { FolderOpen } from "lucide-react"
 import { InitialLoadingScreen } from "@/components/ui/initial-loading-screen"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
@@ -431,9 +433,11 @@ export default function DashboardPage() {
         {isLoadingCollections ? (
           <CollectionGridSkeleton count={6} />
         ) : filteredCollections.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-gray-500">No collections yet. Collections will be automatically created when you tag assets with collection-generating tags.</p>
-          </div>
+          <EmptyState
+            icon={FolderOpen}
+            title="No collections yet"
+            description="Collections will be automatically created when you tag assets with collection-generating tags."
+          />
         ) : (
           <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
             {sortedCollections.slice(0, maxCollections).map((collection: Collection, index: number) => (

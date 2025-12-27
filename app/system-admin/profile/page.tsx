@@ -13,6 +13,7 @@ import { RoleBadge } from "@/components/role-badge"
 import { formatDate } from "@/lib/utils/date"
 import { useToast } from "@/hooks/use-toast"
 import { handleError, handleSuccess } from "@/lib/utils/error-handling"
+import { logError } from "@/lib/utils/logger"
 
 interface SystemAdminData {
   id: string
@@ -149,7 +150,7 @@ export default function SystemAdminProfilePage() {
 
       setActivities(recentActivities)
     } catch (error) {
-      console.error("Error loading activities:", error)
+      logError("Error loading activities:", error)
       // Set some fallback activities if error occurs
       setActivities([
         {

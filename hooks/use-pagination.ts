@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
+import { PAGINATION } from "@/lib/constants"
 
 /**
  * Options for usePagination hook
@@ -73,11 +74,11 @@ export function usePagination<T>(
 ): UsePaginationReturn<T> {
   const {
     initialPage = 1,
-    initialItemsPerPage = 10,
+    initialItemsPerPage = PAGINATION.DEFAULT_ITEMS_PER_PAGE,
     calculateItemsPerPage = false,
-    fixedHeight = 404, // Default: Header(80) + Search(50) + Tabs(50) + Table header(60) + Padding(64) + Pagination(60) + Margin(40)
-    rowHeight = 60,
-    minItemsPerPage = 3,
+    fixedHeight = PAGINATION.DEFAULT_FIXED_HEIGHT,
+    rowHeight = PAGINATION.DEFAULT_ROW_HEIGHT,
+    minItemsPerPage = PAGINATION.MIN_ITEMS_PER_PAGE,
     maxItemsPerPage,
   } = options
 
