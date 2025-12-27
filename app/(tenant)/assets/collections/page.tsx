@@ -89,34 +89,15 @@ export default function CollectionsPage() {
       return
     }
 
-    // Fetch all assets
-    const { data: assetsData } = await supabase
-      .from("assets")
-      .select(`
-        id,
-        title,
-        storage_path,
-        mime_type,
-        current_version:asset_versions!current_version_id (
-          thumbnail_path
-        )
-      `)
-      .eq("client_id", clientId)
-      .eq("status", "active")
-
-    if (!assetsData) {
-      setIsLoading(false)
-      return
-    }
-
     // Build collections for each dimension
     // Use shared utility to load collections
     const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
     
-    // Get all assets for preview
-    const { data: allAssetsData } = await supabase
-      .from("assets")
-      .select(`
+    // Get all assets for preview - use getAllActiveAssetsForClient to handle pagination automatically
+    // This ensures we get ALL assets, not just the first 1000 (Supabase default limit)
+    const { getAllActiveAssetsForClient } = await import("@/lib/utils/supabase-queries")
+    const { data: allAssetsData } = await getAllActiveAssetsForClient(supabase, clientId, {
+      columns: `
         id,
         title,
         storage_path,
@@ -126,15 +107,21 @@ export default function CollectionsPage() {
         current_version:asset_versions!current_version_id (
           thumbnail_path
         )
-      `)
-      .eq("client_id", clientId)
-      .eq("status", "active")
+      `,
+      orderBy: "created_at",
+      ascending: false,
+    })
+
+    if (!allAssetsData) {
+      setIsLoading(false)
+      return
+    }
 
     const allCollections = await loadCollectionsFromDimensions(
       supabase,
       dimensions,
       clientId,
-      allAssetsData || []
+      allAssetsData
     )
 
     setCollections(allCollections)

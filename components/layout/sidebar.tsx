@@ -110,14 +110,14 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   
   return (
     <div
-      className={`relative transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}
+      className={`relative ${isCollapsed ? 'w-16' : 'w-72'}`}
       style={{
         marginTop: '16px',
         marginLeft: '16px',
-        // When collapsed: leave space for button below sidebar
         marginBottom: isCollapsed ? `${buttonSize + 16}px` : '30px',
-        // When collapsed: sidebar is shorter to make room for button below
         height: isCollapsed ? `calc(100% - ${buttonSize + 32}px)` : '-webkit-fill-available',
+        transition: 'width 300ms ease-in-out',
+        willChange: 'width',
       }}
     >
       {/* Main sidebar SVG shape with organic curve - same style as collection cards */}
@@ -173,7 +173,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
       {/* Content container */}
       <div className="relative z-10 flex h-full flex-col">
         {/* Logo */}
-        <div className={`flex items-center transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
+        <div className={`flex items-center ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
           {isSystemAdminContext && role === "superadmin" ? (
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
               <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-black text-white font-bold text-sm`}>
@@ -190,14 +190,15 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             <img
               src={isCollapsed ? (tenant?.logo_collapsed_url || "/logo/logo_collapsed.png") : (tenant?.logo_url || "/logo/59b3f6b6c3c46621b356d5f49bb6efe368efa9ad.png")}
               alt={`${tenant?.name || 'Nørgård Mikkelsen'} Logo`}
-              className={`transition-all duration-300 ${isCollapsed ? 'w-8 h-auto' : 'h-12 w-auto'}`}
+              className={isCollapsed ? 'w-8 h-auto' : 'h-12 w-auto'}
+              style={{ transition: 'width 300ms ease-in-out, height 300ms ease-in-out' }}
             />
           )}
         </div>
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4">
-          <div className={`space-y-2 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-3'}`}>
+          <div className={`space-y-2 ${isCollapsed ? 'px-4' : 'px-3'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
             {mainNavItems.length > 0 && !isCollapsed && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
             {mainNavItems.map((item) => {
               const Icon = item.icon
@@ -211,11 +212,12 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                   title={isCollapsed ? item.label : undefined}
                 >
                   <div
-                    className="relative overflow-hidden transition-all duration-300"
+                    className="relative overflow-hidden"
                     style={{
                       width: '100%',
                       height: '48px',
                       filter: isActive ? 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12))' : 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08))',
+                      transition: 'filter 200ms ease-in-out',
                     }}
                   >
                     <svg
@@ -262,11 +264,12 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                     </svg>
 
                     <div
-                      className={`absolute inset-0 flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'}`}
+                      className={`absolute inset-0 flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'}`}
                       style={{
                         color: isActive ? '#1f2937' : '#6b7280',
                         fontWeight: '500',
                         fontSize: '14px',
+                        transition: 'padding 300ms ease-in-out, gap 300ms ease-in-out',
                       }}
                     >
                       <Icon className="h-5 w-5 flex-shrink-0" />
@@ -292,11 +295,12 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                       title={isCollapsed ? item.label : undefined}
                     >
                       <div
-                        className="relative overflow-hidden transition-all duration-300"
+                        className="relative overflow-hidden"
                         style={{
                           width: '100%',
                           height: '48px',
                           filter: isActive ? 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12))' : 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08))',
+                          transition: 'filter 200ms ease-in-out',
                         }}
                       >
                         <svg
@@ -343,11 +347,12 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                         </svg>
 
                         <div
-                          className={`absolute inset-0 flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'}`}
+                          className={`absolute inset-0 flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'}`}
                           style={{
                             color: isActive ? '#1f2937' : '#6b7280',
                             fontWeight: '500',
                             fontSize: '14px',
+                            transition: 'padding 300ms ease-in-out, gap 300ms ease-in-out',
                           }}
                         >
                           <Icon className="h-5 w-5 flex-shrink-0" />
@@ -364,10 +369,10 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
         {/* Upload Button - Only show in tenant context (not in system admin context) */}
         {!isSystemAdminContext && (
-          <div className={`transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
+          <div className={`${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
             <Button
               onClick={() => setIsUploadModalOpen(true)}
-              className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
+              className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}
               title={isCollapsed ? "Upload" : undefined}
               style={{
                 backgroundColor: tenant?.primary_color || '#DF475C',
@@ -375,6 +380,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                 padding: isCollapsed ? '0' : '24px 16px',
                 fontSize: '14px',
                 fontWeight: '500',
+                transition: 'width 300ms ease-in-out, height 300ms ease-in-out, border-radius 300ms ease-in-out, padding 300ms ease-in-out',
               }}
             >
               <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
@@ -384,7 +390,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         )}
 
         {/* User Profile */}
-        <div className={`pb-20 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
+        <div className={`pb-20 pt-2 relative z-10 ${isCollapsed ? 'px-4' : 'px-4'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
             <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
@@ -403,11 +409,12 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             </Link>
           </div>
           <Button
-            className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 justify-center mb-4' : 'w-full justify-start'} text-gray-600`}
+            className={`${isCollapsed ? 'w-10 h-10 p-0 justify-center mb-4' : 'w-full justify-start'} text-gray-600`}
             style={{
               backgroundColor: 'transparent',
               border: 'none',
               boxShadow: 'none',
+              transition: 'width 300ms ease-in-out, padding 300ms ease-in-out',
             }}
             onClick={handleLogout}
             title={isCollapsed ? "Log out" : undefined}
@@ -422,17 +429,13 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         {/* When collapsed: centered below the sidebar */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute rounded-full flex items-center justify-center transition-all duration-300 hover:bg-gray-300 pointer-events-auto z-20"
+          className="absolute rounded-full flex items-center justify-center hover:bg-gray-300 pointer-events-auto z-20"
           style={{
             width: `${buttonSize}px`,
             height: `${buttonSize}px`,
             backgroundColor: '#E5E5E5',
             cursor: 'pointer',
-            // Expanded: position in SVG notch - the notch "pocket" center is approximately at:
-            // x = 257 (from left), y = 886 (from top) in viewBox 288x939
-            // As percentages: right = (288-257)/288 = 10.8%, bottom = (939-886)/939 = 5.6%
-            // Use transform: translate(-50%, 50%) to center the button on this point
-            // Collapsed: centered below the sidebar
+            transition: 'bottom 300ms ease-in-out, left 300ms ease-in-out, right 300ms ease-in-out, transform 300ms ease-in-out, background-color 200ms ease-in-out',
             ...(isCollapsed ? {
               bottom: `-${buttonSize + 8}px`,
               left: '50%',

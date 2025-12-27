@@ -78,24 +78,63 @@ export async function loadCollectionsFromDimensions(
       tagAssetMap.set(at.tag_id, [...current, at.asset_id])
     })
 
+    console.log(`[loadCollectionsFromDimensions] Dimension "${dimension.dimension_key}": Found ${assetTags?.length || 0} asset-tag relationships`)
+
     // Create collections for each tag
     const dimensionCollections = tags
       .map((tag: any) => {
         const assetIds = tagAssetMap.get(tag.id) || []
         const tagAssets = allAssets?.filter((a: any) => assetIds.includes(a.id)) || []
+        
+        const videoAssets = tagAssets.filter((a: any) => a.mime_type?.startsWith("video/"))
+        const missingVideoIds = assetIds.filter((id: string) => {
+          const asset = allAssets?.find((a: any) => a.id === id)
+          return asset && asset.mime_type?.startsWith("video/") && !tagAssets.find((ta: any) => ta.id === id)
+        })
+
+        if (tagAssets.length !== assetIds.length) {
+          console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Found ${assetIds.length} asset IDs in asset_tags, but only ${tagAssets.length} assets in allAssets array`)
+          if (missingVideoIds.length > 0) {
+            console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Missing ${missingVideoIds.length} video assets:`, missingVideoIds)
+          }
+        }
+        
+        if (videoAssets.length > 0) {
+          console.log(`[loadCollectionsFromDimensions] Collection "${tag.label}": ${videoAssets.length} video assets found`)
+        }
+
+        // Sort assets to prioritize videos and images for preview (but keep original order as fallback)
+        // This ensures videos are included in preview if they exist
+        const sortedForPreview = [...tagAssets].sort((a: any, b: any) => {
+          const aIsVideo = a.mime_type?.startsWith("video/")
+          const bIsVideo = b.mime_type?.startsWith("video/")
+          if (aIsVideo && !bIsVideo) return -1
+          if (!aIsVideo && bIsVideo) return 1
+          return 0
+        })
+
+        const previewAssets = sortedForPreview.slice(0, 4).map((asset: any) => ({
+          id: asset.id,
+          title: asset.title,
+          storage_path: asset.storage_path,
+          mime_type: asset.mime_type,
+          thumbnail_path: asset.current_version?.thumbnail_path || null
+        }))
+
+        const previewVideoCount = previewAssets.filter((a: any) => a.mime_type?.startsWith("video/")).length
+        const previewTypes = previewAssets.map((a: any) => a.mime_type?.startsWith("video/") ? "video" : a.mime_type?.startsWith("image/") ? "image" : "other").join(", ")
+        console.log(`[loadCollectionsFromDimensions] Collection "${tag.label}": Preview assets types: [${previewTypes}] (${previewVideoCount} videos)`)
+        
+        if (videoAssets.length > 0 && previewVideoCount === 0) {
+          console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Has ${videoAssets.length} videos but none in previewAssets! Total assets: ${tagAssets.length}`)
+        }
 
         return {
           id: tag.id,
           label: tag.label,
           slug: tag.slug,
           assetCount: tagAssets.length,
-          previewAssets: tagAssets.slice(0, 4).map((asset: any) => ({
-            id: asset.id,
-            title: asset.title,
-            storage_path: asset.storage_path,
-            mime_type: asset.mime_type,
-            thumbnail_path: asset.current_version?.thumbnail_path || null
-          })),
+          previewAssets,
         }
       })
       .filter((c: any) => c.assetCount > 0)

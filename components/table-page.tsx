@@ -1,6 +1,7 @@
 "use client"
 
 import { ReactNode } from "react"
+import { LucideIcon } from "lucide-react"
 import { PageHeader, PageHeaderProps } from "@/components/page-header"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PaginationControls } from "@/components/pagination-controls"
@@ -50,7 +51,7 @@ export interface TablePageProps<T> {
   
   // Empty state
   emptyState?: {
-    icon: React.ComponentType<{ className?: string }>
+    icon: LucideIcon
     title: string
     description?: string
     action?: {
@@ -158,7 +159,7 @@ export function TablePage<T>({
 
       {data.length === 0 && emptyState ? (
         <EmptyState
-          icon={emptyState.icon}
+          icon={emptyState.icon as LucideIcon}
           title={emptyState.title}
           description={emptyState.description}
           action={emptyState.action}

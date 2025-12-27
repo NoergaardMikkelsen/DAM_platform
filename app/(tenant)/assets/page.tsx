@@ -13,9 +13,10 @@ import { CollectionCard } from "@/components/collection-card"
 import { EmptyState } from "@/components/empty-state"
 import { FolderOpen } from "lucide-react"
 import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
+import { getAllActiveAssetsForClient, getCollectionDimensions } from "@/lib/utils/supabase-queries"
 import type { Collection } from "@/lib/utils/collections"
 
 interface Asset {
@@ -50,33 +51,26 @@ export default function AssetsPage() {
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [isLoadingCollections, setIsLoadingCollections] = useState(true) // Separate loading state for collections
-  const [maxCollections, setMaxCollections] = useState(4) // Default to 4 collections
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
+  const [loadedAssets, setLoadedAssets] = useState<Set<string>>(new Set()) // Track which assets have loaded
+  const [loadedCollectionCards, setLoadedCollectionCards] = useState<Set<string>>(new Set()) // Track which collection cards have loaded
+  const [allContentLoaded, setAllContentLoaded] = useState(false) // Track if all content is loaded
+  const [isDesktop, setIsDesktop] = useState(false) // Track if we're on desktop (lg breakpoint)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
-
-
+  // Check if we're on desktop (lg breakpoint = 1024px)
   useEffect(() => {
-    // Calculate how many collections can fit in one row based on screen width
-    const updateMaxCollections = () => {
-      if (typeof window !== 'undefined') {
-        const width = window.innerWidth
-        // Account for padding (p-4 sm:p-8 = 16px on mobile, 32px on desktop)
-        const padding = width >= 640 ? 64 : 32
-        const availableWidth = width - padding
-        // CollectionCard width is 280px + gap-6 (24px) = 304px per card
-        const cardWidth = 280 + 24
-        const maxCols = Math.floor(availableWidth / cardWidth)
-        // Ensure at least 1 collection is shown, max 6
-        setMaxCollections(Math.min(Math.max(maxCols, 1), 6))
-      }
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024)
     }
-
-    updateMaxCollections()
-    window.addEventListener('resize', updateMaxCollections)
-    return () => window.removeEventListener('resize', updateMaxCollections)
+    checkDesktop()
+    window.addEventListener('resize', checkDesktop)
+    return () => window.removeEventListener('resize', checkDesktop)
   }, [])
+
+
+
 
   useEffect(() => {
     loadData()
@@ -86,6 +80,105 @@ export default function AssetsPage() {
     applySearchAndSort()
   }, [assets, searchQuery, sortBy])
 
+  // Use refs to access current values in effects
+  const filteredCollectionsRef = useRef(filteredCollections)
+  const filteredAssetsRef = useRef(filteredAssets)
+  
+  useEffect(() => {
+    filteredCollectionsRef.current = filteredCollections
+  }, [filteredCollections])
+  
+  useEffect(() => {
+    filteredAssetsRef.current = filteredAssets
+  }, [filteredAssets])
+
+  // Mark collections without preview assets as loaded immediately
+  useEffect(() => {
+    if (isLoadingCollections) {
+      console.log(`[AssetsPage] Skipping collection marking - still loading collections`)
+      return
+    }
+    
+    console.log(`[AssetsPage] Checking collections for immediate marking. Total: ${filteredCollectionsRef.current.length}`)
+    setLoadedCollectionCards(prev => {
+      const updated = new Set(prev)
+      let markedCount = 0
+      filteredCollectionsRef.current.forEach(collection => {
+        if (collection.previewAssets.length === 0 && !updated.has(collection.id)) {
+          console.log(`[AssetsPage] Marking collection "${collection.label}" as loaded (no preview assets)`)
+          updated.add(collection.id)
+          markedCount++
+        }
+      })
+      console.log(`[AssetsPage] Marked ${markedCount} collections without preview assets. Total loaded: ${updated.size}`)
+      return updated
+    })
+  }, [filteredCollections.length, isLoadingCollections])
+
+  // Mark assets without media as loaded immediately
+  useEffect(() => {
+    if (isLoading) return
+    
+    console.log(`[AssetsPage] Checking assets for immediate marking. Total: ${filteredAssetsRef.current.length}`)
+    setLoadedAssets(prev => {
+      const updated = new Set(prev)
+      let markedCount = 0
+      filteredAssetsRef.current.forEach(asset => {
+        const hasMedia = (asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path
+        if (!hasMedia && !updated.has(asset.id)) {
+          console.log(`[AssetsPage] Marking asset "${asset.id}" as loaded (no media)`)
+          updated.add(asset.id)
+          markedCount++
+        }
+      })
+      console.log(`[AssetsPage] Marked ${markedCount} assets without media. Total loaded: ${updated.size}`)
+      return updated
+    })
+  }, [filteredAssets.length, isLoading])
+
+  // Check if all content is loaded
+  useEffect(() => {
+    if (isLoading || isLoadingCollections) {
+      setAllContentLoaded(false)
+      return
+    }
+
+    const currentCollections = filteredCollectionsRef.current
+    const currentAssets = filteredAssetsRef.current
+
+    // Check if all collection cards are loaded
+    const allCollectionsLoaded = currentCollections.length === 0 || 
+      currentCollections.every(collection => loadedCollectionCards.has(collection.id))
+
+    // Check if all asset cards are loaded
+    const allAssetsLoaded = currentAssets.length === 0 ||
+      currentAssets.every(asset => {
+        const hasMedia = (asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path
+        return !hasMedia || loadedAssets.has(asset.id)
+      })
+
+    console.log(`[AssetsPage] Loading check:`, {
+      isLoading,
+      isLoadingCollections,
+      collectionsCount: currentCollections.length,
+      loadedCollectionsCount: loadedCollectionCards.size,
+      allCollectionsLoaded,
+      assetsCount: currentAssets.length,
+      loadedAssetsCount: loadedAssets.size,
+      allAssetsLoaded,
+      allContentLoaded: allCollectionsLoaded && allAssetsLoaded,
+      collectionIds: currentCollections.map(c => c.id),
+      loadedCollectionIds: Array.from(loadedCollectionCards)
+    })
+
+    if (allCollectionsLoaded && allAssetsLoaded) {
+      console.log(`[AssetsPage] All content loaded! Showing cards...`)
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        setAllContentLoaded(true)
+      }, 100)
+    }
+  }, [isLoading, isLoadingCollections, filteredCollections.length, filteredAssets.length, loadedCollectionCards.size, loadedAssets.size])
 
   const loadData = async () => {
     // Use tenant from context - tenant layout already verified access
@@ -94,13 +187,13 @@ export default function AssetsPage() {
     const supabase = supabaseRef.current
 
     // Load assets and dimensions in parallel
+    // Use getAllActiveAssetsForClient to fetch ALL assets (handles pagination automatically)
     const [
-      { data: assetsData },
+      { data: assetsData, error: assetsError },
       { data: dimensions }
     ] = await Promise.all([
-      supabase
-        .from("assets")
-        .select(`
+      getAllActiveAssetsForClient(supabase, clientId, {
+        columns: `
           id,
           title,
           storage_path,
@@ -110,20 +203,25 @@ export default function AssetsPage() {
           current_version:asset_versions!current_version_id (
             thumbnail_path
           )
-        `)
-        .eq("client_id", clientId)
-        .eq("status", "active")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("tag_dimensions")
-        .select("*")
-        .eq("generates_collection", true)
-        .order("display_order", { ascending: true })
+        `,
+        orderBy: "created_at",
+        ascending: false,
+      }),
+      getCollectionDimensions(supabase)
     ])
 
+    if (assetsError) {
+      console.error("Error loading assets:", assetsError)
+      setIsLoading(false)
+      setIsLoadingCollections(false)
+      return
+    }
+
     // Set assets data immediately and show content
-    setAssets(assetsData || [])
-    setFilteredAssets(assetsData || [])
+    const allAssets = assetsData || []
+    console.log(`[AssetsPage] Loaded ${allAssets.length} total assets`)
+    setAssets(allAssets)
+    setFilteredAssets(allAssets)
     setIsLoading(false) // Show assets immediately
 
     if (!dimensions || dimensions.length === 0) {
@@ -132,19 +230,28 @@ export default function AssetsPage() {
       setIsLoadingCollections(false)
     } else {
       // Build collections for each dimension - load asynchronously in background (don't await)
+      // IMPORTANT: Pass allAssets to ensure collections have access to ALL assets, not just first 1000
       ;(async () => {
         const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
+        console.log(`[AssetsPage] Building collections from ${allAssets.length} assets`)
         const allCollections = await loadCollectionsFromDimensions(
           supabase,
           dimensions,
           clientId,
-          assetsData || []
+          allAssets
         )
+
+        console.log(`[AssetsPage] Built ${allCollections.length} collections`)
+        allCollections.forEach((collection: any) => {
+          console.log(`[AssetsPage] Collection "${collection.label}": ${collection.assetCount} assets, ${collection.previewAssets.length} preview assets`)
+        })
 
         // Update collections when ready
         setCollections(allCollections)
         setFilteredCollections(allCollections)
         setIsLoadingCollections(false)
+        // Reset loaded collection cards when collections change
+        setLoadedCollectionCards(new Set())
       })()
     }
 
@@ -325,24 +432,55 @@ export default function AssetsPage() {
             description="Upload assets with collection-generating tags to create collections."
           />
         ) : (
-          <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
-            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
-              <div
-                key={collection.id}
-                className="animate-stagger-fade-in flex-shrink-0"
-                style={{
-                  animationDelay: `${Math.min(index * 20, 300)}ms`,
-                }}
-              >
-                <CollectionCard
-                  id={collection.id}
-                  label={collection.label}
-                  assetCount={collection.assetCount}
-                  previewAssets={collection.previewAssets}
-                />
+          <>
+            {!allContentLoaded && <CollectionGridSkeleton count={6} />}
+            <div 
+              className={`gap-4 sm:gap-6 ${
+                allContentLoaded 
+                  ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:flex lg:flex-row lg:flex-nowrap' 
+                  : 'hidden'
+              }`}
+            >
+              {sortedCollections.slice(0, isDesktop ? 4 : sortedCollections.length).map((collection, index) => (
+                <div
+                  key={collection.id}
+                  className="animate-stagger-fade-in w-full lg:w-auto lg:flex-1 lg:flex-shrink-0 lg:min-w-0"
+                  style={{
+                    animationDelay: `${Math.min(index * 20, 300)}ms`,
+                  }}
+                >
+                  <CollectionCard
+                    id={collection.id}
+                    label={collection.label}
+                    assetCount={collection.assetCount}
+                    previewAssets={collection.previewAssets}
+                    onLoaded={() => {
+                      console.log(`[AssetsPage] Collection "${collection.label}" loaded callback called`)
+                      setLoadedCollectionCards(prev => new Set(prev).add(collection.id))
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            {/* Hidden cards for loading - render but don't show */}
+            {!allContentLoaded && (
+              <div style={{ display: 'none' }}>
+                {sortedCollections.slice(0, isDesktop ? 4 : sortedCollections.length).map((collection) => (
+                  <CollectionCard
+                    key={collection.id}
+                    id={collection.id}
+                    label={collection.label}
+                    assetCount={collection.assetCount}
+                    previewAssets={collection.previewAssets}
+                    onLoaded={() => {
+                      console.log(`[AssetsPage] Collection "${collection.label}" loaded callback called`)
+                      setLoadedCollectionCards(prev => new Set(prev).add(collection.id))
+                    }}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
 
@@ -372,30 +510,47 @@ export default function AssetsPage() {
             <p className="text-gray-600">No assets found</p>
           </div>
         ) : (
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+          <>
+            {!allContentLoaded && <AssetGridSkeleton count={filteredAssets.length || 10} />}
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6"
+              style={{
+                display: allContentLoaded ? 'grid' : 'none'
+              }}
+            >
             {filteredAssets.map((asset, index) => {
-              // Always render assets, but control animation timing
-              // Use inline style for opacity to ensure it works with animation
+              const hasMedia = (asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path
+              
               return (
               <Link
                 key={asset.id}
                 href={`/assets/${asset.id}?context=all`}
-                className="block break-inside-avoid animate-stagger-fade-in"
+                className="animate-stagger-fade-in block w-full"
                 style={{
                   animationDelay: `${Math.min(index * 15, 200)}ms`,
                 }}
               >
-                <Card className="group overflow-hidden p-0 transition-shadow mb-6">
-                  <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">
-                    {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
+                <Card className="group overflow-hidden p-0 transition-shadow rounded-lg w-full !flex-none block">
+                  <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg w-full" style={{ aspectRatio: '1 / 1' }}>
+                    {hasMedia && (
                       <AssetPreview
                         storagePath={asset.storage_path}
                         mimeType={asset.mime_type}
                         alt={asset.title}
-                        className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain" : "w-full h-full object-cover"}
+                        className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain rounded-lg absolute inset-0" : "w-full h-full object-cover rounded-lg absolute inset-0"}
                         signedUrl={signedUrlsCache[asset.storage_path]} // Pass cached signed URL if available
                         showLoading={false}
+                        onAssetLoaded={() => {
+                          console.log(`[AssetsPage] Asset "${asset.id}" loaded callback called`)
+                          setLoadedAssets(prev => new Set(prev).add(asset.id))
+                        }}
                       />
+                    )}
+                    {!hasMedia && (
+                      // For assets without media, mark as loaded immediately
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg">
+                        <span className="text-gray-400 text-sm">No preview</span>
+                      </div>
                     )}
                     <button
                       className="absolute bottom-2 right-2 h-[48px] w-[48px] rounded-full opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center"
@@ -428,6 +583,33 @@ export default function AssetsPage() {
               )
             })}
           </div>
+            {/* Hidden cards for loading - render but don't show */}
+            {!allContentLoaded && (
+              <div style={{ display: 'none' }}>
+                {filteredAssets.map((asset) => {
+                  const hasMedia = (asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path
+                  return (
+                    <div key={asset.id}>
+                      {hasMedia && (
+                        <AssetPreview
+                          storagePath={asset.storage_path}
+                          mimeType={asset.mime_type}
+                          alt={asset.title}
+                          className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain rounded-lg absolute inset-0" : "w-full h-full object-cover rounded-lg absolute inset-0"}
+                          signedUrl={signedUrlsCache[asset.storage_path]}
+                          showLoading={false}
+                          onAssetLoaded={() => {
+                            console.log(`[AssetsPage] Asset "${asset.id}" loaded callback called (hidden)`)
+                            setLoadedAssets(prev => new Set(prev).add(asset.id))
+                          }}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 

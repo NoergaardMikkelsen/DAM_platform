@@ -23,6 +23,7 @@ import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
+import { getTagsForClient } from "@/lib/utils/supabase-queries"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { CreateTagModal } from "@/components/create-tag-modal"
 import { formatDate } from "@/lib/utils/date"
@@ -165,19 +166,14 @@ export default function TaggingPage() {
     // Get tags for this tenant (including system tags)
     // Exclude parent tags for hierarchical dimensions (they're structural only)
     // Include tags with NULL dimension_key (legacy tags) for backward compatibility
-    const { data: clientTags } = await supabase
-      .from("tags")
-      .select(
-        `
+    const { data: clientTags } = await getTagsForClient(supabase, tenant.id, {
+      columns: `
         *,
         users (full_name),
         tag_dimensions(label)
       `,
-      )
-      .or(`client_id.eq.${tenant.id},client_id.is.null`)
-      .or("parent_id.is.null,parent_id.not.is.null") // Include all tags, but we'll filter parent tags below
-      .order("dimension_key")
-      .order("sort_order")
+      orderBy: "dimension",
+    })
 
     // Filter out parent tags manually (parent tags have parent_id IS NULL and belong to hierarchical dimensions)
     const { data: hierarchicalDimensions } = await supabase

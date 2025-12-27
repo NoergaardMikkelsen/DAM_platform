@@ -254,7 +254,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
       <img
         src={previewUrl}
         alt={alt}
-        className={`${className} transition-opacity duration-300 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={className}
         onLoad={() => {
           setMediaLoaded(true)
           onAssetLoaded?.()
@@ -263,6 +263,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
           setError(true)
           setMediaLoaded(true)
           if (showLoading) setLoading(false)
+          onAssetLoaded?.() // Call onAssetLoaded even on error so card can be shown
         }}
       />
     )
@@ -282,7 +283,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
         )}
         <video
           src={previewUrl}
-          className={`h-full w-full object-cover transition-opacity duration-300 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className="h-full w-full object-cover"
           preload="metadata"
           muted
           playsInline
@@ -320,7 +321,7 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
         )}
         <iframe
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
-          className={`w-full h-full transition-opacity duration-300 ease-out ${mediaLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className="w-full h-full"
           title={`PDF Preview: ${alt}`}
           style={{ border: 'none', minHeight: '300px' }}
           onLoad={() => {
