@@ -247,27 +247,9 @@ export default function CollectionDetailPage() {
   }
 
   const applySearchAndSort = () => {
-    let filtered = [...assets]
-
-    if (searchQuery) {
-      filtered = filtered.filter((asset) => asset.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    }
-
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case "oldest":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case "name":
-          return a.title.localeCompare(b.title)
-        case "size":
-          return b.file_size - a.file_size
-        default:
-          return 0
-      }
-    })
-
+    const { filterBySearch, sortItems } = require("@/lib/utils/sorting")
+    let filtered = filterBySearch(assets, searchQuery, ["title"])
+    filtered = sortItems(filtered, sortBy as any)
     setFilteredAssets(filtered)
   }
 

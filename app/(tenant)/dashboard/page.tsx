@@ -330,19 +330,8 @@ export default function DashboardPage() {
     )
   }
 
-  const sortedCollections = [...filteredCollections].sort((a, b) => {
-    if (collectionSort === "newest") {
-      // Sort by asset count descending (most assets first)
-      return b.assetCount - a.assetCount
-    } else if (collectionSort === "oldest") {
-      // Sort by asset count ascending (least assets first)
-      return a.assetCount - b.assetCount
-    } else if (collectionSort === "name") {
-      // Sort alphabetically by label
-      return a.label.localeCompare(b.label)
-    }
-    return b.assetCount - a.assetCount
-  })
+  const { sortItems } = require("@/lib/utils/sorting")
+  const sortedCollections = sortItems(filteredCollections, collectionSort as any)
 
   return (
     <div className="p-8">
@@ -445,7 +434,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
-            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
+            {sortedCollections.slice(0, maxCollections).map((collection: Collection, index: number) => (
               <div
                 key={collection.id}
                 className="animate-stagger-fade-in flex-shrink-0"

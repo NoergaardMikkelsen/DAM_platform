@@ -14,6 +14,7 @@ import { AssetGridSkeleton, CollectionGridSkeleton, SectionHeaderSkeleton } from
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
+import type { Collection } from "@/lib/utils/collections"
 
 interface Asset {
   id: string
@@ -25,14 +26,6 @@ interface Asset {
   current_version?: {
     thumbnail_path: string | null
   } | null
-}
-
-interface Collection {
-  id: string
-  label: string
-  slug: string
-  assetCount: number
-  previewAssets: Asset[]
 }
 
 export default function AssetsPage() {
@@ -173,27 +166,9 @@ export default function AssetsPage() {
   }
 
   const applySearchAndSort = () => {
-    let filtered = [...assets]
-
-    if (searchQuery) {
-      filtered = filtered.filter((asset) => asset.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    }
-
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case "oldest":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case "name":
-          return a.title.localeCompare(b.title)
-        case "size":
-          return b.file_size - a.file_size
-        default:
-          return 0
-      }
-    })
-
+    const { filterBySearch, sortItems } = require("@/lib/utils/sorting")
+    let filtered = filterBySearch(assets, searchQuery, ["title"])
+    filtered = sortItems(filtered, sortBy as any)
     setFilteredAssets(filtered)
   }
 
@@ -251,8 +226,9 @@ export default function AssetsPage() {
         matchingAssetIds = assetIdsForDimension
       } else {
         // Intersect with previous results (AND logic between dimensions)
+        const matchingArray = Array.from(matchingAssetIds) as string[]
         matchingAssetIds = new Set(
-          [...matchingAssetIds].filter((id) => assetIdsForDimension.has(id))
+          matchingArray.filter((id: string) => assetIdsForDimension.has(id))
         )
       }
     }

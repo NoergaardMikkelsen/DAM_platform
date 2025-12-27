@@ -143,25 +143,9 @@ export default function CollectionsPage() {
   }
 
   const applySearchAndSort = () => {
-    let filtered = [...collections]
-
-    if (searchQuery) {
-      filtered = filtered.filter((collection) => collection.label.toLowerCase().includes(searchQuery.toLowerCase()))
-    }
-
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return b.assetCount - a.assetCount
-        case "oldest":
-          return a.assetCount - b.assetCount
-        case "name":
-          return a.label.localeCompare(b.label)
-        default:
-          return 0
-      }
-    })
-
+    const { filterBySearch, sortItems } = require("@/lib/utils/sorting")
+    let filtered = filterBySearch(collections, searchQuery, ["label"])
+    filtered = sortItems(filtered, sortBy as any)
     setFilteredCollections(filtered)
   }
 
