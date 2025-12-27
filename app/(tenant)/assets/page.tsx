@@ -46,11 +46,34 @@ export default function AssetsPage() {
   const [sortBy, setSortBy] = useState("newest")
   const [collectionSort, setCollectionSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
+  const [isLoadingCollections, setIsLoadingCollections] = useState(true) // Separate loading state for collections
+  const [maxCollections, setMaxCollections] = useState(4) // Default to 4 collections
   const [signedUrlsCache, setSignedUrlsCache] = useState<Record<string, string>>({})
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
 
+
+  useEffect(() => {
+    // Calculate how many collections can fit in one row based on screen width
+    const updateMaxCollections = () => {
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth
+        // Account for padding (p-4 sm:p-8 = 16px on mobile, 32px on desktop)
+        const padding = width >= 640 ? 64 : 32
+        const availableWidth = width - padding
+        // CollectionCard width is 280px + gap-6 (24px) = 304px per card
+        const cardWidth = 280 + 24
+        const maxCols = Math.floor(availableWidth / cardWidth)
+        // Ensure at least 1 collection is shown, max 6
+        setMaxCollections(Math.min(Math.max(maxCols, 1), 6))
+      }
+    }
+
+    updateMaxCollections()
+    window.addEventListener('resize', updateMaxCollections)
+    return () => window.removeEventListener('resize', updateMaxCollections)
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -67,123 +90,134 @@ export default function AssetsPage() {
 
     const supabase = supabaseRef.current
 
-    // Fetch assets
-    const { data: assetsData } = await supabase
-      .from("assets")
-      .select(`
-        id,
-        title,
-        storage_path,
-        mime_type,
-        created_at,
-        file_size,
-        current_version:asset_versions!current_version_id (
-          thumbnail_path
-        )
-      `)
-      .eq("client_id", clientId)
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
+    // Load assets and dimensions in parallel
+    const [
+      { data: assetsData },
+      { data: dimensions }
+    ] = await Promise.all([
+      supabase
+        .from("assets")
+        .select(`
+          id,
+          title,
+          storage_path,
+          mime_type,
+          created_at,
+          file_size,
+          current_version:asset_versions!current_version_id (
+            thumbnail_path
+          )
+        `)
+        .eq("client_id", clientId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("tag_dimensions")
+        .select("*")
+        .eq("generates_collection", true)
+        .order("display_order", { ascending: true })
+    ])
 
-    // Set assets data
+    // Set assets data immediately and show content
     setAssets(assetsData || [])
     setFilteredAssets(assetsData || [])
-
-    // Load dimensions that generate collections
-    const { data: dimensions } = await supabase
-      .from("tag_dimensions")
-      .select("*")
-      .eq("generates_collection", true)
-      .order("display_order", { ascending: true })
+    setIsLoading(false) // Show assets immediately
 
     if (!dimensions || dimensions.length === 0) {
       setCollections([])
       setFilteredCollections([])
+      setIsLoadingCollections(false)
     } else {
-      // Build collections for each dimension
-      const allCollections: Collection[] = []
+      // Build collections for each dimension - load asynchronously in background (don't await)
+      ;(async () => {
+        const collectionPromises = dimensions.map(async (dimension: any) => {
+          // Get parent tag if hierarchical
+          let parentTagId: string | null = null
+          if (dimension.is_hierarchical) {
+            const { data: parentTag } = await supabase
+              .from("tags")
+              .select("id")
+              .eq("dimension_key", dimension.dimension_key)
+              .is("parent_id", null)
+              .or(`client_id.eq.${clientId},client_id.is.null`)
+              .maybeSingle()
 
-      for (const dimension of dimensions) {
-        // Get parent tag if hierarchical
-        let parentTagId: string | null = null
-        if (dimension.is_hierarchical) {
-          const { data: parentTag } = await supabase
-            .from("tags")
-            .select("id")
-            .eq("dimension_key", dimension.dimension_key)
-            .is("parent_id", null)
-            .or(`client_id.eq.${clientId},client_id.is.null`)
-            .maybeSingle()
-
-          parentTagId = parentTag?.id || null
-        }
-
-        // Get tags for this dimension
-        // For hierarchical dimensions, only get child tags (exclude parent tags)
-        const query = supabase
-          .from("tags")
-          .select("id, label, slug")
-          .eq("dimension_key", dimension.dimension_key)
-          .or(`client_id.eq.${clientId},client_id.is.null`)
-          .order("sort_order", { ascending: true })
-
-        if (dimension.is_hierarchical) {
-          // For hierarchical dimensions, always exclude parent tags (parent_id IS NULL)
-          // Only show child tags
-          if (parentTagId) {
-            // If parent tag exists, only show its children
-            query.eq("parent_id", parentTagId)
-          } else {
-            // If no parent tag exists, show all child tags (parent_id IS NOT NULL)
-            query.not("parent_id", "is", null)
+            parentTagId = parentTag?.id || null
           }
-        }
 
-        const { data: tags } = await query
+          // Get tags for this dimension
+          // For hierarchical dimensions, only get child tags (exclude parent tags)
+          const query = supabase
+            .from("tags")
+            .select("id, label, slug")
+            .eq("dimension_key", dimension.dimension_key)
+            .or(`client_id.eq.${clientId},client_id.is.null`)
+            .order("sort_order", { ascending: true })
 
-        if (!tags || tags.length === 0) continue
+          if (dimension.is_hierarchical) {
+            // For hierarchical dimensions, always exclude parent tags (parent_id IS NULL)
+            // Only show child tags
+            if (parentTagId) {
+              // If parent tag exists, only show its children
+              query.eq("parent_id", parentTagId)
+            } else {
+              // If no parent tag exists, show all child tags (parent_id IS NOT NULL)
+              query.not("parent_id", "is", null)
+            }
+          }
 
-        // Get asset-tag relationships for this dimension
-        const { data: assetTags } = await supabase
-          .from("asset_tags")
-          .select("asset_id, tag_id")
-          .in("tag_id", tags.map((t: any) => t.id))
+          const { data: tags } = await query
 
-        // Build map of tag_id -> asset_ids
-        const tagAssetMap = new Map<string, string[]>()
-        assetTags?.forEach((at: any) => {
-          const current = tagAssetMap.get(at.tag_id) || []
-          tagAssetMap.set(at.tag_id, [...current, at.asset_id])
+          if (!tags || tags.length === 0) return []
+
+          // Get asset-tag relationships for this dimension
+          const { data: assetTags } = await supabase
+            .from("asset_tags")
+            .select("asset_id, tag_id")
+            .in("tag_id", tags.map((t: any) => t.id))
+
+          // Build map of tag_id -> asset_ids
+          const tagAssetMap = new Map<string, string[]>()
+          assetTags?.forEach((at: any) => {
+            const current = tagAssetMap.get(at.tag_id) || []
+            tagAssetMap.set(at.tag_id, [...current, at.asset_id])
+          })
+
+          // Create collections for each tag
+          const dimensionCollections = tags
+            .map((tag: any) => {
+              const assetIds = tagAssetMap.get(tag.id) || []
+              const tagAssets = (assetsData || []).filter((a: Asset) => assetIds.includes(a.id))
+
+              return {
+                id: tag.id,
+                label: tag.label,
+                slug: tag.slug,
+                assetCount: tagAssets.length,
+                previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
+                  ...asset,
+                  thumbnail_path: asset.current_version?.thumbnail_path || null
+                })),
+              }
+            })
+            .filter((c: Collection) => c.assetCount > 0)
+
+          return dimensionCollections
         })
 
-        // Create collections for each tag
-        const dimensionCollections = tags
-          .map((tag: any) => {
-            const assetIds = tagAssetMap.get(tag.id) || []
-            const tagAssets = (assetsData || []).filter((a: Asset) => assetIds.includes(a.id))
+        // Wait for collections to finish loading (in background)
+        const dimensionCollectionsResults = await Promise.all(collectionPromises)
+        const allCollections = dimensionCollectionsResults.flat()
 
-            return {
-              id: tag.id,
-              label: tag.label,
-              slug: tag.slug,
-              assetCount: tagAssets.length,
-              previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
-                ...asset,
-                thumbnail_path: asset.current_version?.thumbnail_path || null
-              })),
-            }
-          })
-          .filter((c: Collection) => c.assetCount > 0)
-
-        allCollections.push(...dimensionCollections)
-      }
-
-      setCollections(allCollections)
-      setFilteredCollections(allCollections)
+        // Update collections when ready
+        setCollections(allCollections)
+        setFilteredCollections(allCollections)
+        setIsLoadingCollections(false)
+      })()
     }
 
-    // Batch fetch signed URLs for all assets that need them
-    const assetsWithMedia = assetsData.filter((asset: Asset) =>
+    // Batch fetch signed URLs for all assets that need them (in background)
+    const assetsWithMedia = (assetsData || []).filter((asset: Asset) =>
       asset.mime_type?.startsWith("image/") ||
       asset.mime_type?.startsWith("video/") ||
       asset.mime_type === "application/pdf"
@@ -207,13 +241,6 @@ export default function AssetsPage() {
         console.error('[ASSETS-PAGE] Error fetching signed URLs:', error)
       }
     }
-
-    // Show content immediately - images will load individually with their own loading states
-    // Add a fallback timeout in case something goes wrong
-    setTimeout(() => setIsLoading(false), 100)
-
-    // Also add a longer timeout as ultimate fallback
-    setTimeout(() => setIsLoading(false), 10000)
   }
 
   const applySearchAndSort = () => {
@@ -328,15 +355,15 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Assets library</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => setIsFilterOpen(true)}>
+    <div className="p-4 sm:p-8">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Assets library</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Button variant="secondary" onClick={() => setIsFilterOpen(true)} className="w-full sm:w-auto">
             <Filter className="mr-2 h-4 w-4" />
             Filters
           </Button>
-          <div className="relative w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
             <Input
               type="search"
@@ -350,18 +377,20 @@ export default function AssetsPage() {
       </div>
 
       <div className="mb-10">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-gray-900">{filteredCollections.length} Collections</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+              {isLoadingCollections ? "Loading..." : `${filteredCollections.length} Collections`}
+            </h2>
             <button
               onClick={() => router.push('/assets/collections')}
-              className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+              className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer hidden sm:inline"
             >
               See all collections →
             </button>
           </div>
           <Select value={collectionSort} onValueChange={setCollectionSort}>
-            <SelectTrigger className="w-[200px]" suppressHydrationWarning>
+            <SelectTrigger className="w-full sm:w-[200px]" suppressHydrationWarning>
               <SelectValue placeholder="Sort collections" />
             </SelectTrigger>
             <SelectContent>
@@ -372,16 +401,18 @@ export default function AssetsPage() {
           </Select>
         </div>
 
-        {filteredCollections.length === 0 ? (
+        {isLoadingCollections ? (
+          <CollectionGridSkeleton count={6} />
+        ) : filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Upload assets with collection-generating tags to create collections.</p>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-6">
-            {sortedCollections.map((collection, index) => (
+          <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
+            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className="animate-stagger-fade-in"
+                className="animate-stagger-fade-in flex-shrink-0"
                 style={{
                   animationDelay: `${Math.min(index * 20, 300)}ms`,
                 }}
@@ -400,14 +431,14 @@ export default function AssetsPage() {
 
       {/* Assets Grid */}
       <div>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
               {filteredAssets.length} Asset{filteredAssets.length !== 1 ? "s" : ""}
             </h2>
           </div>
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[200px]" suppressHydrationWarning>
+            <SelectTrigger className="w-full sm:w-[200px]" suppressHydrationWarning>
               <SelectValue placeholder="Sort assets" />
             </SelectTrigger>
             <SelectContent>

@@ -48,6 +48,8 @@ export default function DashboardPage() {
   const [collectionSort, setCollectionSort] = useState("newest")
   const [assetSort, setAssetSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
+  const [isLoadingCollections, setIsLoadingCollections] = useState(true) // Separate loading state for collections
+  const [maxCollections, setMaxCollections] = useState(4) // Default to 4 collections
   const [stats, setStats] = useState({
     totalAssets: 0,
     recentUploads: [] as Asset[],
@@ -62,6 +64,26 @@ export default function DashboardPage() {
   const supabaseRef = useRef(createClient())
   const { tenant, userData } = useTenant()
 
+
+  useEffect(() => {
+    // Calculate how many collections can fit in one row based on screen width
+    const updateMaxCollections = () => {
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth
+        // Account for padding (p-8 = 32px on each side = 64px total)
+        const availableWidth = width - 64
+        // CollectionCard width is 280px + gap-6 (24px) = 304px per card
+        const cardWidth = 280 + 24
+        const maxCols = Math.floor(availableWidth / cardWidth)
+        // Ensure at least 1 collection is shown, max 6
+        setMaxCollections(Math.min(Math.max(maxCols, 1), 6))
+      }
+    }
+
+    updateMaxCollections()
+    window.addEventListener('resize', updateMaxCollections)
+    return () => window.removeEventListener('resize', updateMaxCollections)
+  }, [])
 
   useEffect(() => {
     // Handle cross-subdomain auth transfer (localhost workaround)
@@ -118,37 +140,6 @@ export default function DashboardPage() {
     // Use tenant from context - tenant layout already verified access
     const clientId = tenant.id
 
-    // Get stats
-    const { count: totalAssetsCount } = await supabase
-      .from("assets")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", clientId)
-
-    const { data: recentUploadsData } = await supabase
-      .from("assets")
-      .select("id, title, storage_path, mime_type")
-      .eq("client_id", clientId)
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(10)
-
-    const { data: recentEvents } = await supabase
-      .from("asset_events")
-      .select("*")
-      .eq("event_type", "download")
-      .eq("client_id", clientId)
-      .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-
-    const downloadsLastWeek = recentEvents?.length || 0
-
-    // Get storage usage - same method as system-admin dashboard
-    const { data: assetsData } = await supabase.from("assets").select("file_size").eq("client_id", clientId)
-
-    const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
-    const storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
-    const storageLimitGB = 10 // Default limit in GB, could be made configurable per tenant later
-    const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100) // Cap at 100%
-
     // Use userData from context - already verified server-side
     if (!userData) {
       console.error('[DASHBOARD] No userData in context')
@@ -156,116 +147,65 @@ export default function DashboardPage() {
       return
     }
 
-    // Load dimensions that generate collections
-    const { data: dimensions } = await supabase
-      .from("tag_dimensions")
-      .select("*")
-      .eq("generates_collection", true)
-      .order("display_order", { ascending: true })
+    // Load all independent queries in parallel
+    const [
+      { count: totalAssetsCount },
+      { data: recentUploadsData },
+      { data: recentEvents },
+      { data: assetsData },
+      { data: dimensions },
+      { data: allAssetsData }
+    ] = await Promise.all([
+      supabase
+        .from("assets")
+        .select("*", { count: "exact", head: true })
+        .eq("client_id", clientId),
+      supabase
+        .from("assets")
+        .select("id, title, storage_path, mime_type")
+        .eq("client_id", clientId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(10),
+      supabase
+        .from("asset_events")
+        .select("*")
+        .eq("event_type", "download")
+        .eq("client_id", clientId)
+        .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+      supabase
+        .from("assets")
+        .select("file_size")
+        .eq("client_id", clientId),
+      supabase
+        .from("tag_dimensions")
+        .select("*")
+        .eq("generates_collection", true)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("assets")
+        .select(`
+          id,
+          title,
+          storage_path,
+          mime_type,
+          current_version:asset_versions!current_version_id (
+            thumbnail_path
+          )
+        `)
+        .eq("client_id", clientId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+    ])
 
-    if (!dimensions || dimensions.length === 0) {
-      setIsLoading(false)
-      return
-    }
+    const downloadsLastWeek = recentEvents?.length || 0
 
-    // Get all assets to build collection previews
-    const { data: allAssetsData } = await supabase
-      .from("assets")
-      .select(`
-        id,
-        title,
-        storage_path,
-        mime_type,
-        current_version:asset_versions!current_version_id (
-          thumbnail_path
-        )
-      `)
-      .eq("client_id", clientId)
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
+    const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
+    const storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
+    const storageLimitGB = 10 // Default limit in GB, could be made configurable per tenant later
+    const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100) // Cap at 100%
 
-    // Build collections for each dimension
-    const allCollections: Collection[] = []
-
-    for (const dimension of dimensions) {
-      // Get parent tag if hierarchical
-      let parentTagId: string | null = null
-      if (dimension.is_hierarchical) {
-        const { data: parentTag } = await supabase
-          .from("tags")
-          .select("id")
-          .eq("dimension_key", dimension.dimension_key)
-          .is("parent_id", null)
-          .or(`client_id.eq.${clientId},client_id.is.null`)
-          .maybeSingle()
-
-        parentTagId = parentTag?.id || null
-      }
-
-      // Get tags for this dimension
-      // For hierarchical dimensions, only get child tags (exclude parent tags)
-      const query = supabase
-        .from("tags")
-        .select("id, label, slug")
-        .eq("dimension_key", dimension.dimension_key)
-        .or(`client_id.eq.${clientId},client_id.is.null`)
-        .order("sort_order", { ascending: true })
-
-      if (dimension.is_hierarchical) {
-        // For hierarchical dimensions, always exclude parent tags (parent_id IS NULL)
-        // Only show child tags
-        if (parentTagId) {
-          // If parent tag exists, only show its children
-          query.eq("parent_id", parentTagId)
-        } else {
-          // If no parent tag exists, show all child tags (parent_id IS NOT NULL)
-          query.not("parent_id", "is", null)
-        }
-      }
-
-      const { data: tags } = await query
-
-      if (!tags || tags.length === 0) continue
-
-      // Get asset-tag relationships for this dimension
-      const { data: assetTags } = await supabase
-        .from("asset_tags")
-        .select("asset_id, tag_id")
-        .in("tag_id", tags.map((t: any) => t.id))
-
-      // Build map of tag_id -> asset_ids
-      const tagAssetMap = new Map<string, string[]>()
-      assetTags?.forEach((at: any) => {
-        const current = tagAssetMap.get(at.tag_id) || []
-        tagAssetMap.set(at.tag_id, [...current, at.asset_id])
-      })
-
-      // Create collections for each tag
-      const dimensionCollections = tags
-        .map((tag: any) => {
-          const assetIds = tagAssetMap.get(tag.id) || []
-          const tagAssets = allAssetsData?.filter((a: any) => assetIds.includes(a.id)) || []
-
-          return {
-            id: tag.id,
-            label: tag.label,
-            slug: tag.slug,
-            assetCount: tagAssets.length,
-            previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
-              ...asset,
-              thumbnail_path: asset.current_version?.thumbnail_path || null
-            })),
-          }
-        })
-        .filter((c: any) => c.assetCount > 0)
-
-      allCollections.push(...dimensionCollections)
-    }
-
-    const collectionsData: Collection[] = allCollections
-
-    setCollections(collectionsData)
-    setFilteredCollections(collectionsData)
+    // Set assets and stats immediately - don't wait for collections
     setAssets(allAssetsData || [])
     setFilteredAssets(allAssetsData || [])
     setStats({
@@ -278,26 +218,104 @@ export default function DashboardPage() {
       userName: userData?.full_name || ""
     })
 
-    // Count how many images need to be loaded (recent uploads + collection previews)
-    const recentUploadsImages = recentUploadsData?.filter((asset: any) =>
-      asset.mime_type?.startsWith("image/") ||
-      asset.mime_type?.startsWith("video/") ||
-      asset.mime_type === "application/pdf"
-    ).length || 0
+    // Show content immediately - assets are ready
+    setIsLoading(false)
 
-    const collectionPreviewImages = collectionsData?.reduce((total, collection) =>
-      total + (collection.previewAssets?.filter(asset =>
-        asset.mime_type?.startsWith("image/") ||
-        asset.mime_type?.startsWith("video/") ||
-        asset.mime_type === "application/pdf"
-      ).length || 0), 0) || 0
+    if (!dimensions || dimensions.length === 0) {
+      setCollections([])
+      setFilteredCollections([])
+      setIsLoadingCollections(false)
+      return
+    }
 
-    // Show content immediately - images will load individually with their own loading states
-    // Add a fallback timeout in case something goes wrong
-    setTimeout(() => setIsLoading(false), 100)
+    // Build collections for each dimension - load asynchronously in background (don't await)
+    ;(async () => {
+      const collectionPromises = dimensions.map(async (dimension: any) => {
+        // Get parent tag if hierarchical
+        let parentTagId: string | null = null
+        if (dimension.is_hierarchical) {
+          const { data: parentTag } = await supabase
+            .from("tags")
+            .select("id")
+            .eq("dimension_key", dimension.dimension_key)
+            .is("parent_id", null)
+            .or(`client_id.eq.${clientId},client_id.is.null`)
+            .maybeSingle()
 
-    // Also add a longer timeout as ultimate fallback
-    setTimeout(() => setIsLoading(false), 10000)
+          parentTagId = parentTag?.id || null
+        }
+
+        // Get tags for this dimension
+        // For hierarchical dimensions, only get child tags (exclude parent tags)
+        const query = supabase
+          .from("tags")
+          .select("id, label, slug")
+          .eq("dimension_key", dimension.dimension_key)
+          .or(`client_id.eq.${clientId},client_id.is.null`)
+          .order("sort_order", { ascending: true })
+
+        if (dimension.is_hierarchical) {
+          // For hierarchical dimensions, always exclude parent tags (parent_id IS NULL)
+          // Only show child tags
+          if (parentTagId) {
+            // If parent tag exists, only show its children
+            query.eq("parent_id", parentTagId)
+          } else {
+            // If no parent tag exists, show all child tags (parent_id IS NOT NULL)
+            query.not("parent_id", "is", null)
+          }
+        }
+
+        const { data: tags } = await query
+
+        if (!tags || tags.length === 0) return []
+
+        // Get asset-tag relationships for this dimension
+        const { data: assetTags } = await supabase
+          .from("asset_tags")
+          .select("asset_id, tag_id")
+          .in("tag_id", tags.map((t: any) => t.id))
+
+        // Build map of tag_id -> asset_ids
+        const tagAssetMap = new Map<string, string[]>()
+        assetTags?.forEach((at: any) => {
+          const current = tagAssetMap.get(at.tag_id) || []
+          tagAssetMap.set(at.tag_id, [...current, at.asset_id])
+        })
+
+        // Create collections for each tag
+        const dimensionCollections = tags
+          .map((tag: any) => {
+            const assetIds = tagAssetMap.get(tag.id) || []
+            const tagAssets = allAssetsData?.filter((a: any) => assetIds.includes(a.id)) || []
+
+            return {
+              id: tag.id,
+              label: tag.label,
+              slug: tag.slug,
+              assetCount: tagAssets.length,
+              previewAssets: tagAssets.slice(0, 4).map((asset: Asset) => ({
+                ...asset,
+                thumbnail_path: asset.current_version?.thumbnail_path || null
+              })),
+            }
+          })
+          .filter((c: any) => c.assetCount > 0)
+
+        return dimensionCollections
+      })
+
+      // Wait for collections to finish loading (in background)
+      const dimensionCollectionsResults = await Promise.all(collectionPromises)
+      const allCollections = dimensionCollectionsResults.flat()
+
+      const collectionsData: Collection[] = allCollections
+
+      // Update collections when ready
+      setCollections(collectionsData)
+      setFilteredCollections(collectionsData)
+      setIsLoadingCollections(false)
+    })()
   }
 
   const handleApplyFilters = async (filters: Record<string, string[]>) => {
@@ -463,7 +481,7 @@ export default function DashboardPage() {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-900">
-              {collections.length} Collection{collections.length !== 1 ? "s" : ""}
+              {isLoadingCollections ? "Loading..." : `${collections.length} Collection${collections.length !== 1 ? "s" : ""}`}
             </h2>
             <button
               onClick={() => {
@@ -490,16 +508,18 @@ export default function DashboardPage() {
           </Select>
         </div>
 
-        {filteredCollections.length === 0 ? (
+        {isLoadingCollections ? (
+          <CollectionGridSkeleton count={6} />
+        ) : filteredCollections.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500">No collections yet. Collections will be automatically created when you tag assets with collection-generating tags.</p>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-6">
-            {sortedCollections.map((collection, index) => (
+          <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
+            {sortedCollections.slice(0, maxCollections).map((collection, index) => (
               <div
                 key={collection.id}
-                className="animate-stagger-fade-in"
+                className="animate-stagger-fade-in flex-shrink-0"
                 style={{
                   animationDelay: `${Math.min(index * 20, 300)}ms`, // Reduced delay from 40ms to 20ms, max from 600ms to 300ms
                 }}

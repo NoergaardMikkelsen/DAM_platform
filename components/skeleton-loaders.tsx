@@ -27,7 +27,7 @@ export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
 // Collection card skeleton with complex shape
 export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <div className="relative w-full min-w-[200px] aspect-[239/200] overflow-hidden">
+    <div className="relative flex-shrink-0 w-full sm:w-[280px] aspect-[239/200] overflow-hidden">
       <svg viewBox="0 0 239 200" className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <defs>
           <mask id={`skeletonMask-collection-${index}`} maskUnits="userSpaceOnUse" x="0" y="0" width="239" height="200">
@@ -46,9 +46,11 @@ export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
 // Collection grid skeleton with dynamic count
 export function CollectionGridSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <div className="flex flex-wrap gap-6">
+    <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
       {Array.from({ length: count }, (_, i) => (
-        <CollectionCardSkeleton key={i} index={i} />
+        <div key={i} className="flex-shrink-0">
+          <CollectionCardSkeleton index={i} />
+        </div>
       ))}
     </div>
   )
@@ -80,13 +82,13 @@ export function PageHeaderSkeleton({ showBackLink = false, showSearch = false }:
 // Section header skeleton
 export function SectionHeaderSkeleton({ showSort = false }: { showSort?: boolean }) {
   return (
-    <div className="mb-4 flex items-center justify-between">
+    <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div className="flex items-center gap-3">
         <Skeleton className="h-6 w-24" />
-        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-32 hidden sm:block" />
       </div>
       {showSort && (
-        <Skeleton className="h-8 w-[180px]" />
+        <Skeleton className="h-8 w-full sm:w-[180px]" />
       )}
     </div>
   )
