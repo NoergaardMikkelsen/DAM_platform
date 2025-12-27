@@ -27,6 +27,7 @@ import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { CreateTagModal } from "@/components/create-tag-modal"
 import { formatDate } from "@/lib/utils/date"
+import { usePagination } from "@/hooks/use-pagination"
 
 interface Tag {
   id: string
@@ -60,14 +61,30 @@ export default function TaggingPage() {
   const [dimensionFilter, setDimensionFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [childTagsCount, setChildTagsCount] = useState<number>(0)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  // Use pagination hook
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    paginatedItems: paginatedTags,
+    goToPage,
+    nextPage,
+    prevPage,
+    isFirstPage,
+    isLastPage,
+  } = usePagination(filteredTags, {
+    calculateItemsPerPage: true,
+    fixedHeight: 404, // Header(80) + Search(50) + Tabs(50) + Table header(60) + Padding(64) + Pagination(60) + Margin(40)
+    rowHeight: 60,
+    minItemsPerPage: 3,
+  })
 
   useEffect(() => {
     loadTags()
@@ -108,28 +125,6 @@ export default function TaggingPage() {
     loadDimensionsFromTags()
   }, [tags])
 
-  // Calculate items per page based on viewport height
-  useEffect(() => {
-    const calculateItemsPerPage = () => {
-      // Estimate heights:
-      // - Header: ~80px
-      // - Search: ~50px
-      // - Tabs: ~50px
-      // - Table header: ~60px
-      // - Padding (p-8): ~64px (top + bottom)
-      // - Pagination: ~60px
-      // - Some margin: ~40px
-      const fixedHeight = 80 + 50 + 50 + 60 + 64 + 60 + 40
-      const availableHeight = window.innerHeight - fixedHeight
-      const rowHeight = 60 // Approximate row height (py-4 = 16px top + 16px bottom + text ~28px)
-      const calculatedItems = Math.max(3, Math.floor(availableHeight / rowHeight))
-      setItemsPerPage(calculatedItems)
-    }
-
-    calculateItemsPerPage()
-    window.addEventListener('resize', calculateItemsPerPage)
-    return () => window.removeEventListener('resize', calculateItemsPerPage)
-  }, [])
 
 
   const loadTags = async () => {
@@ -232,8 +227,7 @@ export default function TaggingPage() {
     }
 
     setFilteredTags(filtered)
-    // Reset to first page when filters change
-    setCurrentPage(1)
+    // Page reset is handled automatically by usePagination hook when items.length changes
   }
 
   const handleDelete = async () => {
@@ -486,7 +480,7 @@ export default function TaggingPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredTags?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tag) => (
+            {paginatedTags.map((tag) => (
               <tr
                 key={tag.id}
                 className={`border-b border-gray-100 last:border-b-0 ${!tag.is_system ? 'hover:bg-gray-50/50 cursor-pointer' : 'opacity-75'}`}
@@ -594,15 +588,12 @@ export default function TaggingPage() {
         </AlertDialog>
 
       {/* Pagination - Fixed in bottom right corner */}
-      {filteredTags.length > 0 && (() => {
-        const totalPages = Math.ceil(filteredTags.length / itemsPerPage)
-        
-        return (
-          <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
-            <button
-              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
+      {filteredTags.length > 0 && (
+        <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
+          <button
+            className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            onClick={prevPage}
+            disabled={isFirstPage}
             >
               <svg
                 viewBox="0 8 25 20"
@@ -623,7 +614,7 @@ export default function TaggingPage() {
             {totalPages > 1 ? (
               <div className="flex items-center gap-1 bg-[#E6E6E6] rounded-[30px] p-1">
                 <button
-                  onClick={() => setCurrentPage(1)}
+                  onClick={() => goToPage(1)}
                   className={`flex items-center justify-center transition-all cursor-pointer ${
                     currentPage === 1
                       ? 'h-9 w-9 rounded-full bg-white text-gray-900'
@@ -636,7 +627,7 @@ export default function TaggingPage() {
                   <>
                     {currentPage <= 2 ? (
                       <button
-                        onClick={() => setCurrentPage(2)}
+                        onClick={() => goToPage(2)}
                         className={`flex items-center justify-center transition-all cursor-pointer ${
                           currentPage === 2
                             ? 'h-9 w-9 rounded-full bg-white text-gray-900'
@@ -653,7 +644,7 @@ export default function TaggingPage() {
                           </>
                         )}
                         <button
-                          onClick={() => setCurrentPage(currentPage)}
+                          onClick={() => goToPage(currentPage)}
                           className="h-9 w-9 rounded-full bg-white text-gray-900 flex items-center justify-center cursor-pointer"
                         >
                           {currentPage}
@@ -666,7 +657,7 @@ export default function TaggingPage() {
                           <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
                         )}
                         <button
-                          onClick={() => setCurrentPage(totalPages)}
+                          onClick={() => goToPage(totalPages)}
                           className={`flex items-center justify-center transition-all cursor-pointer ${
                             currentPage === totalPages
                               ? 'h-9 w-9 rounded-full bg-white text-gray-900'
@@ -687,8 +678,8 @@ export default function TaggingPage() {
             )}
             <button
               className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage >= totalPages}
+              onClick={nextPage}
+              disabled={isLastPage}
             >
               <svg
                 viewBox="0 8 25 20"
@@ -706,8 +697,7 @@ export default function TaggingPage() {
               </svg>
             </button>
           </div>
-        )
-      })()}
+        )}
     </div>
   )
 }
