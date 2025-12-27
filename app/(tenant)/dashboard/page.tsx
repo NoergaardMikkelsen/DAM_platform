@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client"
 import { Clock, Download, Package, TrendingUp, Heart, ArrowRight, Filter } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AssetPreview } from "@/components/asset-preview"
@@ -44,6 +45,8 @@ export default function DashboardPage() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [collectionSort, setCollectionSort] = useState("newest")
+  const [assetSort, setAssetSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
   const [stats, setStats] = useState({
     totalAssets: 0,
@@ -380,7 +383,19 @@ export default function DashboardPage() {
     )
   }
 
-  const sortedCollections = [...filteredCollections].sort((a, b) => b.assetCount - a.assetCount)
+  const sortedCollections = [...filteredCollections].sort((a, b) => {
+    if (collectionSort === "newest") {
+      // Sort by asset count descending (most assets first)
+      return b.assetCount - a.assetCount
+    } else if (collectionSort === "oldest") {
+      // Sort by asset count ascending (least assets first)
+      return a.assetCount - b.assetCount
+    } else if (collectionSort === "name") {
+      // Sort alphabetically by label
+      return a.label.localeCompare(b.label)
+    }
+    return b.assetCount - a.assetCount
+  })
 
   return (
     <div className="p-8">
@@ -463,7 +478,16 @@ export default function DashboardPage() {
               See all collections →
             </button>
           </div>
-          <span className="text-sm text-gray-500">Sort collection by Newest</span>
+          <Select value={collectionSort} onValueChange={setCollectionSort}>
+            <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Sort by Newest</SelectItem>
+              <SelectItem value="oldest">Sort by Oldest</SelectItem>
+              <SelectItem value="name">Sort by Name</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {filteredCollections.length === 0 ? (
@@ -504,7 +528,15 @@ export default function DashboardPage() {
               See all assets →
             </button>
           </div>
-          <span className="text-sm text-gray-500">Sort assets by Newest</span>
+          <Select value={assetSort} onValueChange={setAssetSort}>
+            <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Sort by Newest</SelectItem>
+              <SelectItem value="oldest">Sort by Oldest</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {stats.recentUploads.length === 0 ? (

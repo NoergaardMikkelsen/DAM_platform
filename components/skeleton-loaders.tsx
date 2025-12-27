@@ -1,23 +1,14 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { ArrowRight } from 'lucide-react'
 
 // Individual asset card skeleton
 export function AssetCardSkeleton() {
   return (
     <div className="break-inside-avoid mb-6">
-      <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg">
-      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
-        >
-          <ArrowRight className="h-4 w-4" />
-        </Button>
+      <div className="group overflow-hidden p-0 transition-shadow">
+        <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
+          <div className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100" />
+        </div>
       </div>
-    </Card>
     </div>
   )
 }
@@ -55,7 +46,7 @@ export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
 // Collection grid skeleton with dynamic count
 export function CollectionGridSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
+    <div className="flex flex-wrap gap-6">
       {Array.from({ length: count }, (_, i) => (
         <CollectionCardSkeleton key={i} index={i} />
       ))}
@@ -92,10 +83,10 @@ export function SectionHeaderSkeleton({ showSort = false }: { showSort?: boolean
     <div className="mb-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <Skeleton className="h-6 w-24" />
-        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-4 w-32" />
       </div>
       {showSort && (
-        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-8 w-[180px]" />
       )}
     </div>
   )
@@ -154,18 +145,14 @@ export function StatsCardsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {Array.from({ length: count }, (_, i) => (
-        <Card key={i}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-6 w-24" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-8 w-16 mb-2" />
-            <Skeleton className="h-4 w-32" />
-          </CardContent>
-        </Card>
+        <div key={i} className="bg-white rounded-xl border p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <Skeleton className="h-8 w-16 mb-2" />
+          <Skeleton className="h-4 w-32" />
+        </div>
       ))}
     </div>
   )
@@ -174,25 +161,31 @@ export function StatsCardsSkeleton({ count = 4 }: { count?: number }) {
 // Table skeleton
 export function TableSkeleton({ rows = 8, columns = 4 }: { rows?: number; columns?: number }) {
   return (
-    <div className="rounded-lg border bg-white">
-      {/* Table Header */}
-      <div className="border-b bg-gray-50 px-6 py-3">
-        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
-          {Array.from({ length: columns }, (_, j) => (
-            <Skeleton key={j} className="h-4 w-full max-w-32" />
-          ))}
-        </div>
-      </div>
-      {/* Table Rows */}
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="border-b px-6 py-4 last:border-b-0">
-          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+    <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
+      <table className="w-full">
+        {/* Table Header */}
+        <thead>
+          <tr className="rounded-[20px] bg-[#F9F9F9]">
             {Array.from({ length: columns }, (_, j) => (
-              <Skeleton key={j} className={`h-4 ${j === columns - 1 ? 'w-20 justify-self-end' : 'w-full max-w-48'}`} />
+              <th key={j} className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6 last:pr-6">
+                <Skeleton className="h-4 w-24" />
+              </th>
             ))}
-          </div>
-        </div>
-      ))}
+          </tr>
+        </thead>
+        {/* Table Rows */}
+        <tbody>
+          {Array.from({ length: rows }, (_, i) => (
+            <tr key={i} className="border-b border-gray-100 last:border-b-0">
+              {Array.from({ length: columns }, (_, j) => (
+                <td key={j} className={`px-6 py-4 ${j === columns - 1 ? 'text-right' : ''}`}>
+                  <Skeleton className={`h-4 ${j === columns - 1 ? 'w-20 ml-auto' : 'w-full max-w-48'}`} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -222,11 +215,48 @@ export function SearchSkeleton() {
 
 // Tabs skeleton
 export function TabsSkeleton({ count = 3 }: { count?: number }) {
+  const getTabStyles = (index: number) => {
+    const grayColors = ["#DADADA", "#EAEAEA", "#F3F2F2"]
+    const transforms = ["translateX(0)", "translateX(2px)", "translateX(4px)", "translateX(6px)", "translateX(8px)"]
+    const zIndexes = [5, 4, 3, 2, 1]
+    
+    const grayIndex = Math.min(index, 2)
+    const transformIndex = Math.min(index, 4)
+    const zIndex = index < 5 ? zIndexes[index] : 1
+    
+    return {
+      backgroundColor: grayColors[grayIndex],
+      transform: transforms[transformIndex],
+      zIndex,
+      marginRight: index < count - 1 ? '-8px' : '0',
+      boxShadow: '2px 3px 5px 0 rgba(0, 0, 0, 0.05)',
+      borderRadius: 0,
+      maskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E")`,
+      WebkitMaskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E")`,
+      maskSize: '100% 100%',
+      WebkitMaskSize: '100% 100%',
+      maskRepeat: 'no-repeat',
+      WebkitMaskRepeat: 'no-repeat',
+      maskPosition: 'center',
+      WebkitMaskPosition: 'center',
+    }
+  }
+
   return (
-    <div className="mb-6 flex space-x-2">
-      {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-10 w-20" />
-      ))}
+    <div className="mb-0 inline-flex h-[35px] items-end gap-0 overflow-visible">
+      {Array.from({ length: count }, (_, i) => {
+        const styles = getTabStyles(i)
+        return (
+          <div
+            key={i}
+            data-slot="tabs-trigger"
+            className="relative h-[35px] w-24 overflow-visible border-none"
+            style={styles}
+          >
+            <div className="h-full w-full animate-pulse bg-gray-300/30" />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -247,18 +277,18 @@ export function DashboardHeaderSkeleton() {
 // Stats cards grid skeleton
 export function StatsGridSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
-        <Card key={i}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-5 w-5" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-8 w-16 mb-2" />
-            {i === 0 && <Skeleton className="h-2 w-full" />}
-          </CardContent>
-        </Card>
+        <div key={i} className="bg-white rounded-[20px] p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-5 w-12" />
+          </div>
+          {i === 0 && <Skeleton className="h-2 w-full rounded-full" />}
+        </div>
       ))}
     </div>
   )
