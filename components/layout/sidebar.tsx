@@ -110,7 +110,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   
   return (
     <div
-      className={`relative transition-all duration-300 overflow-hidden ${isCollapsed ? 'w-16' : 'w-72'}`}
+      className={`relative transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}
       style={{
         marginTop: '16px',
         marginLeft: '16px',
@@ -118,14 +118,13 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         marginBottom: isCollapsed ? `${buttonSize + 16}px` : '30px',
         // When collapsed: sidebar is shorter to make room for button below
         height: isCollapsed ? `calc(100% - ${buttonSize + 32}px)` : '-webkit-fill-available',
-        borderRadius: '20px 20px 0 0', // Runde hjørner i toppen
       }}
     >
       {/* Main sidebar SVG shape with organic curve - same style as collection cards */}
       <svg
         className="absolute inset-0 w-full h-full"
         viewBox={isCollapsed ? "0 0 64 800" : "0 0 288 939"}
-        preserveAspectRatio="xMidYMax slice"
+        preserveAspectRatio="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
@@ -172,7 +171,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
       </svg>
 
       {/* Content container */}
-      <div className="relative z-10 flex h-full flex-col overflow-hidden" style={{ borderRadius: '20px 20px 0 0' }}>
+      <div className="relative z-10 flex h-full flex-col">
         {/* Logo */}
         <div className={`flex items-center transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
           {isSystemAdminContext && role === "superadmin" ? (

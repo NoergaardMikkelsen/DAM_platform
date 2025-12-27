@@ -398,51 +398,50 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4 animate-stagger-fade-in"
+      <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-stagger-fade-in"
            style={{ animationDelay: '50ms' }}>
-        <Card className="animate-stagger-fade-in" style={{ animationDelay: '100ms' }}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Storage usage</CardTitle>
-            <Package className="h-5 w-5 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats.storageUsedGB.toFixed(2).replace('.', ',')} GB</div>
-            <p className="text-xs text-gray-500 mt-1">of {stats.storageLimitGB} GB limit</p>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div className="h-full" style={{ width: `${stats.storagePercentage}%`, backgroundColor: tenant.primary_color || '#dc3545' }} />
+        <div className="animate-stagger-fade-in bg-white rounded-[20px] p-5 flex flex-col" style={{ animationDelay: '100ms' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600">Storage usage</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="text-lg font-bold text-gray-900">{stats.storagePercentage}%</div>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full" style={{ width: `${stats.storagePercentage}%`, backgroundColor: tenant.primary_color || '#dc3545' }} />
+          </div>
+        </div>
 
-        <Card className="animate-stagger-fade-in" style={{ animationDelay: '150ms' }}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total assets</CardTitle>
-            <TrendingUp className="h-5 w-5 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats.totalAssets}</div>
-          </CardContent>
-        </Card>
+        <div className="animate-stagger-fade-in bg-white rounded-[20px] p-5 flex flex-col" style={{ animationDelay: '150ms' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600">Total assets</span>
+            </div>
+            <div className="text-lg font-bold text-gray-900">{stats.totalAssets}</div>
+          </div>
+        </div>
 
-        <Card className="animate-stagger-fade-in" style={{ animationDelay: '200ms' }}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Recent uploads</CardTitle>
-            <Clock className="h-5 w-5 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats.recentUploads.length}</div>
-          </CardContent>
-        </Card>
+        <div className="animate-stagger-fade-in bg-white rounded-[20px] p-5 flex flex-col" style={{ animationDelay: '200ms' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600">Recent uploads</span>
+            </div>
+            <div className="text-lg font-bold text-gray-900">{stats.recentUploads.length}</div>
+          </div>
+        </div>
 
-        <Card className="animate-stagger-fade-in" style={{ animationDelay: '250ms' }}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Assets downloaded</CardTitle>
-            <Download className="h-5 w-5 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats.downloadsLastWeek}</div>
-          </CardContent>
-        </Card>
+        <div className="animate-stagger-fade-in bg-white rounded-[20px] p-5 flex flex-col" style={{ animationDelay: '250ms' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Download className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600">Assets downloaded</span>
+            </div>
+            <div className="text-lg font-bold text-gray-900">{stats.downloadsLastWeek}</div>
+          </div>
+        </div>
       </div>
 
       <div className="mb-10">
