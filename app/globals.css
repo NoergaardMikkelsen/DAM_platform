@@ -331,6 +331,178 @@ body.loading-screen-active .loading-screen-overlay * {
   visibility: visible;
 }
 
+/* Folder tab style - ALL tabs get the folder shape */
+/* Using exact SVG form: width="119" height="33" viewBox="0 0 119 33" */
+/* Path: M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z */
+[data-slot="tabs-trigger"] {
+  position: relative;
+  border-radius: 0 !important;
+  /* Create folder tab shape with curved top using exact SVG form */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  /* Fallback: clip-path polygon matching the SVG curve */
+  clip-path: polygon(
+    0% 60.6%,           /* M0 20 (20/33 = 60.6%) */
+    0% 100%,            /* L0 33 (bottom left) */
+    100% 100%,          /* L119 33 (bottom right) */
+    100% 39.9%,         /* L119 13.1651 (13.1651/33 = 39.9%) */
+    93.9% 39.9%,        /* L111.787 13.1651 (111.787/119 = 93.9%) */
+    91.5% 15.9%,        /* Curve point (108.913/119 = 91.5%, 5.26135/33 = 15.9%) */
+    78.1% 0%,           /* H92.9915 (92.9915/119 = 78.1%) */
+    16.8% 0%,           /* H20 (20/119 = 16.8%) */
+    7.5% 0%,            /* Curve point (8.95431/119 = 7.5%) */
+    0% 27.1%            /* Curve start (8.9543/33 = 27.1%) */
+  );
+  /* Overlap tabs to create folder stacking effect */
+  margin-right: -8px;
+  overflow: visible !important;
+  border: none;
+}
+
+/* Active tab styling - white background, on top */
+[data-slot="tabs-trigger"][data-state="active"] {
+  z-index: 20;
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+  transform: translateX(0);
+}
+
+/* Inactive tabs - gray background, stacked behind */
+[data-slot="tabs-trigger"]:not([data-state="active"]) {
+  z-index: calc(var(--tab-index, 1));
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+  /* Slight offset to create stacking effect */
+  transform: translateX(3px);
+}
+
+/* Progressive z-index and gray shades for stacking effect */
+/* Using the 3 gray colors in order: #DADADA, #EAEAEA, #F3F2F2 */
+[data-slot="tabs-trigger"]:nth-child(1):not([data-state="active"]) {
+  z-index: 5;
+  transform: translateX(0);
+  background-color: #DADADA !important; /* first gray */
+  color: rgb(107, 114, 128) !important; /* gray-500 */
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-slot="tabs-trigger"]:nth-child(2):not([data-state="active"]) {
+  z-index: 4;
+  transform: translateX(2px);
+  background-color: #EAEAEA !important; /* second gray */
+  color: rgb(107, 114, 128) !important; /* gray-500 */
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-slot="tabs-trigger"]:nth-child(3):not([data-state="active"]) {
+  z-index: 3;
+  transform: translateX(4px);
+  background-color: #F3F2F2 !important; /* third gray */
+  color: rgb(107, 114, 128) !important; /* gray-500 */
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-slot="tabs-trigger"]:nth-child(4):not([data-state="active"]) {
+  z-index: 2;
+  transform: translateX(6px);
+  background-color: #F3F2F2 !important; /* third gray */
+  color: rgb(107, 114, 128) !important; /* gray-500 */
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-slot="tabs-trigger"]:nth-child(n+5):not([data-state="active"]) {
+  z-index: 1;
+  transform: translateX(8px);
+  background-color: #F3F2F2 !important; /* third gray */
+  color: rgb(107, 114, 128) !important; /* gray-500 */
+  box-shadow: 2px 3px 5px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Ensure tabs overlap correctly and connect to table */
+[data-slot="tabs-list"] {
+  position: relative;
+  background: transparent;
+  padding: 0;
+  gap: 0;
+  margin-bottom: 0;
+  display: inline-flex;
+  overflow: visible !important;
+  flex-wrap: nowrap;
+  min-width: fit-content;
+}
+
+/* Scrollbar styling for tabs */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(156 163 175);
+}
+
+[data-slot="tabs-trigger"]:last-child {
+  margin-right: 0;
+}
+
+/* Make tabs appear connected to table below */
+[data-slot="tabs"] {
+  margin-bottom: 0 !important;
+}
+
+/* Table header styling with rounded corners and spacing */
+thead {
+  display: block;
+  padding: 20px 20px 0 20px;
+}
+
+thead tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+tbody {
+  display: block;
+  padding: 0 20px 20px 20px;
+}
+
+tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* Ensure first and last th have rounded corners */
+thead tr th:first-child {
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+thead tr th:last-child {
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

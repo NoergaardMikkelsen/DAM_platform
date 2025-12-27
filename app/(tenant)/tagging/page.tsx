@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ChevronDown } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +56,8 @@ export default function TaggingPage() {
   const [dimensionFilter, setDimensionFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [childTagsCount, setChildTagsCount] = useState<number>(0)
@@ -68,6 +72,29 @@ export default function TaggingPage() {
   useEffect(() => {
     applyFilters()
   }, [tags, dimensionFilter, searchQuery])
+
+  // Calculate items per page based on viewport height
+  useEffect(() => {
+    const calculateItemsPerPage = () => {
+      // Estimate heights:
+      // - Header: ~80px
+      // - Search: ~50px
+      // - Tabs: ~50px
+      // - Table header: ~60px
+      // - Padding (p-8): ~64px (top + bottom)
+      // - Pagination: ~60px
+      // - Some margin: ~40px
+      const fixedHeight = 80 + 50 + 50 + 60 + 64 + 60 + 40
+      const availableHeight = window.innerHeight - fixedHeight
+      const rowHeight = 60 // Approximate row height (py-4 = 16px top + 16px bottom + text ~28px)
+      const calculatedItems = Math.max(3, Math.floor(availableHeight / rowHeight))
+      setItemsPerPage(calculatedItems)
+    }
+
+    calculateItemsPerPage()
+    window.addEventListener('resize', calculateItemsPerPage)
+    return () => window.removeEventListener('resize', calculateItemsPerPage)
+  }, [])
 
   const loadDimensions = async () => {
     const supabase = supabaseRef.current
@@ -179,6 +206,8 @@ export default function TaggingPage() {
     }
 
     setFilteredTags(filtered)
+    // Reset to first page when filters change
+    setCurrentPage(1)
   }
 
   const handleDelete = async () => {
@@ -319,8 +348,8 @@ export default function TaggingPage() {
       </div>
 
       {/* Search */}
-      <div className="mb-6">
-        <div className="relative max-w-md">
+      <div className="mb-6 flex justify-end">
+        <div className="relative max-w-[400px] w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             type="search"
@@ -333,37 +362,97 @@ export default function TaggingPage() {
       </div>
 
       {/* Tabs - Show all dimensions */}
-      <Tabs value={dimensionFilter} onValueChange={setDimensionFilter} className="mb-6">
-        <TabsList suppressHydrationWarning className="flex-wrap">
+      <Tabs value={dimensionFilter} onValueChange={setDimensionFilter} className="mb-0">
+        <TabsList suppressHydrationWarning>
           <TabsTrigger value="all">All Tags</TabsTrigger>
-          {dimensions.map((dim) => (
+          {dimensions.slice(0, 4).map((dim) => (
             <TabsTrigger key={dim.dimension_key} value={dim.dimension_key}>
               {dim.label}
             </TabsTrigger>
           ))}
-          {tags.some(t => !t.dimension_key) && (
+          {(dimensions.length > 4 || tags.some(t => !t.dimension_key)) && (() => {
+            const hasActiveInDropdown = dimensions.slice(4).some(dim => dimensionFilter === dim.dimension_key) || 
+                                       (tags.some(t => !t.dimension_key) && dimensionFilter === 'legacy')
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`relative cursor-pointer inline-flex h-[35px] items-center justify-center gap-2 px-6 py-2 text-sm font-thin whitespace-nowrap transition-all ${
+                      hasActiveInDropdown 
+                        ? 'bg-white text-gray-900 font-light' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    style={{
+                      marginRight: '-8px',
+                      borderRadius: 0,
+                      WebkitMaskImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E\")",
+                      maskImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='119' height='33' viewBox='0 0 119 33' preserveAspectRatio='none'%3E%3Cpath d='M0 20C0 8.9543 8.95431 0 20 0H92.9915C101.402 0 108.913 5.26135 111.787 13.1651L119 33H0V20Z' fill='black'/%3E%3C/svg%3E\")",
+                      WebkitMaskSize: '100% 100%',
+                      maskSize: '100% 100%',
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskRepeat: 'no-repeat',
+                      WebkitMaskPosition: 'center',
+                      maskPosition: 'center',
+                      boxShadow: hasActiveInDropdown ? '2px 3px 5px 0 rgba(0, 0, 0, 0.05)' : 'none',
+                      zIndex: hasActiveInDropdown ? 20 : 1,
+                    }}
+                  >
+                    More <ChevronDown className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[180px] bg-white border border-gray-200 shadow-lg rounded-md p-1">
+                  {dimensions.slice(4).map((dim) => (
+                    <DropdownMenuItem
+                      key={dim.dimension_key}
+                      onClick={() => setDimensionFilter(dim.dimension_key)}
+                      className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
+                        dimensionFilter === dim.dimension_key 
+                          ? 'bg-white text-gray-900 font-light' 
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {dim.label}
+                    </DropdownMenuItem>
+                  ))}
+                  {tags.some(t => !t.dimension_key) && (
+                    <DropdownMenuItem
+                      onClick={() => setDimensionFilter('legacy')}
+                      className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
+                        dimensionFilter === 'legacy' 
+                          ? 'bg-white text-gray-900 font-light' 
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      Legacy
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          })()}
+          {dimensions.length <= 4 && tags.some(t => !t.dimension_key) && (
             <TabsTrigger value="legacy">Legacy</TabsTrigger>
           )}
         </TabsList>
       </Tabs>
 
       {/* Tags Table */}
-      <div className="rounded-lg border bg-white">
+      <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
         <table className="w-full">
-          <thead className="border-b bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Tag</th>
+          <thead>
+            <tr className="rounded-[20px] bg-[#F9F9F9]">
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6">Tag</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Dimension</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Created by</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Assets</th>
-              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900">Actions</th>
+              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 last:pr-6">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
-            {filteredTags?.map((tag) => (
+          <tbody>
+            {filteredTags?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tag) => (
               <tr
                 key={tag.id}
-                className="hover:bg-gray-50 cursor-pointer"
+                className="hover:bg-gray-50/50 cursor-pointer border-b border-gray-100 last:border-b-0"
                 onClick={() => router.push(`/tagging/${tag.id}`)}
               >
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{tag.label}</td>
@@ -448,26 +537,123 @@ export default function TaggingPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-end gap-2 border-t px-6 py-4">
-          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-            ←
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 bg-gray-100">
-            1
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
-            2
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
-            3
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-            →
-          </Button>
-        </div>
       </div>
+
+      {/* Pagination - Fixed in bottom right corner */}
+      {filteredTags.length > 0 && (() => {
+        const totalPages = Math.ceil(filteredTags.length / itemsPerPage)
+        
+        return (
+          <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
+            <button
+              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              <svg
+                viewBox="0 8 25 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4"
+                style={{ transform: 'scaleX(-1)' }}
+              >
+                <path
+                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                  stroke="black"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </button>
+            {totalPages > 1 ? (
+              <div className="flex items-center gap-1 bg-[#E6E6E6] rounded-[30px] p-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  className={`flex items-center justify-center transition-all cursor-pointer ${
+                    currentPage === 1
+                      ? 'h-9 w-9 rounded-full bg-white text-gray-900'
+                      : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  1
+                </button>
+                {totalPages > 2 && (
+                  <>
+                    {currentPage <= 2 ? (
+                      <button
+                        onClick={() => setCurrentPage(2)}
+                        className={`flex items-center justify-center transition-all cursor-pointer ${
+                          currentPage === 2
+                            ? 'h-9 w-9 rounded-full bg-white text-gray-900'
+                            : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        2
+                      </button>
+                    ) : (
+                      <>
+                        {currentPage > 3 && (
+                          <>
+                            <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(currentPage)}
+                          className="h-9 w-9 rounded-full bg-white text-gray-900 flex items-center justify-center cursor-pointer"
+                        >
+                          {currentPage}
+                        </button>
+                      </>
+                    )}
+                    {totalPages > 3 && currentPage < totalPages && (
+                      <>
+                        {currentPage < totalPages - 1 && (
+                          <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          className={`flex items-center justify-center transition-all cursor-pointer ${
+                            currentPage === totalPages
+                              ? 'h-9 w-9 rounded-full bg-white text-gray-900'
+                              : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-gray-900">
+                1
+              </div>
+            )}
+            <button
+              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              <svg
+                viewBox="0 8 25 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4"
+              >
+                <path
+                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                  stroke="black"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </button>
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -39,6 +39,8 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [editClientForm, setEditClientForm] = useState({
@@ -64,6 +66,29 @@ export default function ClientsPage() {
   useEffect(() => {
     applyFilters()
   }, [clients, statusFilter, searchQuery])
+
+  // Calculate items per page based on viewport height
+  useEffect(() => {
+    const calculateItemsPerPage = () => {
+      // Estimate heights:
+      // - Header: ~80px
+      // - Search: ~50px
+      // - Tabs: ~50px
+      // - Table header: ~60px
+      // - Padding (p-8): ~64px (top + bottom)
+      // - Pagination: ~60px
+      // - Some margin: ~40px
+      const fixedHeight = 80 + 50 + 50 + 60 + 64 + 60 + 40
+      const availableHeight = window.innerHeight - fixedHeight
+      const rowHeight = 60 // Approximate row height (py-4 = 16px top + 16px bottom + text ~28px)
+      const calculatedItems = Math.max(3, Math.floor(availableHeight / rowHeight))
+      setItemsPerPage(calculatedItems)
+    }
+
+    calculateItemsPerPage()
+    window.addEventListener('resize', calculateItemsPerPage)
+    return () => window.removeEventListener('resize', calculateItemsPerPage)
+  }, [])
 
   const loadClients = async () => {
     const supabase = supabaseRef.current
@@ -147,6 +172,8 @@ export default function ClientsPage() {
     }
 
     setFilteredClients(filtered)
+    // Reset to first page when filters change
+    setCurrentPage(1)
   }
 
   const handleEditClient = (client: Client) => {
@@ -391,8 +418,8 @@ export default function ClientsPage() {
       </div>
 
       {/* Search */}
-      <div className="mb-6">
-        <div className="relative max-w-md">
+      <div className="mb-6 flex justify-end">
+        <div className="relative max-w-[400px] w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             type="search"
@@ -405,7 +432,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-6">
+      <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-0">
         <TabsList suppressHydrationWarning>
           <TabsTrigger value="all">All clients</TabsTrigger>
           <TabsTrigger value="active">Active</TabsTrigger>
@@ -415,25 +442,25 @@ export default function ClientsPage() {
       </Tabs>
 
       {/* Clients Table */}
-      <div className="rounded-lg border bg-white">
+      <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
         <table className="w-full">
-          <thead className="border-b bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Client</th>
+          <thead>
+            <tr className="rounded-[20px] bg-[#F9F9F9]">
+              <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6">Client</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Users</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Storage</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900">Actions</th>
+              <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 last:pr-6">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
-            {filteredClients?.map((client) => {
+          <tbody>
+            {filteredClients?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((client) => {
               const storageUsedGB = Math.round(client.storage_used_bytes / 1024 / 1024 / 1024)
               const storageLimitGB = 10 // Fixed 10 GB limit per client
               const storagePercentage = client.storage_percentage || 0
 
               return (
-                <tr key={client.id} className="hover:bg-gray-50 cursor-pointer">
+                <tr key={client.id} className="hover:bg-gray-50/50 cursor-pointer border-b border-gray-100 last:border-b-0">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div
@@ -510,26 +537,123 @@ export default function ClientsPage() {
             })}
           </tbody>
         </table>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-end gap-2 border-t px-6 py-4">
-          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-            ←
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
-            1
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
-            2
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 bg-transparent">
-            3
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-            →
-          </Button>
-        </div>
       </div>
+
+      {/* Pagination - Fixed in bottom right corner */}
+      {filteredClients.length > 0 && (() => {
+        const totalPages = Math.ceil(filteredClients.length / itemsPerPage)
+        
+        return (
+          <div className="fixed bottom-8 right-8 flex items-center gap-4 z-10">
+            <button
+              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              <svg
+                viewBox="0 8 25 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4"
+                style={{ transform: 'scaleX(-1)' }}
+              >
+                <path
+                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                  stroke="black"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </button>
+            {totalPages > 1 ? (
+              <div className="flex items-center gap-1 bg-[#E6E6E6] rounded-[30px] p-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  className={`flex items-center justify-center transition-all cursor-pointer ${
+                    currentPage === 1
+                      ? 'h-9 w-9 rounded-full bg-white text-gray-900'
+                      : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  1
+                </button>
+                {totalPages > 2 && (
+                  <>
+                    {currentPage <= 2 ? (
+                      <button
+                        onClick={() => setCurrentPage(2)}
+                        className={`flex items-center justify-center transition-all cursor-pointer ${
+                          currentPage === 2
+                            ? 'h-9 w-9 rounded-full bg-white text-gray-900'
+                            : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        2
+                      </button>
+                    ) : (
+                      <>
+                        {currentPage > 3 && (
+                          <>
+                            <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(currentPage)}
+                          className="h-9 w-9 rounded-full bg-white text-gray-900 flex items-center justify-center cursor-pointer"
+                        >
+                          {currentPage}
+                        </button>
+                      </>
+                    )}
+                    {totalPages > 3 && currentPage < totalPages && (
+                      <>
+                        {currentPage < totalPages - 1 && (
+                          <span className="h-8 w-8 flex items-center justify-center text-gray-400">...</span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          className={`flex items-center justify-center transition-all cursor-pointer ${
+                            currentPage === totalPages
+                              ? 'h-9 w-9 rounded-full bg-white text-gray-900'
+                              : 'h-8 w-8 rounded-md bg-transparent text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-gray-900">
+                1
+              </div>
+            )}
+            <button
+              className="h-11 w-11 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              <svg
+                viewBox="0 8 25 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4"
+              >
+                <path
+                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                  stroke="black"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </button>
+          </div>
+        )
+      })()}
 
       {clients?.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12">
