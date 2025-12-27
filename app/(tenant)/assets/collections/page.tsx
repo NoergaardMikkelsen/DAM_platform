@@ -147,7 +147,7 @@ export default function CollectionsPage() {
   const applySearchAndSort = () => {
     const { filterBySearch, sortItems } = require("@/lib/utils/sorting")
     let filtered = filterBySearch(collections, searchQuery, ["label"])
-    filtered = sortItems(filtered, sortBy as any)
+    filtered = sortItems(filtered, sortBy as "newest" | "oldest" | "name" | "size")
     setFilteredCollections(filtered)
   }
 

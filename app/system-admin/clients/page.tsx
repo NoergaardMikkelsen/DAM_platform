@@ -14,6 +14,8 @@ import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } f
 import { usePagination } from "@/hooks/use-pagination"
 import { STORAGE_LIMITS, PAGINATION } from "@/lib/constants"
 import { logError } from "@/lib/utils/logger"
+import { PageHeader } from "@/components/page-header"
+import { useSearchFilter } from "@/hooks/use-search-filter"
 
 interface Client {
   id: string
@@ -36,11 +38,13 @@ interface Client {
 
 type ClientData = Omit<Client, 'user_count' | 'asset_count' | 'storage_percentage'>
 
+interface AssetWithFileSize {
+  file_size: number | null
+}
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
-  const [filteredClients, setFilteredClients] = useState<Client[]>([])
   const [statusFilter, setStatusFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
@@ -59,6 +63,21 @@ export default function ClientsPage() {
   const [editClientLoading, setEditClientLoading] = useState(false)
   const [editClientError, setEditClientError] = useState<string | null>(null)
   const supabaseRef = useRef(createClient())
+
+  // Use search filter hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    filteredItems: searchFilteredClients,
+  } = useSearchFilter({
+    items: clients,
+    searchFields: (client) => [client.name, client.slug],
+  })
+
+  // Apply status filter on top of search filter
+  const filteredClients = statusFilter === "all"
+    ? searchFilteredClients
+    : searchFilteredClients.filter((client) => client.status === statusFilter)
 
   // Use pagination hook
   const {
@@ -81,10 +100,6 @@ export default function ClientsPage() {
   useEffect(() => {
     loadClients()
   }, [])
-
-  useEffect(() => {
-    applyFilters()
-  }, [clients, statusFilter, searchQuery])
 
 
   const loadClients = async () => {
@@ -133,7 +148,7 @@ export default function ClientsPage() {
         ])
 
         // Calculate actual storage used by summing all asset file sizes
-        const actualStorageUsedBytes = storageResult.data?.reduce((total: number, asset: any) => total + (asset.file_size || 0), 0) || 0
+        const actualStorageUsedBytes = storageResult.data?.reduce((total: number, asset: AssetWithFileSize) => total + (asset.file_size || 0), 0) || 0
 
         return {
           ...client,
@@ -148,28 +163,7 @@ export default function ClientsPage() {
     )
 
     setClients(clientsWithStats)
-    setFilteredClients(clientsWithStats)
     setIsLoading(false)
-  }
-
-  const applyFilters = () => {
-    let filtered = [...clients]
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter((client) =>
-        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.slug.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((client) => client.status === statusFilter)
-    }
-
-    setFilteredClients(filtered)
-    // Page reset is handled automatically by usePagination hook when items.length changes
   }
 
   const handleEditClient = (client: Client) => {
@@ -354,8 +348,8 @@ export default function ClientsPage() {
       // Reload clients list
       loadClients()
 
-    } catch (error: any) {
-      setEditClientError(error.message)
+    } catch (error: unknown) {
+      setEditClientError(error instanceof Error ? error.message : "Unknown error")
     } finally {
       setEditClientLoading(false)
     }
@@ -403,29 +397,20 @@ export default function ClientsPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
-        <Link href="/system-admin/clients/create">
-          <Button className="bg-black hover:bg-gray-800 text-white">
-            <Plus className="mr-2 h-4 w-4" />
-            Create new client
-          </Button>
-        </Link>
-      </div>
-
-      {/* Search */}
-      <div className="mb-6 flex justify-end">
-        <div className="relative max-w-[400px] w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
-          <Input
-            type="search"
-            placeholder="Search client"
-            className="pl-10 bg-white"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="Clients"
+        createButton={{
+          label: "Create new client",
+          href: "/system-admin/clients/create",
+          className: "bg-black hover:bg-gray-800 text-white",
+        }}
+        search={{
+          placeholder: "Search client",
+          value: searchQuery,
+          onChange: setSearchQuery,
+          position: "below",
+        }}
+      />
 
       {/* Tabs */}
       <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-0">

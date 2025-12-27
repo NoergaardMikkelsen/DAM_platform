@@ -30,6 +30,14 @@ interface Asset {
   } | null
 }
 
+interface AssetTag {
+  asset_id: string
+  tag_id: string
+  tags?: {
+    dimension_key: string
+  }
+}
+
 export default function AssetsPage() {
   const { tenant } = useTenant()
   const [assets, setAssets] = useState<Asset[]>([])
@@ -170,7 +178,7 @@ export default function AssetsPage() {
   const applySearchAndSort = () => {
     const { filterBySearch, sortItems } = require("@/lib/utils/sorting")
     let filtered = filterBySearch(assets, searchQuery, ["title"])
-    filtered = sortItems(filtered, sortBy as any)
+    filtered = sortItems(filtered, sortBy as "newest" | "oldest" | "name" | "size")
     setFilteredAssets(filtered)
   }
 
@@ -220,7 +228,7 @@ export default function AssetsPage() {
         .eq("tags.dimension_key", dimensionKey)
 
       const assetIdsForDimension = new Set<string>(
-        assetTags?.map((at: any) => at.asset_id as string) || []
+        assetTags?.map((at: AssetTag) => at.asset_id) || []
       )
 
       if (matchingAssetIds === null) {
@@ -249,7 +257,7 @@ export default function AssetsPage() {
       .eq("tags.dimension_key", "campaign")
 
     const campaignTagIds = new Set(
-      filteredAssetTags?.map((at: any) => at.tag_id) || []
+      filteredAssetTags?.map((at: AssetTag) => at.tag_id) || []
     )
 
     const filteredCollectionsResult = collections.filter((collection) =>

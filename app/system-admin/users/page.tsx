@@ -18,6 +18,10 @@ import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } f
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION, DEFAULT_ROLES } from "@/lib/constants"
 import { formatDate } from "@/lib/utils/date"
+import { PageHeader } from "@/components/page-header"
+import { useSearchFilter } from "@/hooks/use-search-filter"
+import { logError } from "@/lib/utils/logger"
+import { EmptyState } from "@/components/empty-state"
 
 interface SystemUser {
   id: string
@@ -36,11 +40,20 @@ interface Client {
   slug: string
 }
 
+interface UserRole {
+  user_id: string
+  roles: {
+    key: string
+  }
+}
+
+interface ClientAssociation {
+  client_id: string
+}
+
 export default function SystemUsersPage() {
   const [allUsers, setAllUsers] = useState<SystemUser[]>([])
-  const [filteredUsers, setFilteredUsers] = useState<SystemUser[]>([])
   const [userTypeFilter, setUserTypeFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createUserLoading, setCreateUserLoading] = useState(false)
@@ -66,6 +79,28 @@ export default function SystemUsersPage() {
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
+  // Use search filter hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    filteredItems: searchFilteredUsers,
+  } = useSearchFilter({
+    items: allUsers,
+    searchFields: (user) => [
+      user.full_name || "",
+      user.email || "",
+    ],
+  })
+
+  // Apply user type filter on top of search filter
+  const filteredUsers = userTypeFilter === "all"
+    ? searchFilteredUsers
+    : userTypeFilter === "superadmin"
+    ? searchFilteredUsers.filter((user) => user.is_superadmin)
+    : userTypeFilter === "client-users"
+    ? searchFilteredUsers.filter((user) => !user.is_superadmin && user.client_count > 0)
+    : searchFilteredUsers.filter((user) => !user.is_superadmin && user.client_count === 0)
+
   // Use pagination hook
   const {
     currentPage,
@@ -88,10 +123,6 @@ export default function SystemUsersPage() {
     loadUsers()
     loadClients()
   }, [])
-
-  useEffect(() => {
-    applyFilters()
-  }, [allUsers, userTypeFilter, searchQuery])
 
 
   const loadUsers = async () => {
@@ -132,7 +163,7 @@ export default function SystemUsersPage() {
 
     // Group roles by user and find highest role
     const userRoleMap = new Map<string, { highest_role: string, client_count: number, is_superadmin: boolean }>()
-    userRoles?.forEach((ur: any) => {
+    userRoles?.forEach((ur: UserRole) => {
       const userId = ur.user_id
       const roleKey = ur.roles.key
 
@@ -171,7 +202,6 @@ export default function SystemUsersPage() {
     }) || []
 
     setAllUsers(usersWithDetails)
-    setFilteredUsers(usersWithDetails)
     setIsLoading(false)
   }
 
@@ -215,7 +245,7 @@ export default function SystemUsersPage() {
     let highestRole = 'admin'
     const clientIds: string[] = []
 
-    userClientData?.forEach((ucd: any) => {
+    userClientData?.forEach((ucd: { client_id: string; roles: { key: string } }) => {
       clientIds.push(ucd.client_id)
       if (ucd.roles.key === 'superadmin') {
         highestRole = 'superadmin'
@@ -271,7 +301,7 @@ export default function SystemUsersPage() {
 
       if (currentError) throw currentError
 
-      const currentClientIds = currentAssociations?.map((ca: any) => ca.client_id) || []
+      const currentClientIds = currentAssociations?.map((ca: ClientAssociation) => ca.client_id) || []
 
       // Clients to remove (in current but not in selected)
       const clientsToRemove = currentClientIds.filter((id: string) => !editSelectedClients.includes(id))
@@ -331,8 +361,8 @@ export default function SystemUsersPage() {
       // Reload users list
       loadUsers()
 
-    } catch (error: any) {
-      setEditUserError(error.message)
+    } catch (error: unknown) {
+      setEditUserError(error instanceof Error ? error.message : "Unknown error")
     } finally {
       setEditUserLoading(false)
     }
@@ -399,38 +429,13 @@ export default function SystemUsersPage() {
       // Reload users list
       loadUsers()
 
-    } catch (error: any) {
-      setCreateUserError(error.message)
+    } catch (error: unknown) {
+      setCreateUserError(error instanceof Error ? error.message : "Unknown error")
     } finally {
       setCreateUserLoading(false)
     }
   }
 
-  const applyFilters = () => {
-    let filtered = [...allUsers]
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter((user) =>
-        user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Apply user type filter
-    if (userTypeFilter !== "all") {
-      if (userTypeFilter === "superadmin") {
-        filtered = filtered.filter((user) => user.is_superadmin)
-      } else if (userTypeFilter === "client-users") {
-        filtered = filtered.filter((user) => !user.is_superadmin && user.client_count > 0)
-      } else if (userTypeFilter === "no-clients") {
-        filtered = filtered.filter((user) => !user.is_superadmin && user.client_count === 0)
-      }
-    }
-
-    setFilteredUsers(filtered)
-    // Page reset is handled automatically by usePagination hook when items.length changes
-  }
 
   // Note: Superadmin status is now managed via client_users table
   // To grant superadmin access, add a client_users entry with superadmin role_id
@@ -450,8 +455,16 @@ export default function SystemUsersPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">System Users</h1>
+      <PageHeader
+        title="System Users"
+        search={{
+          placeholder: "Search users",
+          value: searchQuery,
+          onChange: setSearchQuery,
+          position: "below",
+        }}
+      />
+      <div className="mb-8 flex items-center justify-end">
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
             <Button className="bg-black hover:bg-gray-800 text-white">
@@ -685,20 +698,6 @@ export default function SystemUsersPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
-
-      {/* Search */}
-      <div className="mb-6 flex justify-end">
-        <div className="relative max-w-[400px] w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
-          <Input
-            type="search"
-            placeholder="Search users"
-            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
       </div>
 
       {/* Tabs */}

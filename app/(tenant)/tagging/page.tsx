@@ -30,6 +30,8 @@ import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION } from "@/lib/constants"
 import { logError } from "@/lib/utils/logger"
+import { PageHeader } from "@/components/page-header"
+import { useSearchFilter } from "@/hooks/use-search-filter"
 
 interface Tag {
   id: string
@@ -55,13 +57,24 @@ interface TagDimension {
   label: string
 }
 
+interface AssetTag {
+  tag_id: string
+  asset_id: string
+  assets?: {
+    client_id: string
+  }
+}
+
+interface ChildTag {
+  id: string
+  label: string
+}
+
 export default function TaggingPage() {
   const { tenant } = useTenant()
   const [tags, setTags] = useState<Tag[]>([])
-  const [filteredTags, setFilteredTags] = useState<Tag[]>([])
   const [dimensions, setDimensions] = useState<TagDimension[]>([])
   const [dimensionFilter, setDimensionFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -69,6 +82,23 @@ export default function TaggingPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  // Use search filter hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    filteredItems: searchFilteredTags,
+  } = useSearchFilter({
+    items: tags,
+    searchFields: (tag) => [tag.label, tag.slug],
+  })
+
+  // Apply dimension filter on top of search filter
+  const filteredTags = dimensionFilter === "all"
+    ? searchFilteredTags
+    : dimensionFilter === "legacy"
+    ? searchFilteredTags.filter((tag) => !tag.dimension_key)
+    : searchFilteredTags.filter((tag) => tag.dimension_key === dimensionFilter)
 
   // Use pagination hook
   const {
@@ -91,10 +121,6 @@ export default function TaggingPage() {
   useEffect(() => {
     loadTags()
   }, [])
-
-  useEffect(() => {
-    applyFilters()
-  }, [tags, dimensionFilter, searchQuery])
 
   // Update dimensions based on actually loaded tags (after filtering)
   useEffect(() => {
@@ -161,7 +187,7 @@ export default function TaggingPage() {
 
     const hierarchicalDimKeys = new Set(hierarchicalDimensions?.map((d: { dimension_key: string }) => d.dimension_key) || [])
     
-    const filteredTags = (clientTags || []).filter((tag: any) => {
+    const filteredTags = (clientTags || []).filter((tag: Tag) => {
       // Exclude parent tags (tags with parent_id IS NULL in hierarchical dimensions)
       if (tag.parent_id === null && tag.dimension_key && hierarchicalDimKeys.has(tag.dimension_key)) {
         return false
@@ -188,7 +214,7 @@ export default function TaggingPage() {
       // Count occurrences of each tag_id (only for tags we're displaying)
       const relevantTagIds = new Set(tagsData.map(t => t.id))
       if (assetTags) {
-        assetTags.forEach((at: any) => {
+        assetTags.forEach((at: AssetTag) => {
           if (relevantTagIds.has(at.tag_id)) {
             const currentCount = tagCountsMap.get(at.tag_id) || 0
             tagCountsMap.set(at.tag_id, currentCount + 1)
@@ -204,32 +230,7 @@ export default function TaggingPage() {
     }))
 
     setTags(tagsWithCounts)
-    setFilteredTags(tagsWithCounts)
     setIsLoading(false)
-  }
-
-  const applyFilters = () => {
-    let filtered = [...tags]
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter((tag) =>
-        tag.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tag.slug.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Apply dimension filter
-    if (dimensionFilter !== "all") {
-      if (dimensionFilter === "legacy") {
-        filtered = filtered.filter((tag) => !tag.dimension_key)
-      } else {
-        filtered = filtered.filter((tag) => tag.dimension_key === dimensionFilter)
-      }
-    }
-
-    setFilteredTags(filtered)
-    // Page reset is handled automatically by usePagination hook when items.length changes
   }
 
   const handleDelete = async () => {
@@ -257,7 +258,7 @@ export default function TaggingPage() {
 
       // If there are child tags, delete them first (cascade delete)
       if (childTags && childTags.length > 0) {
-        const childTagIds = childTags.map((t: any) => t.id)
+        const childTagIds = childTags.map((t: ChildTag) => t.id)
         
         // Delete asset_tags for all child tags first
         const { error: childAssetTagsError } = await supabase
@@ -327,7 +328,7 @@ export default function TaggingPage() {
         // Reload tags to reflect the deletion
         await loadTags()
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logError("Error deleting tag:", error)
       logError("Full error object:", JSON.stringify(error, null, 2))
       
@@ -363,35 +364,25 @@ export default function TaggingPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Tagging</h1>
-        <Button
-          onClick={() => setIsCreateModalOpen(true)}
-          style={{ backgroundColor: tenant.primary_color }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create new tag
-        </Button>
-      </div>
+      <PageHeader
+        title="Tagging"
+        createButton={{
+          label: "Create new tag",
+          onClick: () => setIsCreateModalOpen(true),
+          style: { backgroundColor: tenant.primary_color },
+        }}
+        search={{
+          placeholder: "Search tag",
+          value: searchQuery,
+          onChange: setSearchQuery,
+          position: "below",
+        }}
+      />
       <CreateTagModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
         onSuccess={handleCreateSuccess}
       />
-
-      {/* Search */}
-      <div className="mb-6 flex justify-end">
-        <div className="relative max-w-[400px] w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
-          <Input
-            type="search"
-            placeholder="Search tag"
-            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
 
       {/* Tabs - Show all dimensions */}
       <Tabs value={dimensionFilter} onValueChange={setDimensionFilter} className="mb-0">

@@ -18,6 +18,8 @@ import { CreateUserModal } from "@/components/create-user-modal"
 import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION } from "@/lib/constants"
+import { PageHeader } from "@/components/page-header"
+import { useSearchFilter } from "@/hooks/use-search-filter"
 
 interface UserWithRole {
   id: string
@@ -37,13 +39,29 @@ interface UserWithRole {
 export default function UsersPage() {
   const { tenant } = useTenant()
   const [allUsers, setAllUsers] = useState<UserWithRole[]>([])
-  const [filteredUsers, setFilteredUsers] = useState<UserWithRole[]>([])
   const [roleFilter, setRoleFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+
+  // Use search filter hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    filteredItems: searchFilteredUsers,
+  } = useSearchFilter({
+    items: allUsers,
+    searchFields: (user) => [
+      user.users?.full_name || "",
+      user.users?.email || "",
+    ],
+  })
+
+  // Apply role filter on top of search filter
+  const filteredUsers = roleFilter === "all"
+    ? searchFilteredUsers
+    : searchFilteredUsers.filter((user) => user.roles?.key === roleFilter)
 
   // Use pagination hook
   const {
@@ -67,10 +85,6 @@ export default function UsersPage() {
     loadUsers()
   }, [])
 
-  useEffect(() => {
-    applyFilters()
-  }, [allUsers, roleFilter, searchQuery])
-
   const loadUsers = async () => {
     // Use tenant from context - tenant layout already verified access
     const clientId = tenant.id
@@ -83,28 +97,7 @@ export default function UsersPage() {
     })
 
     setAllUsers(usersData)
-    setFilteredUsers(usersData)
     setIsLoading(false)
-  }
-
-  const applyFilters = () => {
-    let filtered = [...allUsers]
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter((user) =>
-        user.users?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.users?.email?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Apply role filter
-    if (roleFilter !== "all") {
-      filtered = filtered.filter((user) => user.roles?.key === roleFilter)
-    }
-
-    setFilteredUsers(filtered)
-    // Page reset is handled automatically by usePagination hook when items.length changes
   }
 
   const handleCreateSuccess = () => {
@@ -125,35 +118,25 @@ export default function UsersPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Users</h1>
-        <Button
-          onClick={() => setIsCreateModalOpen(true)}
-          style={{ backgroundColor: tenant.primary_color }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create new user
-        </Button>
-      </div>
+      <PageHeader
+        title="Users"
+        createButton={{
+          label: "Create new user",
+          onClick: () => setIsCreateModalOpen(true),
+          style: { backgroundColor: tenant.primary_color },
+        }}
+        search={{
+          placeholder: "Search user",
+          value: searchQuery,
+          onChange: setSearchQuery,
+          position: "below",
+        }}
+      />
       <CreateUserModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
         onSuccess={handleCreateSuccess}
       />
-
-      {/* Search */}
-      <div className="mb-6 flex justify-end">
-        <div className="relative max-w-[400px] w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
-          <Input
-            type="search"
-            placeholder="Search user"
-            className="pl-10 bg-white text-[#737373] placeholder:text-[#737373]"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
 
       {/* Tabs */}
       <Tabs value={roleFilter} onValueChange={setRoleFilter} className="mb-0">
