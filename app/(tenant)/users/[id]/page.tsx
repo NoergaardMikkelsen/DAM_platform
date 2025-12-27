@@ -14,6 +14,8 @@ import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { formatDate } from "@/lib/utils/date"
+import { useToast } from "@/hooks/use-toast"
+import { handleError, handleSuccess } from "@/lib/utils/error-handling"
 
 interface UserProfile {
   id: string
@@ -33,6 +35,7 @@ interface UserProfile {
 export default function UserDetailPage() {
   const { tenant } = useTenant()
   const paramsPromise = useParams()
+  const { toast } = useToast()
   const [id, setId] = useState<string>("")
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -145,10 +148,13 @@ export default function UserDetailPage() {
       .eq("id", user.id)
 
     if (error) {
-      console.error("Error updating user:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to update user",
+        description: "Could not update user information. Please try again.",
+      })
     } else {
       setIsEditing(false)
+      handleSuccess(toast, "User information updated successfully")
       await loadUser() // Reload data
     }
 
@@ -173,9 +179,12 @@ export default function UserDetailPage() {
       .eq("user_id", user.id)
 
     if (error) {
-      console.error("Error deleting user:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to delete user",
+        description: "Could not delete user. Please try again.",
+      })
     } else {
+      handleSuccess(toast, "User deleted successfully")
       router.push("/users")
     }
 

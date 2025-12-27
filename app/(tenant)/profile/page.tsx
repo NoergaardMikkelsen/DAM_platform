@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
 import { RoleBadge } from "@/components/role-badge"
+import { useToast } from "@/hooks/use-toast"
+import { handleError, handleSuccess } from "@/lib/utils/error-handling"
 
 interface UserData {
   id: string
@@ -96,10 +98,13 @@ export default function ProfilePage() {
       .eq("id", userData.id)
 
     if (error) {
-      console.error("Error updating profile:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to update profile",
+        description: "Could not update profile information. Please try again.",
+      })
     } else {
       setIsEditing(false)
+      handleSuccess(toast, "Profile updated successfully")
       await loadProfile() // Reload data
     }
 

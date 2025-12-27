@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { RoleBadge } from "@/components/role-badge"
 import { formatDate } from "@/lib/utils/date"
+import { useToast } from "@/hooks/use-toast"
+import { handleError, handleSuccess } from "@/lib/utils/error-handling"
 
 interface SystemAdminData {
   id: string
@@ -40,6 +42,7 @@ export default function SystemAdminProfilePage() {
     phone: ""
   })
   const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     loadProfile()
@@ -177,10 +180,13 @@ export default function SystemAdminProfilePage() {
       .eq("id", userData.id)
 
     if (error) {
-      console.error("Error updating profile:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to update profile",
+        description: "Could not update profile information. Please try again.",
+      })
     } else {
       setIsEditing(false)
+      handleSuccess(toast, "Profile updated successfully")
       await loadProfile() // Reload data
     }
 

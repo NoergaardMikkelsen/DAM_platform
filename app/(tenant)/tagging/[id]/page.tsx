@@ -13,6 +13,8 @@ import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { formatDate } from "@/lib/utils/date"
+import { useToast } from "@/hooks/use-toast"
+import { handleError, handleSuccess } from "@/lib/utils/error-handling"
 
 interface Tag {
   id: string
@@ -42,6 +44,7 @@ export default function TagDetailPage() {
     slug: "",
     sort_order: 0
   })
+  const { toast } = useToast()
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -168,9 +171,12 @@ export default function TagDetailPage() {
       .eq("id", tag.id)
 
     if (error) {
-      console.error("Error deleting tag:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to delete tag",
+        description: "Could not delete tag. Please try again.",
+      })
     } else {
+      handleSuccess(toast, "Tag deleted successfully")
       router.push("/tagging")
     }
 

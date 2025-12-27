@@ -11,6 +11,8 @@ import { ArrowLeft, Building, Users, Database, Settings, Trash2 } from "lucide-r
 import Link from "next/link"
 import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { handleError, handleSuccess } from "@/lib/utils/error-handling"
 
 interface Client {
   id: string
@@ -35,6 +37,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
+  const { toast } = useToast()
   const [editForm, setEditForm] = useState({
     name: "",
     slug: "",
@@ -157,10 +160,13 @@ export default function ClientDetailPage() {
       .eq("id", client.id)
 
     if (error) {
-      console.error("Error updating client:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to update client",
+        description: "Could not update client information. Please try again.",
+      })
     } else {
       setIsEditing(false)
+      handleSuccess(toast, "Client updated successfully")
       await loadClient() // Reload data
     }
 
@@ -184,9 +190,12 @@ export default function ClientDetailPage() {
       .eq("id", client.id)
 
     if (error) {
-      console.error("Error deleting client:", error)
-      // TODO: Show error toast
+      handleError(error, toast, {
+        title: "Failed to delete client",
+        description: "Could not delete client. Please try again.",
+      })
     } else {
+      handleSuccess(toast, "Client deleted successfully")
       router.push("/system-admin/clients")
     }
 
