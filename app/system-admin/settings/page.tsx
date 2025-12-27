@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { Save, Shield, Mail, Database, Globe, Key } from "lucide-react"
+import { Save } from "lucide-react"
 
 interface SystemSettings {
   platform_name: string
@@ -117,36 +117,18 @@ export default function SystemSettingsPage() {
 
       <Tabs defaultValue="general" className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="general" className="flex items-center gap-2">
-            <Globe className="h-4 w-4" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="storage" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Storage
-          </TabsTrigger>
-          <TabsTrigger value="email" className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Email
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            Integrations
-          </TabsTrigger>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="storage">Storage</TabsTrigger>
+          <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
 
         {/* General Settings */}
         <TabsContent value="general">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                General Settings
-              </CardTitle>
+              <CardTitle>General Settings</CardTitle>
               <CardDescription>
                 Configure basic platform information and user registration settings
               </CardDescription>
@@ -230,10 +212,7 @@ export default function SystemSettingsPage() {
         <TabsContent value="security">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Security Settings
-              </CardTitle>
+              <CardTitle>Security Settings</CardTitle>
               <CardDescription>
                 Configure password policies and session management
               </CardDescription>
@@ -291,10 +270,7 @@ export default function SystemSettingsPage() {
         <TabsContent value="storage">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Storage Settings
-              </CardTitle>
+              <CardTitle>Storage Settings</CardTitle>
               <CardDescription>
                 Configure file upload limits and storage quotas
               </CardDescription>
@@ -351,10 +327,7 @@ export default function SystemSettingsPage() {
         <TabsContent value="email">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Email Settings
-              </CardTitle>
+              <CardTitle>Email Settings</CardTitle>
               <CardDescription>
                 Configure SMTP settings for email notifications and user communications
               </CardDescription>
@@ -437,10 +410,7 @@ export default function SystemSettingsPage() {
         <TabsContent value="integrations">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
-                Integrations & API
-              </CardTitle>
+              <CardTitle>Integrations & API</CardTitle>
               <CardDescription>
                 Configure third-party integrations and API access
               </CardDescription>

@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { RoleBadge } from "@/components/role-badge"
-import { Shield, Activity, Settings } from "lucide-react"
 
 interface SystemAdminData {
   id: string
@@ -347,10 +346,7 @@ export default function SystemAdminProfilePage() {
         <TabsContent value="activity" className="mt-0">
           <Card className="border-0 rounded-t-none">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                System Activity
-              </CardTitle>
+              <CardTitle>System Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -380,7 +376,6 @@ export default function SystemAdminProfilePage() {
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
-                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No recent activities found</p>
                   </div>
                 )}
@@ -392,10 +387,7 @@ export default function SystemAdminProfilePage() {
         <TabsContent value="settings" className="mt-0">
           <Card className="border-0 rounded-t-none">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Account Settings
-              </CardTitle>
+              <CardTitle>Account Settings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
