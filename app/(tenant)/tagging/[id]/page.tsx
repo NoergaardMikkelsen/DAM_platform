@@ -54,7 +54,7 @@ export default function TagDetailPage() {
     const clientId = tenant.id
     const supabase = supabaseRef.current
 
-    // Get tag details for this tenant
+    // Get tag details for this tenant (including system tags)
     const { data: tagData } = await supabase
       .from("tags")
       .select(`
@@ -62,10 +62,16 @@ export default function TagDetailPage() {
         users (full_name)
       `)
       .eq("id", id)
-      .eq("client_id", clientId)
+      .or(`client_id.eq.${clientId},client_id.is.null`)
       .single()
 
     if (!tagData) {
+      router.push("/tagging")
+      return
+    }
+
+    // Redirect if trying to access system tag detail page from tenant area
+    if (tagData.is_system) {
       router.push("/tagging")
       return
     }
@@ -98,6 +104,13 @@ export default function TagDetailPage() {
   const handleEdit = async () => {
     if (!tag) return
 
+    // System tags cannot be edited from tenant area
+    if (tag.is_system) {
+      alert("System tags can only be edited from the system admin area.")
+      setIsEditing(false)
+      return
+    }
+
     const supabase = supabaseRef.current
     setIsLoading(true)
 
@@ -112,7 +125,11 @@ export default function TagDetailPage() {
 
     if (error) {
       console.error("Error updating tag:", error)
-      // TODO: Show error toast
+      if (error.code === "42501" || error.message?.includes("permission")) {
+        alert("You don't have permission to edit this tag.")
+      } else {
+        alert(`Failed to update tag: ${error.message || "Unknown error"}`)
+      }
     } else {
       setIsEditing(false)
       await loadTag() // Reload data
@@ -185,27 +202,29 @@ export default function TagDetailPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-8">
-        <Link href="/tagging" className="mb-4">
-          <Button variant="secondary" className="flex items-center gap-2">
-            <svg
-              viewBox="0 8 25 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-4 h-4"
-              style={{ transform: 'scaleX(-1)' }}
-            >
-              <path
-                d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.5"
-              />
-            </svg>
-            Back to Tags
-          </Button>
-        </Link>
+      <div className="mb-10">
+        <div className="mb-6">
+          <Link href="/tagging">
+            <Button variant="secondary" className="flex items-center gap-2">
+              <svg
+                viewBox="0 8 25 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4"
+                style={{ transform: 'scaleX(-1)' }}
+              >
+                <path
+                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+              Back to Tags
+            </Button>
+          </Link>
+        </div>
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -214,36 +233,33 @@ export default function TagDetailPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{tag.label}</h1>
-              <p className="text-gray-500">{tag.slug}</p>
+              <p className="text-gray-500 mt-1">{tag.slug}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {tag.is_system && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                System Tag
-              </Badge>
-            )}
-            {!isEditing ? (
-              <Button variant="secondary" onClick={() => setIsEditing(true)}>
-                <Settings className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            ) : (
+            {!tag.is_system && (
               <>
-                <Button variant="secondary" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleEdit} disabled={isLoading}>
-                  Save Changes
+                {!isEditing ? (
+                  <Button variant="secondary" onClick={() => setIsEditing(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="secondary" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleEdit} disabled={isLoading}>
+                      Save Changes
+                    </Button>
+                  </>
+                )}
+                <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
                 </Button>
               </>
-            )}
-            {!tag.is_system && (
-              <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
             )}
           </div>
         </div>
@@ -251,7 +267,7 @@ export default function TagDetailPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Tag Information */}
-        <Card>
+        <Card className="border-0">
           <CardHeader>
             <CardTitle>Tag Information</CardTitle>
             <CardDescription>Tag details and configuration</CardDescription>
@@ -329,7 +345,7 @@ export default function TagDetailPage() {
         {/* Statistics */}
         <div className="space-y-6">
           {/* Assets Count */}
-          <Card>
+          <Card className="border-0">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Database className="h-5 w-5" />
@@ -343,7 +359,7 @@ export default function TagDetailPage() {
           </Card>
 
           {/* Tag Properties */}
-          <Card>
+          <Card className="border-0">
             <CardHeader>
               <CardTitle>Tag Properties</CardTitle>
             </CardHeader>
@@ -370,7 +386,7 @@ export default function TagDetailPage() {
           </Card>
 
           {/* Usage Information */}
-          <Card>
+          <Card className="border-0">
             <CardHeader>
               <CardTitle>Usage Information</CardTitle>
             </CardHeader>

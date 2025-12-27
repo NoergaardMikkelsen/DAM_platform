@@ -721,7 +721,7 @@ export default function SystemUsersPage() {
           </thead>
           <tbody>
             {filteredUsers?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50/50 border-b border-gray-100 last:border-b-0">
+              <tr key={user.id} className="border-b border-gray-100 last:border-b-0">
                 <td className="px-6 py-4 text-sm text-gray-900">{user.full_name || "N/A"}</td>
                 <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
                 <td className="px-6 py-4">

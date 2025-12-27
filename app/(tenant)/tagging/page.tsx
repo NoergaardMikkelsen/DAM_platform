@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ChevronDown } from "lucide-react"
 import {
   AlertDialog,
@@ -17,7 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { Pencil, Plus, Search, Trash2, Info } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -458,8 +460,9 @@ export default function TaggingPage() {
       </Tabs>
 
       {/* Tags Table */}
-      <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
-        <table className="w-full">
+      <TooltipProvider>
+        <div className="overflow-hidden" style={{ borderRadius: '0 20px 20px 20px', background: '#FFF' }}>
+          <table className="w-full">
           <thead>
             <tr className="rounded-[20px] bg-[#F9F9F9]">
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 first:pl-6">Tag</th>
@@ -473,10 +476,12 @@ export default function TaggingPage() {
             {filteredTags?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tag) => (
               <tr
                 key={tag.id}
-                className="hover:bg-gray-50/50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                onClick={() => router.push(`/tagging/${tag.id}`)}
+                className={`border-b border-gray-100 last:border-b-0 ${!tag.is_system ? 'hover:bg-gray-50/50 cursor-pointer' : 'opacity-75'}`}
+                onClick={!tag.is_system ? () => router.push(`/tagging/${tag.id}`) : undefined}
               >
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">{tag.label}</td>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                  {tag.label}
+                </td>
                 <td className="px-6 py-4 text-sm capitalize text-gray-600">
                   {tag.dimension_key 
                     ? tag.dimension_key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
@@ -488,31 +493,45 @@ export default function TaggingPage() {
                 <td className="px-6 py-4 text-sm text-gray-600">{tag.asset_count || 0}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Pencil className="h-4 w-4 text-gray-600" />
-                      </Button>
-                    </Link>
-                    {!tag.is_system && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          // Check for child tags before showing dialog
-                          const supabase = supabaseRef.current
-                          const { data: childTags } = await supabase
-                            .from("tags")
-                            .select("id")
-                            .eq("parent_id", tag.id)
-                          
-                          setChildTagsCount(childTags?.length || 0)
-                          setTagToDelete(tag)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
+                    {tag.is_system ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 text-xs text-gray-500 cursor-help">
+                            <Info className="h-4 w-4" />
+                            <span>Read-only</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>System tags can only be edited from the system admin area</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <>
+                        <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Pencil className="h-4 w-4 text-gray-600" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            // Check for child tags before showing dialog
+                            const supabase = supabaseRef.current
+                            const { data: childTags } = await supabase
+                              .from("tags")
+                              .select("id")
+                              .eq("parent_id", tag.id)
+                            
+                            setChildTagsCount(childTags?.length || 0)
+                            setTagToDelete(tag)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </td>
@@ -520,9 +539,11 @@ export default function TaggingPage() {
             ))}
           </tbody>
         </table>
+        </div>
+      </TooltipProvider>
 
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog 
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog 
           open={!!tagToDelete} 
           onOpenChange={(open) => {
             if (!open) {
@@ -558,7 +579,6 @@ export default function TaggingPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
 
       {/* Pagination - Fixed in bottom right corner */}
       {filteredTags.length > 0 && (() => {

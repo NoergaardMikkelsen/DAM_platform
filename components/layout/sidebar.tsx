@@ -110,22 +110,22 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   
   return (
     <div
-      className={`relative transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}
+      className={`relative transition-all duration-300 overflow-hidden ${isCollapsed ? 'w-16' : 'w-72'}`}
       style={{
-        filter: 'drop-shadow(rgba(0, 0, 0, 0.08) 0px 4px 12px)',
         marginTop: '16px',
         marginLeft: '16px',
         // When collapsed: leave space for button below sidebar
         marginBottom: isCollapsed ? `${buttonSize + 16}px` : '30px',
         // When collapsed: sidebar is shorter to make room for button below
         height: isCollapsed ? `calc(100% - ${buttonSize + 32}px)` : '-webkit-fill-available',
+        borderRadius: '20px 20px 0 0', // Runde hjørner i toppen
       }}
     >
       {/* Main sidebar SVG shape with organic curve - same style as collection cards */}
       <svg
         className="absolute inset-0 w-full h-full"
         viewBox={isCollapsed ? "0 0 64 800" : "0 0 288 939"}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMax slice"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
@@ -172,9 +172,9 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
       </svg>
 
       {/* Content container */}
-      <div className="relative z-10 flex h-full flex-col">
+      <div className="relative z-10 flex h-full flex-col overflow-hidden" style={{ borderRadius: '20px 20px 0 0' }}>
         {/* Logo */}
-        <div className={`flex items-center border-b transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
+        <div className={`flex items-center transition-all duration-300 ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`}>
           {isSystemAdminContext && role === "superadmin" ? (
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
               <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-black text-white font-bold text-sm`}>
@@ -365,7 +365,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
         {/* Upload Button - Only show in tenant context (not in system admin context) */}
         {!isSystemAdminContext && (
-          <div className={`border-t transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
+          <div className={`transition-all duration-300 ${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`}>
             <Button
               onClick={() => setIsUploadModalOpen(true)}
               className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}`}
@@ -385,7 +385,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         )}
 
         {/* User Profile */}
-        <div className={`border-t pb-20 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
+        <div className={`pb-20 pt-2 relative z-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-4'}`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
             <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">

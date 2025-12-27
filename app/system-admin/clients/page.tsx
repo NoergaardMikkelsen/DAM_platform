@@ -460,7 +460,7 @@ export default function ClientsPage() {
               const storagePercentage = client.storage_percentage || 0
 
               return (
-                <tr key={client.id} className="hover:bg-gray-50/50 cursor-pointer border-b border-gray-100 last:border-b-0">
+                <tr key={client.id} className="border-b border-gray-100 last:border-b-0">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div
