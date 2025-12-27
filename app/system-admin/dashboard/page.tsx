@@ -177,7 +177,7 @@ export default function SystemAdminDashboard() {
       </div>
 
       {/* Tenant Access for SuperAdmin - Prominent placement */}
-      <Card className="border-2 border-gray-200">
+      <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-xl">
             <ExternalLink className="h-6 w-6 text-gray-700" />

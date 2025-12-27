@@ -468,15 +468,17 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         </button>
       </div>
 
-      {/* Upload Modal */}
-      <UploadAssetModal
-        open={isUploadModalOpen}
-        onOpenChange={setIsUploadModalOpen}
-        onSuccess={() => {
-          // Could refresh data or show success message
-          console.log('Upload completed successfully')
-        }}
-      />
+      {/* Upload Modal - Only render in tenant context */}
+      {!isSystemAdminContext && (
+        <UploadAssetModal
+          open={isUploadModalOpen}
+          onOpenChange={setIsUploadModalOpen}
+          onSuccess={() => {
+            // Could refresh data or show success message
+            console.log('Upload completed successfully')
+          }}
+        />
+      )}
     </div>
   )
 }
