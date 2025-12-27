@@ -65,13 +65,43 @@ export default function TaggingPage() {
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
-    loadDimensions()
     loadTags()
   }, [])
 
   useEffect(() => {
     applyFilters()
   }, [tags, dimensionFilter, searchQuery])
+
+  // Update dimensions based on actually loaded tags (after filtering)
+  useEffect(() => {
+    if (tags.length === 0) return
+    
+    // Get unique dimension keys from loaded tags
+    const dimensionKeysWithTags = new Set(
+      tags
+        .map((tag) => tag.dimension_key)
+        .filter((key): key is string => key !== null)
+    )
+    
+    // Load dimensions that match these keys
+    const loadDimensionsFromTags = async () => {
+      const supabase = supabaseRef.current
+      
+      if (dimensionKeysWithTags.size > 0) {
+        const { data } = await supabase
+          .from("tag_dimensions")
+          .select("dimension_key, label")
+          .in("dimension_key", Array.from(dimensionKeysWithTags))
+          .order("display_order")
+
+        setDimensions(data || [])
+      } else {
+        setDimensions([])
+      }
+    }
+    
+    loadDimensionsFromTags()
+  }, [tags])
 
   // Calculate items per page based on viewport height
   useEffect(() => {
@@ -96,15 +126,6 @@ export default function TaggingPage() {
     return () => window.removeEventListener('resize', calculateItemsPerPage)
   }, [])
 
-  const loadDimensions = async () => {
-    const supabase = supabaseRef.current
-    const { data } = await supabase
-      .from("tag_dimensions")
-      .select("dimension_key, label")
-      .order("display_order")
-
-    setDimensions(data || [])
-  }
 
   const loadTags = async () => {
     // Use tenant from context - tenant layout already verified access
@@ -136,7 +157,7 @@ export default function TaggingPage() {
       .select("dimension_key")
       .eq("is_hierarchical", true)
 
-    const hierarchicalDimKeys = new Set(hierarchicalDimensions?.map(d => d.dimension_key) || [])
+    const hierarchicalDimKeys = new Set(hierarchicalDimensions?.map((d: { dimension_key: string }) => d.dimension_key) || [])
     
     const filteredTags = (clientTags || []).filter((tag: any) => {
       // Exclude parent tags (tags with parent_id IS NULL in hierarchical dimensions)
@@ -350,7 +371,7 @@ export default function TaggingPage() {
       {/* Search */}
       <div className="mb-6 flex justify-end">
         <div className="relative max-w-[400px] w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
           <Input
             type="search"
             placeholder="Search tag"
@@ -467,7 +488,7 @@ export default function TaggingPage() {
                 <td className="px-6 py-4 text-sm text-gray-600">{tag.asset_count || 0}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Link href={`/tagging/${tag.id}`}>
+                    <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <Pencil className="h-4 w-4 text-gray-600" />
                       </Button>

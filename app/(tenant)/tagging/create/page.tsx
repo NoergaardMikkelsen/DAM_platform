@@ -168,7 +168,7 @@ export default function CreateTagPage() {
 
             <div className="flex justify-end gap-4">
               <Link href="/tagging">
-                <Button type="button" variant="outline" disabled={isLoading}>
+                <Button type="button" variant="secondary" disabled={isLoading}>
                   Cancel
                 </Button>
               </Link>

@@ -35,7 +35,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   ArrowLeft,
-  ArrowRight,
   Download,
   Edit3,
   Heart,
@@ -1082,7 +1081,7 @@ export default function AssetDetailPage() {
   if (isLoading && !asset) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
-        <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 shadow-sm">
+        <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 ">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
           <p className="text-sm text-gray-600">Loading asset…</p>
         </div>
@@ -1093,7 +1092,7 @@ export default function AssetDetailPage() {
   if (!asset) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f6]">
-        <div className="rounded-xl bg-white px-8 py-10 text-center shadow-sm">
+        <div className="rounded-xl bg-white px-8 py-10 text-center ">
           <p className="text-gray-700">Asset not found</p>
           <Button onClick={() => router.push('/assets')} className="mt-4">
             Back to Assets
@@ -1120,7 +1119,7 @@ export default function AssetDetailPage() {
             <div className="flex items-center gap-3">
               <Link
                 href="/assets"
-                className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-white"
+                className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700  transition hover:border-gray-300 hover:bg-white"
               >
           <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
@@ -1130,7 +1129,7 @@ export default function AssetDetailPage() {
             <button
               aria-label="Toggle favorite"
               onClick={handleFavorite}
-              className={`flex h-10 w-10 items-center justify-center rounded-full border cursor-pointer ${isFavorited ? "border-rose-200 bg-rose-50 text-rose-500" : "border-gray-200 bg-white text-gray-500"} shadow-sm transition hover:border-rose-200 hover:text-rose-200`}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border cursor-pointer ${isFavorited ? "border-rose-200 bg-rose-50 text-rose-500" : "border-gray-200 bg-white text-gray-500"}  transition hover:border-rose-200 hover:text-rose-200`}
             >
               <Heart className={`h-5 w-5 ${isFavorited ? "fill-rose-500" : ""}`} />
             </button>
@@ -1261,40 +1260,63 @@ export default function AssetDetailPage() {
         {/* Navigation bar - positioned above download toolbar */}
         <div className="pointer-events-none absolute inset-x-0 bottom-28 z-20 flex justify-center">
           <div className="pointer-events-auto px-6">
-            <div className="inline-flex items-center justify-center gap-4 rounded-full border border-gray-200 bg-white/95 px-4 py-2 shadow-md backdrop-blur">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 rounded-full border-gray-300"
+            <div className="inline-flex items-center justify-center gap-4 rounded-full border border-gray-200 bg-white/95 px-4 py-2  backdrop-blur">
+              <button
+                className="h-10 w-10 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 disabled={navIndex <= 0}
                 onClick={() => goToNeighbor(-1)}
               >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+                <svg
+                  viewBox="0 8 25 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                  style={{ transform: 'scaleX(-1)' }}
+                >
+                  <path
+                    d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                    stroke="black"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </button>
               <span className="min-w-[64px] text-center text-sm font-medium text-gray-800">
                 {navIndex >= 0 ? navIndex + 1 : "-"} / {navAssets.length || "-"}
                 {isNavigating ? " · Loading…" : ""}
               </span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 rounded-full border-gray-300"
+              <button
+                className="h-10 w-10 rounded-full bg-white border-[0.5px] border-black flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 disabled={navIndex < 0 || navIndex >= navAssets.length - 1}
                 onClick={() => goToNeighbor(1)}
               >
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+                <svg
+                  viewBox="0 8 25 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                >
+                  <path
+                    d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                    stroke="black"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </button>
           </div>
         </div>
       </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center">
           <div className="pointer-events-auto px-4">
-            <div className="inline-flex items-center justify-center gap-3 rounded-[18px] border border-gray-200 bg-white/96 px-4 py-3 shadow-lg backdrop-blur sm:px-5">
+            <div className="inline-flex items-center justify-center gap-3 rounded-[18px] border border-gray-200 bg-white/96 px-4 py-3  backdrop-blur sm:px-5">
               {/* Version dropup (left) */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2 rounded-full">
+                  <Button variant="secondary" className="flex items-center gap-2">
                     <History className="h-4 w-4" />
                     <span className="hidden sm:inline">Version</span>
                   </Button>
@@ -1312,7 +1334,7 @@ export default function AssetDetailPage() {
                     onSelect={() => fileInputRef.current?.click()}
                   >
                     <div className="flex items-center gap-2">
-                      <Upload className="h-4 w-4 text-gray-500" />
+                      <Upload className="h-4 w-4 text-gray-600" />
                       <span>Replace file</span>
               </div>
                   </DropdownMenuItem>
@@ -1322,7 +1344,7 @@ export default function AssetDetailPage() {
                     onSelect={() => handleRestorePrevious()}
                   >
                     <div className="flex items-center gap-2">
-                      <RotateCcw className="h-4 w-4 text-gray-500" />
+                      <RotateCcw className="h-4 w-4 text-gray-600" />
                       <span>Restore previous</span>
                     </div>
                   </DropdownMenuItem>
@@ -1332,7 +1354,7 @@ export default function AssetDetailPage() {
               {/* Edit (transform) dropup */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2 rounded-full">
+                  <Button variant="secondary" className="flex items-center gap-2">
                     <Wand2 className="h-4 w-4" />
                     <span className="hidden sm:inline">Edit</span>
                   </Button>
@@ -1354,7 +1376,7 @@ export default function AssetDetailPage() {
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                          <SlidersHorizontal className="h-4 w-4 text-gray-600" />
                           <span>Apply custom resize (download)</span>
                         </div>
                       </DropdownMenuItem>
@@ -1365,7 +1387,7 @@ export default function AssetDetailPage() {
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-gray-500" />
+                          <Sparkles className="h-4 w-4 text-gray-600" />
                           <span>Apply current preset download</span>
                         </div>
                       </DropdownMenuItem>
@@ -1414,7 +1436,7 @@ export default function AssetDetailPage() {
                           }}
                         >
                           <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-gray-500" />
+                            <Sparkles className="h-4 w-4 text-gray-600" />
                             <span>{preset.label}</span>
                           </div>
                         </DropdownMenuItem>
@@ -1425,7 +1447,7 @@ export default function AssetDetailPage() {
                       </DropdownMenuLabel>
                       <div className="px-2 pb-2 pt-1 space-y-2">
                         <Select value={customFormat} onValueChange={setCustomFormat}>
-                          <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs shadow-sm transition hover:border-gray-300">
+                          <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs  transition hover:border-gray-300">
                             <SelectValue placeholder="Format" />
                           </SelectTrigger>
                           <SelectContent className="rounded-2xl border border-gray-200 bg-white/98 shadow-2xl backdrop-blur">
@@ -1443,7 +1465,7 @@ export default function AssetDetailPage() {
                             value={customWidth}
                             onChange={(e) => setCustomWidth(e.target.value)}
                             placeholder="W"
-                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs "
                           />
                           <Input
                             type="number"
@@ -1451,7 +1473,7 @@ export default function AssetDetailPage() {
                             value={customHeight}
                             onChange={(e) => setCustomHeight(e.target.value)}
                             placeholder="H"
-                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs "
                           />
                         </div>
                         <Button
@@ -1478,7 +1500,7 @@ export default function AssetDetailPage() {
                           }}
                         >
                           <div className="flex items-center gap-2">
-                            <Download className="h-4 w-4 text-gray-500" />
+                            <Download className="h-4 w-4 text-gray-600" />
                             <span>{preset.label}</span>
                           </div>
                         </DropdownMenuItem>
@@ -1489,7 +1511,7 @@ export default function AssetDetailPage() {
                       </DropdownMenuLabel>
                       <div className="px-2 pb-2 pt-1 space-y-2">
                         <Select value={videoFormat} onValueChange={setVideoFormat}>
-                          <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs shadow-sm transition hover:border-gray-300">
+                          <SelectTrigger className="h-10 w-full rounded-full border border-gray-200 bg-white text-xs  transition hover:border-gray-300">
                             <SelectValue placeholder="Format" />
                           </SelectTrigger>
                           <SelectContent className="rounded-2xl border border-gray-200 bg-white/98 shadow-2xl backdrop-blur">
@@ -1507,7 +1529,7 @@ export default function AssetDetailPage() {
                             value={videoWidth}
                             onChange={(e) => setVideoWidth(e.target.value)}
                             placeholder="W"
-                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs "
                           />
                           <Input
                             type="number"
@@ -1515,7 +1537,7 @@ export default function AssetDetailPage() {
                             value={videoHeight}
                             onChange={(e) => setVideoHeight(e.target.value)}
                             placeholder="H"
-                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs shadow-sm"
+                            className="h-10 rounded-full border border-gray-200 bg-white px-3 text-xs "
                           />
                         </div>
                         <Button
@@ -1540,7 +1562,7 @@ export default function AssetDetailPage() {
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          <Download className="h-4 w-4 text-gray-500" />
+                          <Download className="h-4 w-4 text-gray-600" />
                           <span>Download original PDF</span>
                         </div>
                       </DropdownMenuItem>
@@ -1558,7 +1580,7 @@ export default function AssetDetailPage() {
       {/* Sidebar (drawer) kept isolated on the right */}
       <aside className="sticky top-0 h-screen w-[360px] shrink-0 bg-[#f5f5f6]">
         <div className="flex h-full min-h-0 flex-col p-6">
-          <div className="flex h-full min-h-0 flex-col rounded-3xl bg-white p-6 shadow-sm">
+          <div className="flex h-full min-h-0 flex-col rounded-3xl bg-white p-6 ">
             <div className="flex-1 space-y-4 overflow-y-auto">
               <div className="space-y-3">
                 <h1 className="text-base font-semibold text-gray-900">{asset.title}</h1>
@@ -1650,7 +1672,7 @@ export default function AssetDetailPage() {
                         {versions.map((version) => (
                           <div
                             key={version.id}
-                            className="flex items-center justify-between rounded-xl border border-gray-100 bg-white px-3 py-3 shadow-sm"
+                            className="flex items-center justify-between rounded-xl border border-gray-100 bg-white px-3 py-3 "
                           >
                             <div>
                               <div className="text-sm font-medium text-gray-900">{version.version_label || "Version"}</div>
@@ -1683,10 +1705,10 @@ export default function AssetDetailPage() {
                         {activity.map((event) => (
                           <div
                             key={event.id}
-                            className="flex items-center justify-between rounded-xl border border-gray-100 bg-white px-3 py-3 shadow-sm"
+                            className="flex items-center justify-between rounded-xl border border-gray-100 bg-white px-3 py-3 "
                           >
                             <div className="flex items-center gap-2">
-                              <Sparkles className="h-4 w-4 text-gray-400" />
+                              <Sparkles className="h-4 w-4 text-gray-600" />
                               <div className="text-sm text-gray-800 capitalize">{event.event_type}</div>
                             </div>
                             <div className="text-xs text-gray-500">
@@ -1755,7 +1777,7 @@ export default function AssetDetailPage() {
                 </div>
 
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsEditingTags(false)}>
+                  <Button variant="secondary" onClick={() => setIsEditingTags(false)}>
                     Cancel
                   </Button>
                   <Button onClick={handleSaveTags} style={{ backgroundColor: tenant.primary_color }}>
@@ -1768,11 +1790,11 @@ export default function AssetDetailPage() {
             {/* Actions pinned to bottom of sidebar */}
             <div className="mt-4 border-t border-gray-100 pt-4">
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={handleCopyLink} disabled={isCopyingLink}>
+                <Button variant="secondary" className="flex-1" onClick={handleCopyLink} disabled={isCopyingLink}>
                   <Link2 className="mr-2 h-4 w-4" />
                   Copy link
                 </Button>
-                <Button variant="outline" className="flex-1" onClick={handleShare}>
+                <Button variant="secondary" className="flex-1" onClick={handleShare}>
                   <Share2 className="mr-2 h-4 w-4" />
                   Share
                 </Button>
@@ -1787,7 +1809,7 @@ export default function AssetDetailPage() {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
+    <div className="rounded-lg bg-white px-3 py-2 ">
       <div className="text-xs uppercase text-gray-500">{label}</div>
       <div className="text-sm font-medium text-gray-900">{value}</div>
     </div>

@@ -227,7 +227,7 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
+                      <Button variant="secondary" onClick={() => setIsEditing(false)} disabled={isLoading}>
                         Cancel
                       </Button>
                       <Button style={{ backgroundColor: tenant.primary_color }} onClick={handleEdit} disabled={isLoading}>

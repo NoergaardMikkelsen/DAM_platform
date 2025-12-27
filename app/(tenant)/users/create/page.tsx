@@ -189,7 +189,7 @@ export default function CreateUserPage() {
 
             <div className="flex justify-end gap-4">
               <Link href="/users">
-                <Button type="button" variant="outline">
+                <Button type="button" variant="secondary">
                   Cancel
                 </Button>
               </Link>

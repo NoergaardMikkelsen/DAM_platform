@@ -249,13 +249,13 @@ export default function ClientDetailPage() {
               {client.status}
             </Badge>
             {!isEditing ? (
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
+              <Button variant="secondary" onClick={() => setIsEditing(true)}>
                 <Settings className="mr-2 h-4 w-4" />
                 Edit
               </Button>
             ) : (
               <>
-                <Button variant="outline" onClick={() => setIsEditing(false)}>
+                <Button variant="secondary" onClick={() => setIsEditing(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleEdit} disabled={isLoading}>
@@ -263,7 +263,7 @@ export default function ClientDetailPage() {
                 </Button>
               </>
             )}
-            <Button variant="outline" onClick={handleDelete} disabled={isLoading}>
+            <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </Button>

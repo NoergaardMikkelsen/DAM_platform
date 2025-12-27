@@ -503,6 +503,7 @@ thead tr th:last-child {
   border-bottom-right-radius: 20px;
 }
 
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

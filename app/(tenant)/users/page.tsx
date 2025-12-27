@@ -136,7 +136,7 @@ export default function UsersPage() {
       {/* Search */}
       <div className="mb-6 flex justify-end">
         <div className="relative max-w-[400px] w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
           <Input
             type="search"
             placeholder="Search user"

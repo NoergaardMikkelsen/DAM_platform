@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Tag, Settings, Trash2, Database } from "lucide-react"
 import Link from "next/link"
-import React, { useState, useEffect, useRef, use } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 
@@ -31,8 +31,8 @@ interface Tag {
 
 export default function TagDetailPage() {
   const { tenant } = useTenant()
-  const paramsPromise = useParams()
-  const [id, setId] = useState<string>("")
+  const params = useParams()
+  const id = params?.id as string
   const [tag, setTag] = useState<Tag | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -43,15 +43,6 @@ export default function TagDetailPage() {
   })
   const router = useRouter()
   const supabaseRef = useRef(createClient())
-
-  // Unwrap the params promise
-  useEffect(() => {
-    const unwrapParams = async () => {
-      const resolvedParams = await paramsPromise
-      setId(resolvedParams.id as string)
-    }
-    unwrapParams()
-  }, [paramsPromise])
 
   useEffect(() => {
     if (!id) return
@@ -168,6 +159,16 @@ export default function TagDetailPage() {
     setIsLoading(false)
   }
 
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <div className="text-center">
+          <p className="text-gray-600">Loading tag...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!tag) {
     return (
       <div className="p-8">
@@ -208,13 +209,13 @@ export default function TagDetailPage() {
               </Badge>
             )}
             {!isEditing ? (
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
+              <Button variant="secondary" onClick={() => setIsEditing(true)}>
                 <Settings className="mr-2 h-4 w-4" />
                 Edit
               </Button>
             ) : (
               <>
-                <Button variant="outline" onClick={() => setIsEditing(false)}>
+                <Button variant="secondary" onClick={() => setIsEditing(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleEdit} disabled={isLoading}>
@@ -223,7 +224,7 @@ export default function TagDetailPage() {
               </>
             )}
             {!tag.is_system && (
-              <Button variant="outline" onClick={handleDelete} disabled={isLoading}>
+              <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </Button>

@@ -391,7 +391,7 @@ export default function DashboardPage() {
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse varius enim
           </p>
         </div>
-        <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
+        <Button variant="secondary" onClick={() => setIsFilterOpen(true)}>
           <Filter className="mr-2 h-4 w-4" />
           Filters
         </Button>
@@ -523,7 +523,7 @@ export default function DashboardPage() {
                   animationDelay: `${Math.min(index * 15, 200)}ms`, // Even faster animation for assets - 15ms delay, max 200ms
                 }}
               >
-                <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
+                <Card className="group overflow-hidden p-0 transition-shadow mb-6">
                   <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">
                     {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                       <AssetPreview
@@ -536,7 +536,7 @@ export default function DashboardPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+                      className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
                     >
                       <ArrowRight className="h-4 w-4" />
                     </Button>

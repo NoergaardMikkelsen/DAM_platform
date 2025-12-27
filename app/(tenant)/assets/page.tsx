@@ -332,12 +332,12 @@ export default function AssetsPage() {
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Assets library</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
+          <Button variant="secondary" onClick={() => setIsFilterOpen(true)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
           </Button>
           <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
             <Input
               type="search"
               placeholder="Search assets"
@@ -437,7 +437,7 @@ export default function AssetsPage() {
                   animationDelay: `${Math.min(index * 15, 200)}ms`,
                 }}
               >
-                <Card className="group overflow-hidden p-0 transition-shadow hover:shadow-lg mb-6">
+                <Card className="group overflow-hidden p-0 transition-shadow mb-6">
                   <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square">
                     {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                       <AssetPreview
@@ -452,7 +452,7 @@ export default function AssetsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+                      className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
                     >
                       <ArrowRight className="h-4 w-4" />
                     </Button>

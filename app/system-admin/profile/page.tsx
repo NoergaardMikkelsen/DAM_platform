@@ -308,7 +308,7 @@ export default function SystemAdminProfilePage() {
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
+                <Button variant="secondary" onClick={() => setIsEditing(false)} disabled={isLoading}>
                   Cancel
                 </Button>
                 <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleEdit} disabled={isLoading}>
@@ -427,10 +427,10 @@ export default function SystemAdminProfilePage() {
                 <div className="space-y-4">
                   <h4 className="text-sm font-medium text-gray-900">Security</h4>
                   <div className="space-y-3">
-                    <Button variant="outline" size="sm">
+                    <Button variant="secondary" size="sm">
                       Change Password
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="secondary" size="sm">
                       Enable Two-Factor Authentication
                     </Button>
                   </div>

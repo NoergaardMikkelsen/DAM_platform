@@ -628,7 +628,7 @@ export default function UploadAssetPage() {
             {/* Actions */}
                 <div className="flex justify-end gap-3 pt-8 border-t border-gray-200">
               <Link href="/assets">
-                <Button type="button" variant="outline" disabled={isLoading}>
+                <Button type="button" variant="secondary" disabled={isLoading}>
                   Cancel
                 </Button>
               </Link>

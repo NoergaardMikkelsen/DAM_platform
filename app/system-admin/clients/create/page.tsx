@@ -566,7 +566,7 @@ export default function CreateClientPage() {
 
             <div className="flex justify-end gap-4">
               <Link href="/system-admin/clients">
-                <Button type="button" variant="outline" disabled={isLoading} className="cursor-pointer">
+                <Button type="button" variant="secondary" disabled={isLoading} className="cursor-pointer">
                   Cancel
                 </Button>
               </Link>

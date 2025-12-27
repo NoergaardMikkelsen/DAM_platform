@@ -168,7 +168,7 @@ export default function SystemAdminDashboard() {
         </div>
         <div className="flex items-center space-x-4">
           <Link href="/system-admin/settings">
-            <Button variant="outline">
+            <Button variant="secondary">
               <Settings className="h-4 w-4 mr-2" />
               System Settings
             </Button>
@@ -201,7 +201,7 @@ export default function SystemAdminDashboard() {
                   return (
                     <Button
                       key={tenant.id}
-                      variant="outline"
+                      variant="secondary"
                       className="h-auto p-4 justify-start hover:bg-gray-50 hover:border-gray-300 transition-colors group"
                       onClick={async () => {
                         // Get current session tokens for cross-subdomain transfer
@@ -225,7 +225,7 @@ export default function SystemAdminDashboard() {
                           {getTenantBaseUrl(tenant.slug).replace('https://', '').replace('http://', '')}
                         </p>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors ml-4 flex-shrink-0" />
+                      <ArrowRight className="h-4 w-4 text-gray-600 group-hover:text-gray-700 transition-colors ml-4 flex-shrink-0" />
                     </div>
                   </Button>
                 )
@@ -243,7 +243,7 @@ export default function SystemAdminDashboard() {
                   <p>No active clients found.</p>
                   <p className="text-sm mt-2">Clients will appear here once they are created and active.</p>
                   <Link href="/system-admin/clients/create" className="mt-4 inline-block">
-                    <Button variant="outline" size="sm">
+                    <Button variant="secondary" size="sm">
                       Create First Client
                     </Button>
                   </Link>
@@ -300,7 +300,7 @@ export default function SystemAdminDashboard() {
       {/* Quick actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Link href="/system-admin/clients">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+          <Card className="transition-shadow cursor-pointer group">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Client Management</CardTitle>
@@ -316,7 +316,7 @@ export default function SystemAdminDashboard() {
         </Link>
 
         <Link href="/system-admin/users">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+          <Card className="transition-shadow cursor-pointer group">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">User Administration</CardTitle>
@@ -332,7 +332,7 @@ export default function SystemAdminDashboard() {
         </Link>
 
         <Link href="/system-admin/settings">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+          <Card className="transition-shadow cursor-pointer group">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">System Settings</CardTitle>
