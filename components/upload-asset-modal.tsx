@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Upload, X, CheckCircle, Loader2, ArrowLeft, ArrowRight, FileText } from "lucide-react"
+import { Stepper } from "react-form-stepper"
 import { useState, useEffect, useRef } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
 import { TagBadgeSelector } from "@/components/tag-badge-selector"
@@ -667,38 +668,32 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
           <DialogDescription className="sr-only">Upload assets to your library</DialogDescription>
         </DialogHeader>
         {/* Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between">
-            {steps.map((step, index) => (
-              <React.Fragment key={step.id}>
-                <div className="flex flex-col items-center flex-1">
-                  <div
-                    className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors ${
-                      currentStep > step.id
-                        ? "bg-red-500 border-red-500 text-white"
-                        : currentStep === step.id
-                        ? "bg-red-500 border-red-500 text-white"
-                        : "bg-white border-gray-300 text-gray-400"
-                    }`}
-                  >
-                    {currentStep > step.id ? (
-                      <CheckCircle className="h-5 w-5" />
-                    ) : (
-                      <span className="text-sm font-medium">{step.id}</span>
-                    )}
-                  </div>
-                  <p className="text-xs font-medium text-gray-900 mt-2 text-center">{step.label}</p>
-                </div>
-                {index < steps.length - 1 && (
-                  <div
-                    className={`flex-1 h-0.5 mx-4 mt-4 transition-colors ${
-                      currentStep > step.id ? "bg-red-500" : "bg-gray-300"
-                    }`}
-                  />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
+        <div className="mb-8 pt-6">
+          <Stepper
+            steps={steps.map((s, i) => ({ label: s.label }))}
+            activeStep={currentStep - 1}
+            styleConfig={{
+              activeBgColor: '#E55C6A',
+              activeTextColor: '#ffffff',
+              inactiveBgColor: '#D9D9D9',
+              inactiveTextColor: '#000000',
+              completedBgColor: '#E55C6A',
+              completedTextColor: '#ffffff',
+              size: '40px',
+              circleFontSize: '14px',
+              labelFontSize: '12px',
+              borderRadius: '50%',
+              fontWeight: '500',
+            }}
+            connectorStyleConfig={{
+              disabledColor: '#D9D9D9',
+              activeColor: '#E55C6A',
+              completedColor: '#E55C6A',
+              size: 1,
+              stepSize: '40px',
+              style: 'solid',
+            }}
+          />
         </div>
 
         {/* Step Content */}
@@ -711,7 +706,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
                 
                 {/* Upload Type Toggle */}
                 <div className="mb-6 flex justify-center">
-                  <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                  <div className="inline-flex rounded-full overflow-hidden">
                     <button
                       type="button"
                       onClick={() => {
@@ -719,10 +714,10 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
                         // Clear single tags when switching to bulk
                         setSelectedTags({})
                       }}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`w-24 py-2.5 text-sm font-medium transition-colors ${
                         uploadType === "bulk"
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-600 hover:text-gray-900"
+                          ? "bg-[#E55C6A] text-white"
+                          : "bg-[#D9D9D9] text-gray-900"
                       }`}
                     >
                       Bulk
@@ -738,10 +733,10 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
                         // Clear bulk tags when switching to single
                         setBulkTags({})
                       }}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`w-24 py-2.5 text-sm font-medium transition-colors ${
                         uploadType === "single"
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-600 hover:text-gray-900"
+                          ? "bg-[#E55C6A] text-white"
+                          : "bg-[#D9D9D9] text-gray-900"
                       }`}
                     >
                       Single
@@ -1118,12 +1113,12 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
           {currentStep > 1 && (
             <Button 
               type="button" 
-              variant="outline" 
+              variant="secondary" 
               onClick={handlePrevious} 
               disabled={isLoading}
-              className="rounded-[25px]"
+              className="rounded-[25px] flex items-center justify-center gap-2"
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" />
               Previous
             </Button>
           )}
@@ -1132,21 +1127,21 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
               type="button"
               onClick={handleNext}
               disabled={isLoading}
-              className="rounded-[25px]"
+              className="rounded-[25px] flex items-center justify-center gap-2 px-8"
               style={{
                 backgroundColor: tenant.primary_color,
                 borderColor: tenant.primary_color,
               }}
             >
               Next
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
             <Button
               type="button"
               onClick={handleSubmit}
               disabled={isLoading || success}
-              className="rounded-[25px]"
+              className="rounded-[25px] flex items-center justify-center gap-2 px-8"
               style={{
                 backgroundColor: tenant.primary_color,
                 borderColor: tenant.primary_color,
@@ -1154,12 +1149,12 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Uploading...
                 </>
               ) : (
                 <>
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="h-4 w-4" />
                   Upload asset
                 </>
               )}
