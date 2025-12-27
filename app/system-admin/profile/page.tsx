@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { RoleBadge } from "@/components/role-badge"
 import { Shield, Activity, Settings } from "lucide-react"
 
 interface SystemAdminData {
@@ -216,9 +217,11 @@ export default function SystemAdminProfilePage() {
             <div className="text-sm text-gray-500">
               System Administrator
             </div>
-            <div className="mt-2 inline-block rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">
-              <Shield className="w-3 h-3 inline mr-1" />
-              System Admin
+            <div className="mt-2">
+              <RoleBadge
+                role="superadmin"
+                isSystemAdminContext={true}
+              />
             </div>
           </div>
         </div>

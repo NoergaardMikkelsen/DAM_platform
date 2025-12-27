@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { RoleBadge } from "@/components/role-badge"
 import { ArrowLeft, User, Mail, Phone, Building, Settings, Trash2 } from "lucide-react"
 import Link from "next/link"
 import React, { useState, useEffect, useRef, use } from "react"
@@ -362,18 +363,10 @@ export default function UserDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="text-lg font-medium text-gray-900">{user.role_name}</div>
-              <Badge
-                variant="secondary"
-                className={
-                  user.role === "superadmin"
-                    ? "bg-pink-100 text-pink-800"
-                    : user.role === "admin"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-purple-100 text-purple-800"
-                }
-              >
-                {user.role}
-              </Badge>
+              <RoleBadge
+                role={user.role as "superadmin" | "admin" | "user" | null}
+                tenantPrimaryColor={tenant.primary_color}
+              />
             </CardContent>
           </Card>
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { RoleBadge } from "@/components/role-badge"
 import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
@@ -191,21 +192,10 @@ export default function UsersPage() {
                   {clientUser.users?.email || 'N/A'}
                 </td>
                 <td className="px-6 py-4">
-                  <Badge
-                    variant="secondary"
-                    className={
-                      clientUser.roles?.key === "superadmin"
-                        ? "bg-pink-100 text-pink-800"
-                        : clientUser.roles?.key === "admin"
-                          ? "text-white"
-                          : "bg-purple-100 text-purple-800"
-                    }
-                    style={clientUser.roles?.key === "admin" ? {
-                      backgroundColor: tenant.primary_color
-                    } : {}}
-                  >
-                    {clientUser.roles?.name}
-                  </Badge>
+                  <RoleBadge
+                    role={clientUser.roles?.key as "superadmin" | "admin" | "user" | null}
+                    tenantPrimaryColor={tenant.primary_color}
+                  />
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
                   {new Date(clientUser.created_at).toLocaleDateString("en-GB", {

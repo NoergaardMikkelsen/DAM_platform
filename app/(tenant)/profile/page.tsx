@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
+import { RoleBadge } from "@/components/role-badge"
 
 interface UserData {
   id: string
@@ -24,6 +25,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
   const [userData, setUserData] = useState<UserData | null>(null)
   const [role, setRole] = useState<string>("User")
+  const [roleKey, setRoleKey] = useState<"superadmin" | "admin" | "user" | null>("user")
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -56,15 +58,17 @@ export default function ProfilePage() {
 
     const { data: clientUsers } = await supabase
       .from("client_users")
-      .select(`*, roles(name)`)
+      .select(`*, roles(name, key)`)
       .eq("user_id", user.id)
       .eq("status", "active")
       .limit(1)
 
     const role = clientUsers?.[0]?.roles?.name || "User"
+    const roleKey = clientUsers?.[0]?.roles?.key || "user"
 
     setUserData(userData)
     setRole(role)
+    setRoleKey(roleKey as "superadmin" | "admin" | "user" | null)
     setEditForm({
       full_name: userData?.full_name || "",
       phone: userData?.phone || "",
@@ -132,8 +136,11 @@ export default function ProfilePage() {
             <div className="text-sm text-gray-500 mt-1">
               {userData?.department ? `${userData?.department}` : "Odense, Denmark"}
             </div>
-            <div className="mt-3 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-800">
-              {role}
+            <div className="mt-3">
+              <RoleBadge
+                role={roleKey}
+                tenantPrimaryColor={tenant.primary_color}
+              />
             </div>
           </div>
         </div>

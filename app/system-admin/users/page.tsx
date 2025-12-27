@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { RoleBadge } from "@/components/role-badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -725,29 +726,10 @@ export default function SystemUsersPage() {
                 <td className="px-6 py-4 text-sm text-gray-900">{user.full_name || "N/A"}</td>
                 <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    {user.is_superadmin ? (
-                      <Badge variant="secondary" className="bg-red-100 text-red-800">
-                        <Shield className="w-3 h-3 mr-1" />
-                        Superadmin
-                      </Badge>
-                    ) : user.highest_role === 'admin' ? (
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                        <Users className="w-3 h-3 mr-1" />
-                        Admin
-                      </Badge>
-                    ) : user.highest_role === 'user' ? (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        <Users className="w-3 h-3 mr-1" />
-                        User
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-800">
-                        <Users className="w-3 h-3 mr-1" />
-                        No Access
-                      </Badge>
-                    )}
-                  </div>
+                  <RoleBadge
+                    role={user.is_superadmin ? "superadmin" : (user.highest_role as "admin" | "user" | null)}
+                    isSystemAdminContext={true}
+                  />
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
