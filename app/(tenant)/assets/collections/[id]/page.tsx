@@ -347,30 +347,36 @@ export default function CollectionDetailPage() {
           <p className="text-gray-600">No assets found in this collection</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <div className="gap-4 sm:gap-6 grid grid-cols-2 xl:grid-cols-4">
           {filteredAssets.map((asset, index) => {
             // Always render assets, but control animation timing
             return (
             <Link 
               key={asset.id} 
               href={`/assets/${asset.id}?context=collection&collectionId=${id}`}
-              className="animate-stagger-fade-in"
+              className="animate-stagger-fade-in w-full"
               style={{
-                animationDelay: `${Math.min(index * 40, 600)}ms`,
+                animationDelay: `${Math.min(index * 25, 200)}ms`,
               }}
             >
-              <Card className="group overflow-hidden p-0 transition-shadow">
-                <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
+              <Card className="group overflow-hidden p-0 transition-shadow w-full" style={{ borderRadius: '20px' }}>
+                <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200 w-full" style={{ borderRadius: '20px' }}>
                   {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                     <AssetPreview
                       storagePath={asset.storage_path}
                       mimeType={asset.mime_type}
                       alt={asset.title}
-                      className="h-full w-full object-cover"
+                      className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain absolute inset-0" : "w-full h-full object-cover absolute inset-0"}
+                      style={{ borderRadius: '20px' }}
                       signedUrl={signedUrlsCache[asset.storage_path]} // Pass cached signed URL if available
                       showLoading={false}
                       onAssetLoaded={handleAssetLoaded}
                     />
+                  )}
+                  {!(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200" style={{ borderRadius: '20px' }}>
+                      <span className="text-gray-400 text-sm">No preview</span>
+                    </div>
                   )}
                   <button
                     className="absolute bottom-2 right-2 h-[48px] w-[48px] rounded-full opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef, memo } from "react"
-import { Loader2, FileText } from "lucide-react"
+import { Loader2, Video, FileText } from "lucide-react"
 
 interface AssetPreviewProps {
   storagePath: string
@@ -312,7 +312,12 @@ function AssetPreviewComponent({ storagePath, mimeType, alt, className, style, s
           onLoadedData={handleLoad}
           onError={handleError}
         />
-        {/* Video play indicator overlay removed for faster loading */}
+        {/* Video play indicator overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <div className="rounded-full bg-white/90 p-2">
+            <Video className="h-4 w-4 text-gray-700" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -337,7 +342,10 @@ function AssetPreviewComponent({ storagePath, mimeType, alt, className, style, s
           onLoad={handleLoad}
           onError={handleError}
         />
-        {/* PDF overlay removed for faster loading */}
+        {/* PDF overlay */}
+        <div className="absolute top-2 right-2 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded font-medium backdrop-blur-sm border border-gray-200">
+          PDF
+        </div>
       </div>
     )
   }
