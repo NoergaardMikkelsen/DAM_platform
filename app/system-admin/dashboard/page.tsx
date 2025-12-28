@@ -88,10 +88,9 @@ export default function SystemAdminDashboard() {
     setIsLoading(true)
     try {
       // Get system statistics and recent activities
-      const [clientsResult, usersResult, storageResult, recentClientsResult, recentUsersResult] = await Promise.all([
+      const [clientsResult, usersResult, recentClientsResult, recentUsersResult] = await Promise.all([
         supabase.from("clients").select("id, status"),
         supabase.from("users").select("id"),
-        supabase.from("assets").select("file_size"),
         supabase.from("clients").select("id, name, created_at").order("created_at", { ascending: false }).limit(3),
         supabase.from("users").select("id, full_name, created_at").order("created_at", { ascending: false }).limit(3)
       ])
@@ -128,11 +127,33 @@ export default function SystemAdminDashboard() {
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       const recentActivities = activities.slice(0, 5)
 
+      // Get total storage from Storage API by summing all clients' storage
+      let totalStorageBytes = 0
+      const activeClients = clientsResult.data?.filter((c: { status: string }) => c.status === 'active') || []
+      
+      // Fetch storage for each active client
+      const storagePromises = activeClients.map(async (client: { id: string }) => {
+        try {
+          const response = await fetch(`/api/storage-usage/${client.id}`)
+          if (response.ok) {
+            const data = await response.json()
+            return data.total_bytes || 0
+          }
+          return 0
+        } catch (error) {
+          console.error(`Error fetching storage for client ${client.id}:`, error)
+          return 0
+        }
+      })
+
+      const clientStorageBytes = await Promise.all(storagePromises)
+      totalStorageBytes = clientStorageBytes.reduce((sum, bytes) => sum + bytes, 0)
+
       setStats({
         totalClients: clientsResult.data?.length || 0,
-        activeClients: clientsResult.data?.filter((c: { status: string }) => c.status === 'active').length || 0,
+        activeClients: activeClients.length,
         totalUsers: usersResult.data?.length || 0,
-        totalStorageGB: Math.round((storageResult.data?.reduce((sum: number, asset: { file_size: number | null }) => sum + (asset.file_size || 0), 0) || 0) / 1024 / 1024 / 1024 * 100) / 100,
+        totalStorageGB: Math.round((totalStorageBytes / 1024 / 1024 / 1024) * 100) / 100,
         recentActivity: recentActivities
       })
     } catch (error) {

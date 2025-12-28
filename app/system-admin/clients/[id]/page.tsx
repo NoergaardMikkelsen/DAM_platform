@@ -217,7 +217,7 @@ export default function ClientDetailPage() {
 
   const storageUsedGB = ((client.storage_used_bytes || 0) / 1024 / 1024 / 1024).toFixed(2)
   const storageLimitGB = (client.storage_limit_mb / 1024).toFixed(2)
-  const storagePercentage = Math.min(((client.storage_used_bytes || 0) / (client.storage_limit_mb * 1024 * 1024)) * 100, 100)
+  const storagePercentage = Math.min(Math.round(((client.storage_used_bytes || 0) / (client.storage_limit_mb * 1024 * 1024)) * 1000) / 10, 100) // Round to 1 decimal place
 
   return (
     <div className="p-8">
@@ -441,7 +441,7 @@ export default function ClientDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{storagePercentage.toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-gray-900">{storagePercentage.toFixed(1).replace('.', ',')}%</div>
               <div className="mt-2 text-sm text-gray-600">
                 {storageUsedGB} GB used of {storageLimitGB} GB
               </div>

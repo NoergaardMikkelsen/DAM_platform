@@ -143,22 +143,37 @@ export default function ClientsPage() {
     // Get asset and user counts and calculate actual storage used for each client
     const clientsWithStats = await Promise.all(
       (clientsData || []).map(async (client: ClientData) => {
-        const [assetResult, userResult, storageResult] = await Promise.all([
+        const [assetResult, userResult] = await Promise.all([
           supabase.from("assets").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active"),
-          supabase.from("client_users").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active"),
-          supabase.from("assets").select("file_size").eq("client_id", client.id).eq("status", "active")
+          supabase.from("client_users").select("id", { count: "exact" }).eq("client_id", client.id).eq("status", "active")
         ])
 
-        // Calculate actual storage used by summing all asset file sizes
-        const actualStorageUsedBytes = storageResult.data?.reduce((total: number, asset: AssetWithFileSize) => total + (asset.file_size || 0), 0) || 0
+        // Get actual storage usage from Storage API
+        let actualStorageUsedBytes = 0
+        try {
+          const storageResponse = await fetch(`/api/storage-usage/${client.id}`)
+          if (storageResponse.ok) {
+            const storageData = await storageResponse.json()
+            actualStorageUsedBytes = storageData.total_bytes || 0
+          } else {
+            // Fallback to DB calculation if API fails
+            const { data: storageResult } = await supabase.from("assets").select("file_size").eq("client_id", client.id).eq("status", "active")
+            actualStorageUsedBytes = storageResult?.reduce((total: number, asset: AssetWithFileSize) => total + (asset.file_size || 0), 0) || 0
+          }
+        } catch (error) {
+          console.error(`Error fetching storage for client ${client.id}:`, error)
+          // Fallback to DB calculation if API fails
+          const { data: storageResult } = await supabase.from("assets").select("file_size").eq("client_id", client.id).eq("status", "active")
+          actualStorageUsedBytes = storageResult?.reduce((total: number, asset: AssetWithFileSize) => total + (asset.file_size || 0), 0) || 0
+        }
 
         return {
           ...client,
           asset_count: assetResult.count || 0,
           user_count: userResult.count || 0,
-          storage_used_bytes: actualStorageUsedBytes, // Override with actual calculation
+          storage_used_bytes: actualStorageUsedBytes, // Override with actual calculation from Storage API
           storage_percentage: client.storage_limit_mb > 0
-            ? Math.round((actualStorageUsedBytes / (client.storage_limit_mb * STORAGE_LIMITS.BYTES_PER_MB)) * 100)
+            ? Math.round((actualStorageUsedBytes / (client.storage_limit_mb * STORAGE_LIMITS.BYTES_PER_MB)) * 1000) / 10 // Round to 1 decimal place
             : 0
         } as Client
       })
@@ -418,14 +433,21 @@ export default function ClientsPage() {
     {
       header: "Storage",
       render: (client) => {
-        const storageUsedGB = Math.round(client.storage_used_bytes / STORAGE_LIMITS.BYTES_PER_GB)
-        const storageLimitGB = client.storage_limit_mb / 1024 || STORAGE_LIMITS.DEFAULT_GB
+        const storageUsedBytes = client.storage_used_bytes || 0
+        const storageUsedGB = storageUsedBytes / STORAGE_LIMITS.BYTES_PER_GB
+        const storageUsedMB = storageUsedBytes / STORAGE_LIMITS.BYTES_PER_MB
+        const storageLimitGB = Math.round((client.storage_limit_mb / 1024) * 10) / 10 || STORAGE_LIMITS.DEFAULT_GB
         const storagePercentage = client.storage_percentage || 0
+        
+        // Show in MB if under 1 GB, otherwise show in GB with 1 decimal
+        const storageUsedDisplay = storageUsedGB < 1 
+          ? `${Math.round(storageUsedMB)} MB`
+          : `${storageUsedGB.toFixed(1).replace('.', ',')} GB`
         
         return (
           <div>
                     <div className="mb-1 text-sm font-medium text-gray-900">
-                      {storageUsedGB} GB af {storageLimitGB} GB
+                      {storageUsedDisplay} af {storageLimitGB.toFixed(1).replace('.', ',')} GB ({storagePercentage.toFixed(1).replace('.', ',')}%)
                     </div>
                     <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-200">
                       <div

@@ -229,10 +229,47 @@ export default function DashboardPage() {
     ])
 
     const downloadsLastWeek = recentEvents?.length || 0
-    const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
-    const storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
-    const storageLimitGB = 10
-    const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100)
+    
+    // Get actual storage usage from Storage API
+    let storageUsedBytes = 0
+    let storageUsedGB = 0
+    let storageLimitGB = 10 // Default fallback
+    try {
+      const storageResponse = await fetch(`/api/storage-usage/${clientId}`)
+      if (storageResponse.ok) {
+        const storageData = await storageResponse.json()
+        storageUsedBytes = storageData.total_bytes || 0
+        storageUsedGB = storageData.total_gb || 0
+        storageLimitGB = storageData.storage_limit_gb || 10
+        console.log('[DASHBOARD] Storage data:', { 
+          storageUsedBytes, 
+          storageUsedGB, 
+          storageLimitGB, 
+          storageLimitMB: storageData.storage_limit_mb,
+          percentage: storageLimitGB > 0 ? Math.round((storageUsedGB / storageLimitGB) * 100) : 0,
+          fullData: storageData 
+        })
+      } else {
+        console.error('[DASHBOARD] Storage API failed:', storageResponse.status, await storageResponse.text())
+        // Fallback to DB calculation if API fails
+        storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
+        storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
+      }
+    } catch (error) {
+      console.error('[DASHBOARD] Error fetching storage usage:', error)
+      // Fallback to DB calculation if API fails
+      storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
+      storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
+    }
+    
+    const storagePercentage = storageLimitGB > 0 ? Math.min(Math.round((storageUsedGB / storageLimitGB) * 1000) / 10, 100) : 0 // Round to 1 decimal place
+
+    console.log('[DASHBOARD] Calculated storage percentage:', {
+      storageUsedGB,
+      storageLimitGB,
+      storagePercentage,
+      calculation: `${storageUsedGB} / ${storageLimitGB} * 100 = ${storagePercentage}%`
+    })
 
     const allAssets = allAssetsResult?.data || []
     const statsData = {
@@ -244,6 +281,8 @@ export default function DashboardPage() {
       storageLimitGB,
       userName: userData?.full_name || ""
     }
+    
+    console.log('[DASHBOARD] Setting statsData:', statsData)
 
     // Only update state if data actually changed to prevent unnecessary re-renders
     setAssets(prevAssets => {
@@ -251,9 +290,14 @@ export default function DashboardPage() {
       if (prevAssets.length === allAssets.length && 
           prevAssets.length > 0 && 
           prevAssets[0]?.id === allAssets[0]?.id) {
+        // Still update stats even if assets haven't changed (storage might have)
+        console.log('[DASHBOARD] Assets unchanged, but updating stats:', statsData)
+        setCachedData('stats', statsData)
+        setStats(statsData)
         return prevAssets // No change, return previous to prevent re-render
       }
       // Data changed - update cache and other states
+      console.log('[DASHBOARD] Assets changed, updating all data:', statsData)
       setCachedData('assets', allAssets)
       setCachedData('dimensions', dimensions || [])
       setCachedData('stats', statsData)
@@ -375,10 +419,47 @@ export default function DashboardPage() {
     ])
 
     const downloadsLastWeek = recentEvents?.length || 0
-    const storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
-    const storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
-    const storageLimitGB = 10
-    const storagePercentage = Math.min(Math.round((storageUsedGB / storageLimitGB) * 100), 100)
+    
+    // Get actual storage usage from Storage API
+    let storageUsedBytes = 0
+    let storageUsedGB = 0
+    let storageLimitGB = 10 // Default fallback
+    try {
+      const storageResponse = await fetch(`/api/storage-usage/${clientId}`)
+      if (storageResponse.ok) {
+        const storageData = await storageResponse.json()
+        storageUsedBytes = storageData.total_bytes || 0
+        storageUsedGB = storageData.total_gb || 0
+        storageLimitGB = storageData.storage_limit_gb || 10
+        console.log('[DASHBOARD] Storage data:', { 
+          storageUsedBytes, 
+          storageUsedGB, 
+          storageLimitGB, 
+          storageLimitMB: storageData.storage_limit_mb,
+          percentage: storageLimitGB > 0 ? Math.round((storageUsedGB / storageLimitGB) * 100) : 0,
+          fullData: storageData 
+        })
+      } else {
+        console.error('[DASHBOARD] Storage API failed:', storageResponse.status, await storageResponse.text())
+        // Fallback to DB calculation if API fails
+        storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
+        storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
+      }
+    } catch (error) {
+      console.error('[DASHBOARD] Error fetching storage usage:', error)
+      // Fallback to DB calculation if API fails
+      storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
+      storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
+    }
+    
+    const storagePercentage = storageLimitGB > 0 ? Math.min(Math.round((storageUsedGB / storageLimitGB) * 1000) / 10, 100) : 0 // Round to 1 decimal place
+
+    console.log('[DASHBOARD] Calculated storage percentage:', {
+      storageUsedGB,
+      storageLimitGB,
+      storagePercentage,
+      calculation: `${storageUsedGB} / ${storageLimitGB} * 100 = ${storagePercentage}%`
+    })
 
     const allAssets = allAssetsResult?.data || []
     const statsData = {
@@ -390,6 +471,8 @@ export default function DashboardPage() {
       storageLimitGB,
       userName: userData?.full_name || ""
     }
+    
+    console.log('[DASHBOARD] Setting statsData:', statsData)
 
     // Cache the data
     setCachedData('assets', allAssets)
@@ -587,7 +670,7 @@ export default function DashboardPage() {
               <Package className="h-4 w-4 text-gray-400" />
               <span className="text-sm font-medium text-gray-600">Storage usage</span>
             </div>
-            <div className="text-lg font-bold text-gray-900">{stats.storagePercentage}%</div>
+            <div className="text-lg font-bold text-gray-900">{stats.storagePercentage.toFixed(1).replace('.', ',')}%</div>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
             <div className="h-full" style={{ width: `${stats.storagePercentage}%`, backgroundColor: tenant.primary_color || '#dc3545' }} />

@@ -126,20 +126,17 @@ async function executeMigration(client: Client, migration: Migration): Promise<v
 
 async function runMigrations() {
   // Parse connection string to handle SSL properly
-  // Ensure SSL mode is set in connection string if not already present
   let connectionString = DATABASE_URL || ""
   
-  // Add SSL mode if not present and it's a Supabase connection
-  if (connectionString.includes("supabase") && !connectionString.includes("sslmode")) {
-    connectionString += (connectionString.includes("?") ? "&" : "?") + "sslmode=require"
-  }
+  // Remove sslmode from connection string if present (we'll use SSL object instead)
+  connectionString = connectionString.replace(/[?&]sslmode=[^&]*/g, '')
   
   // Always apply SSL config to handle self-signed certificates
   const connectionConfig: any = {
     connectionString,
-    ssl: connectionString.includes("supabase") || connectionString.includes("pooler") ? {
+    ssl: {
       rejectUnauthorized: false, // Allow self-signed certificates
-    } : undefined,
+    },
   }
   
   const client = new Client(connectionConfig)
