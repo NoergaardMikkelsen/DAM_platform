@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, memo, useCallback } from "react"
 import { Heart } from "lucide-react"
 import Link from "next/link"
 import { BatchAssetLoader } from "./asset-preview"
@@ -14,12 +14,11 @@ interface CollectionCardProps {
     title: string
     storage_path: string
     mime_type: string
-    thumbnail_path?: string | null
   }>
   onLoaded?: () => void // Callback when card is fully loaded
 }
 
-export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded }: CollectionCardProps) {
+function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoaded }: CollectionCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>(["", "", "", ""])
   const [assetTypes, setAssetTypes] = useState<string[]>(["placeholder", "placeholder", "placeholder", "placeholder"])
@@ -27,6 +26,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
   const [loadedImages, setLoadedImages] = useState<boolean[]>([false, false, false, false])
   const [urlsResolved, setUrlsResolved] = useState(false) // Track if URLs have been resolved
   const hasNotifiedLoaded = useRef(false) // Track if we've already notified parent
+  const prevAssetIdsRef = useRef<string>('') // Track previous asset IDs to prevent unnecessary resets
 
   // Calculate how many assets we actually have (non-placeholder)
   const actualAssetCount = assetTypes.filter(type => type !== "placeholder").length
@@ -38,46 +38,51 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
   // Notify parent when card is fully loaded (only once)
   useEffect(() => {
     if (allAssetsLoaded && onLoaded && !hasNotifiedLoaded.current) {
-      console.log(`[CollectionCard] "${label}": Card fully loaded, notifying parent`)
       hasNotifiedLoaded.current = true
       onLoaded()
     }
-  }, [allAssetsLoaded, onLoaded, label])
+  }, [allAssetsLoaded, onLoaded])
 
-  const handleImageLoad = (index: number) => {
-    console.log(`[CollectionCard] "${label}": Asset ${index} loaded (type: ${assetTypes[index]})`)
+  // Optimize handleImageLoad with useCallback
+  const handleImageLoad = useCallback((index: number) => {
     // Track loaded state for potential future use (currently not blocking card visibility)
     setLoadedImages(prev => {
       const newLoaded = [...prev]
       newLoaded[index] = true
       return newLoaded
     })
-  }
+  }, [])
 
   // Timeout fallbacks removed - cards show as soon as URLs are resolved
   // Media can load in background while card is already visible
 
   useEffect(() => {
-    // Reset states when previewAssets change
-    setUrlsResolved(false)
-    setLoadedImages([false, false, false, false])
-    setImageUrls(["", "", "", ""])
-    setAssetTypes(["placeholder", "placeholder", "placeholder", "placeholder"])
-    setVideoUrls(["", "", "", ""])
-    hasNotifiedLoaded.current = false // Reset notification flag
+    // Check if previewAssets actually changed by comparing IDs
+    const currentAssetIds = previewAssets.slice(0, 4).map(a => a.id).join(',')
+    
+    // Only reset if assets actually changed
+    if (prevAssetIdsRef.current !== currentAssetIds) {
+      prevAssetIdsRef.current = currentAssetIds
+      hasNotifiedLoaded.current = false // Reset notification flag first
+      
+      // Batch all state resets together to prevent multiple re-renders
+      setUrlsResolved(false)
+      setLoadedImages([false, false, false, false])
+      setImageUrls(["", "", "", ""])
+      setAssetTypes(["placeholder", "placeholder", "placeholder", "placeholder"])
+      setVideoUrls(["", "", "", ""])
+    }
     
     const fetchImageUrls = async () => {
       const loader = BatchAssetLoader.getInstance()
       const assetData: Array<{
         type: string
         storagePath: string
-        thumbnailPath?: string
         isVideo: boolean
         isPdf: boolean
       }> = []
 
       const videoCount = previewAssets.filter((a: any) => a.mime_type?.startsWith("video/")).length
-      console.log(`[CollectionCard] "${label}": Received ${previewAssets.length} preview assets (${videoCount} videos)`)
 
       // Collect all paths that need URLs
       for (const asset of previewAssets.slice(0, 4)) {
@@ -85,14 +90,9 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
           const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
 
           if (asset.mime_type.startsWith("video/")) {
-            const thumbnailPath = asset.thumbnail_path?.replace(/^\/+|\/+$/g, "")
-            console.log(`[CollectionCard] "${label}": Processing video asset: ${asset.id}`)
-            console.log(`[CollectionCard] "${label}":   - Storage path: ${cleanPath}`)
-            console.log(`[CollectionCard] "${label}":   - Thumbnail path: ${thumbnailPath || 'none'}`)
             assetData.push({
               type: "video",
               storagePath: cleanPath,
-              thumbnailPath: thumbnailPath,
               isVideo: true,
               isPdf: false
             })
@@ -145,52 +145,14 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
           types.push(data.type)
 
           if (data.isVideo) {
-            // Get video URL for video playback with error handling
-            console.log(`[CollectionCard] "${label}": Creating video promise for: ${data.storagePath}`)
+            // Direct video URL for both display and playback (no thumbnail handling)
             const videoPromise = loader.getSignedUrl(data.storagePath)
-              .then((url) => {
-                console.log(`[CollectionCard] "${label}": Video URL resolved: ${url.substring(0, 50)}...`)
-                return url
-              })
               .catch((error) => {
                 console.error(`[CollectionCard] "${label}": Error getting video URL for ${data.storagePath}:`, error)
                 return ""
               })
             videoUrlPromises.push(videoPromise)
-
-            // Get thumbnail URL for display, fallback to video URL
-            if (data.thumbnailPath) {
-              const thumbnailPath = data.thumbnailPath // Store in local variable for TypeScript
-              console.log(`[CollectionCard] "${label}": Requesting thumbnail URL for path: ${thumbnailPath}`)
-              // Create a promise that always resolves - either with thumbnail URL or video URL fallback
-              // Use Promise.race to ensure it resolves within 1 second or falls back to video immediately
-              const thumbnailPromise = (async () => {
-                try {
-                  // Try to get thumbnail URL with 1 second timeout (much faster fallback)
-                  const thumbnailUrl = await Promise.race([
-                    loader.getSignedUrl(thumbnailPath),
-                    new Promise<string>((_, reject) => 
-                      setTimeout(() => reject(new Error("Thumbnail URL timeout")), 1000)
-                    )
-                  ])
-                  console.log(`[CollectionCard] "${label}": Thumbnail URL resolved: ${thumbnailUrl.substring(0, 50)}...`)
-                  return thumbnailUrl
-                } catch (error) {
-                  // Fallback to video URL immediately - don't log warning as this is expected behavior
-                  try {
-                    const fallbackUrl = await videoPromise
-                    return fallbackUrl
-                  } catch (videoError) {
-                    console.error(`[CollectionCard] "${label}": Error getting fallback video URL:`, videoError)
-                    return ""
-                  }
-                }
-              })()
-              urlPromises.push(thumbnailPromise)
-            } else {
-              console.log(`[CollectionCard] "${label}": No thumbnail path, will use video URL as fallback`)
-              urlPromises.push(videoPromise)
-            }
+            urlPromises.push(videoPromise) // Use video URL directly for display
           } else {
             videoUrlPromises.push(Promise.resolve(""))
             urlPromises.push(
@@ -203,59 +165,29 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
         }
       }
 
-      // Wait for all URLs to resolve with error handling and timeout
+      // Wait for all URLs to resolve with error handling
+      // No timeout needed - URLs can load in background while card is visible
       try {
-        console.log(`[CollectionCard] "${label}": Waiting for ${urlPromises.length} URL promises to resolve...`)
-        console.log(`[CollectionCard] "${label}": URL promises: ${urlPromises.length}, Video promises: ${videoUrlPromises.length}`)
-        
-        // Create a timeout promise that rejects after 3 seconds (thumbnails have 1s timeout, so 3s is safe)
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Timeout: URL resolution took longer than 3 seconds for collection "${label}"`))
-          }, 3000)
-        })
-
-        const [urls, videoUrls] = await Promise.race([
-          Promise.all([
-            Promise.all(urlPromises),
-            Promise.all(videoUrlPromises)
-          ]),
-          timeoutPromise
+        const [urls, videoUrls] = await Promise.all([
+          Promise.all(urlPromises),
+          Promise.all(videoUrlPromises)
         ]) as [string[], string[]]
 
-        console.log(`[CollectionCard] "${label}": URLs resolved. Types: [${types.join(", ")}]`)
-        console.log(`[CollectionCard] "${label}": Video URLs:`, videoUrls.filter((url: string) => url !== ""))
-        console.log(`[CollectionCard] "${label}": Image/Thumbnail URLs:`, urls.filter((url: string) => url !== ""))
-        
-        // Log detailed info for each video
-        types.forEach((type, index) => {
-          if (type === "video") {
-            console.log(`[CollectionCard] "${label}": Video slot ${index}:`)
-            console.log(`[CollectionCard] "${label}":   - Has thumbnail URL: ${!!urls[index] && urls[index] !== ""}`)
-            console.log(`[CollectionCard] "${label}":   - Has video URL: ${!!videoUrls[index] && videoUrls[index] !== ""}`)
-            if (urls[index]) {
-              console.log(`[CollectionCard] "${label}":   - Thumbnail URL: ${urls[index].substring(0, 50)}...`)
-            }
-            if (videoUrls[index]) {
-              console.log(`[CollectionCard] "${label}":   - Video URL: ${videoUrls[index].substring(0, 50)}...`)
-            }
-          }
-        })
-
+        // Batch all state updates together to prevent multiple re-renders
+        // Use React's automatic batching (React 18+) - all setState calls in async callbacks are batched
         setImageUrls(urls)
         setAssetTypes(types)
         setVideoUrls(videoUrls)
-        setUrlsResolved(true) // Mark URLs as resolved
-        // Reset loadedImages when URLs change
         setLoadedImages([false, false, false, false])
+        setUrlsResolved(true) // Mark URLs as resolved last - this triggers card visibility
       } catch (error) {
         console.error(`[CollectionCard] "${label}": Error resolving URLs:`, error)
-        // Set empty URLs on error to prevent infinite loading
+        // Set empty URLs on error to prevent infinite loading - batch updates
         setImageUrls(["", "", "", ""])
         setAssetTypes(types)
         setVideoUrls(["", "", "", ""])
-        setUrlsResolved(true) // Still mark as resolved so card can show (even if empty)
         setLoadedImages([false, false, false, false])
+        setUrlsResolved(true) // Still mark as resolved so card can show (even if empty)
       }
     }
 
@@ -267,12 +199,11 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
   }, [previewAssets])
 
   return (
-    <Link href={`/assets/collections/${id}`}>
+    <Link href={`/assets/collections/${id}`} className="block w-full">
       <div 
-        className="relative w-full aspect-[239/200] overflow-hidden transition-opacity duration-300 ease-out" 
+        className="relative w-full aspect-[239/200] overflow-hidden" 
         style={{ 
           containerType: 'inline-size',
-          opacity: allAssetsLoaded ? 1 : 0
         }}
       >
         {/* SVG with mask for the exact shape */}
@@ -309,21 +240,32 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
           <g mask={`url(#cardMask-${id})`}>
             {/* 2x2 grid of images/videos - positioned based on reference */}
             {assetTypes[0] === "video" && (videoUrls[0] || imageUrls[0]) ? (
-              <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="0" 
+                y="0" 
+                width="119.5" 
+                height="95" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 {/* For videos, show thumbnail if available and different from video URL, otherwise show video */}
                 {imageUrls[0] && imageUrls[0] !== videoUrls[0] && !imageUrls[0].includes('.mp4') ? (
                   <img
                     src={imageUrls[0]}
+                    loading="lazy"
+                    decoding="async"
                     style={{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
+                      contain: 'layout style paint',
                     }}
                     alt="Video thumbnail"
                     crossOrigin="anonymous"
                     onLoad={() => {
-                      console.log(`[CollectionCard] "${label}": Thumbnail 0 loaded successfully`)
                       handleImageLoad(0)
                     }}
                     onError={() => {
@@ -353,15 +295,12 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                     muted
                     playsInline
                     onLoadedData={() => {
-                      console.log(`[CollectionCard] "${label}": Video 0 onLoadedData fired`)
                       handleImageLoad(0)
                     }}
                     onCanPlay={() => {
-                      console.log(`[CollectionCard] "${label}": Video 0 onCanPlay fired`)
                       handleImageLoad(0)
                     }}
                     onLoadedMetadata={() => {
-                      console.log(`[CollectionCard] "${label}": Video 0 onLoadedMetadata fired`)
                       handleImageLoad(0)
                     }}
                     onError={(e) => {
@@ -372,7 +311,15 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                 ) : null}
               </foreignObject>
             ) : assetTypes[0] === "pdf" ? (
-              <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="0" 
+                y="0" 
+                width="119.5" 
+                height="95" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <iframe
                   src={`${imageUrls[0]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                   style={{
@@ -387,14 +334,26 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                 />
               </foreignObject>
             ) : assetTypes[0] === "image" ? (
-              <foreignObject x="0" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="0" 
+                y="0" 
+                width="119.5" 
+                height="95" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <img
                   src={imageUrls[0]}
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    willChange: 'opacity',
+                    contain: 'layout style paint',
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
@@ -407,20 +366,31 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
             )}
 
             {assetTypes[1] === "video" && (videoUrls[1] || imageUrls[1]) ? (
-              <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="119.5" 
+                y="0" 
+                width="119.5" 
+                height="95" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 {imageUrls[1] && imageUrls[1] !== videoUrls[1] && !imageUrls[1].includes('.mp4') ? (
                   <img
                     src={imageUrls[1]}
+                    loading="lazy"
+                    decoding="async"
                     style={{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
+                      contain: 'layout style paint',
                     }}
                     alt="Video thumbnail"
                     crossOrigin="anonymous"
                     onLoad={() => {
-                      console.log(`[CollectionCard] "${label}": Thumbnail 1 loaded successfully`)
                       handleImageLoad(1)
                     }}
                     onError={() => {
@@ -442,32 +412,37 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
                     }}
                     preload="metadata"
                     muted
                     playsInline
                     onLoadedData={() => {
-                      console.log(`[CollectionCard] "${label}": Video 1 onLoadedData fired`)
                       handleImageLoad(1)
                     }}
                     onCanPlay={() => {
-                      console.log(`[CollectionCard] "${label}": Video 1 onCanPlay fired`)
                       handleImageLoad(1)
                     }}
                     onLoadedMetadata={() => {
-                      console.log(`[CollectionCard] "${label}": Video 1 onLoadedMetadata fired`)
                       handleImageLoad(1)
                     }}
-                    onError={(e) => {
-                      console.error(`[CollectionCard] "${label}": Video 1 error:`, e, `URL: ${videoUrls[1]}`)
+                    onError={() => {
                       handleImageLoad(1)
                     }}
                   />
                 ) : null}
               </foreignObject>
             ) : assetTypes[1] === "pdf" ? (
-              <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="119.5" 
+                y="0" 
+                width="119.5" 
+                height="95" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <iframe
                   src={`${imageUrls[1]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                   style={{
@@ -482,14 +457,26 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                 />
               </foreignObject>
             ) : assetTypes[1] === "image" ? (
-              <foreignObject x="119.5" y="0" width="119.5" height="95" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="119.5" 
+                y="0" 
+                width="119.5" 
+                height="95" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <img
                   src={imageUrls[1]}
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    willChange: 'opacity',
+                    contain: 'layout style paint',
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
@@ -501,20 +488,31 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
             )}
 
             {assetTypes[2] === "video" && (videoUrls[2] || imageUrls[2]) ? (
-              <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="0" 
+                y="95" 
+                width="119.5" 
+                height="105" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 {imageUrls[2] && imageUrls[2] !== videoUrls[2] && !imageUrls[2].includes('.mp4') ? (
                   <img
                     src={imageUrls[2]}
+                    loading="lazy"
+                    decoding="async"
                     style={{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
+                      contain: 'layout style paint',
                     }}
                     alt="Video thumbnail"
                     crossOrigin="anonymous"
                     onLoad={() => {
-                      console.log(`[CollectionCard] "${label}": Thumbnail 2 loaded successfully`)
                       handleImageLoad(2)
                     }}
                     onError={() => {
@@ -536,32 +534,37 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
                     }}
                     preload="metadata"
                     muted
                     playsInline
                     onLoadedData={() => {
-                      console.log(`[CollectionCard] "${label}": Video 2 onLoadedData fired`)
                       handleImageLoad(2)
                     }}
                     onCanPlay={() => {
-                      console.log(`[CollectionCard] "${label}": Video 2 onCanPlay fired`)
                       handleImageLoad(2)
                     }}
                     onLoadedMetadata={() => {
-                      console.log(`[CollectionCard] "${label}": Video 2 onLoadedMetadata fired`)
                       handleImageLoad(2)
                     }}
-                    onError={(e) => {
-                      console.error(`[CollectionCard] "${label}": Video 2 error:`, e, `URL: ${videoUrls[2]}`)
+                    onError={() => {
                       handleImageLoad(2)
                     }}
                   />
                 ) : null}
               </foreignObject>
             ) : assetTypes[2] === "pdf" ? (
-              <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="0" 
+                y="95" 
+                width="119.5" 
+                height="105" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <iframe
                   src={`${imageUrls[2]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                   style={{
@@ -576,14 +579,26 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                 />
               </foreignObject>
             ) : assetTypes[2] === "image" ? (
-              <foreignObject x="0" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="0" 
+                y="95" 
+                width="119.5" 
+                height="105" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <img
                   src={imageUrls[2]}
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    willChange: 'opacity',
+                    contain: 'layout style paint',
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
@@ -595,20 +610,31 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
             )}
 
             {assetTypes[3] === "video" && (videoUrls[3] || imageUrls[3]) ? (
-              <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="119.5" 
+                y="95" 
+                width="119.5" 
+                height="105" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 {imageUrls[3] && imageUrls[3] !== videoUrls[3] && !imageUrls[3].includes('.mp4') ? (
                   <img
                     src={imageUrls[3]}
+                    loading="lazy"
+                    decoding="async"
                     style={{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
+                      contain: 'layout style paint',
                     }}
                     alt="Video thumbnail"
                     crossOrigin="anonymous"
                     onLoad={() => {
-                      console.log(`[CollectionCard] "${label}": Thumbnail 3 loaded successfully`)
                       handleImageLoad(3)
                     }}
                     onError={() => {
@@ -630,32 +656,37 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      willChange: 'opacity',
                     }}
                     preload="metadata"
                     muted
                     playsInline
                     onLoadedData={() => {
-                      console.log(`[CollectionCard] "${label}": Video 3 onLoadedData fired`)
                       handleImageLoad(3)
                     }}
                     onCanPlay={() => {
-                      console.log(`[CollectionCard] "${label}": Video 3 onCanPlay fired`)
                       handleImageLoad(3)
                     }}
                     onLoadedMetadata={() => {
-                      console.log(`[CollectionCard] "${label}": Video 3 onLoadedMetadata fired`)
                       handleImageLoad(3)
                     }}
-                    onError={(e) => {
-                      console.error(`[CollectionCard] "${label}": Video 3 error:`, e, `URL: ${videoUrls[3]}`)
+                    onError={() => {
                       handleImageLoad(3)
                     }}
                   />
                 ) : null}
               </foreignObject>
             ) : assetTypes[3] === "pdf" ? (
-              <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="119.5" 
+                y="95" 
+                width="119.5" 
+                height="105" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <iframe
                   src={`${imageUrls[3]}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                   style={{
@@ -670,14 +701,26 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
                 />
               </foreignObject>
             ) : assetTypes[3] === "image" ? (
-              <foreignObject x="119.5" y="95" width="119.5" height="105" mask={`url(#cardMask-${id})`}>
+              <foreignObject 
+                x="119.5" 
+                y="95" 
+                width="119.5" 
+                height="105" 
+                mask={`url(#cardMask-${id})`}
+                className={urlsResolved ? "animate-stagger-fade-in" : "opacity-0"}
+                style={urlsResolved ? { animationDelay: '0ms' } : {}}
+              >
                 <img
                   src={imageUrls[3]}
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    willChange: 'opacity',
+                    contain: 'layout style paint',
                   }}
                   alt="Asset preview"
                   crossOrigin="anonymous"
@@ -718,31 +761,7 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
 
           </g>
 
-          {/* Video play icons - outside mask */}
-          {assetTypes[0] === "video" && (
-            <g>
-              <circle cx="59.75" cy="47.5" r="15" fill="rgba(0,0,0,0.8)" />
-              <polygon points="56.75,43.5 56.75,51.5 62.75,47.5" fill="white" />
-            </g>
-          )}
-          {assetTypes[1] === "video" && (
-            <g>
-              <circle cx="179.25" cy="47.5" r="15" fill="rgba(0,0,0,0.8)" />
-              <polygon points="176.25,43.5 176.25,51.5 182.25,47.5" fill="white" />
-            </g>
-          )}
-          {assetTypes[2] === "video" && (
-            <g>
-              <circle cx="59.75" cy="142.5" r="15" fill="rgba(0,0,0,0.8)" />
-              <polygon points="56.75,138.5 56.75,146.5 62.75,142.5" fill="white" />
-            </g>
-          )}
-          {assetTypes[3] === "video" && (
-            <g>
-              <circle cx="179.25" cy="142.5" r="15" fill="rgba(0,0,0,0.8)" />
-              <polygon points="176.25,138.5 176.25,146.5 182.25,142.5" fill="white" />
-            </g>
-          )}
+          {/* Video play icons removed for faster loading */}
 
 
           {/* HTML content inside SVG using foreignObject - automatically clipped by mask */}
@@ -872,3 +891,18 @@ export function CollectionCard({ id, label, assetCount, previewAssets, onLoaded 
     </Link>
   )
 }
+
+// Memoize component to prevent unnecessary re-renders
+export const CollectionCard = memo(CollectionCardComponent, (prevProps, nextProps) => {
+  // Only re-render if critical props change
+  if (prevProps.id !== nextProps.id) return false
+  if (prevProps.label !== nextProps.label) return false
+  if (prevProps.assetCount !== nextProps.assetCount) return false
+  
+  // Compare preview assets by IDs
+  const prevIds = prevProps.previewAssets.slice(0, 4).map(a => a.id).join(',')
+  const nextIds = nextProps.previewAssets.slice(0, 4).map(a => a.id).join(',')
+  if (prevIds !== nextIds) return false
+  
+  return true // Props are equal, skip re-render
+})

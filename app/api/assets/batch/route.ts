@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user clients for access control
+    // Get user clients for access control - optimize with single query
     const { data: clientUsers } = await supabase
       .from('client_users')
       .select('client_id')
@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
       .eq('status', 'active')
 
     const clientIds = clientUsers?.map(cu => cu.client_id) || []
+
+    if (clientIds.length === 0) {
+      return NextResponse.json({ signedUrls: {} })
+    }
 
     // Verify asset access - batch check all assets at once
     let validAssets: Array<{ id: string; storage_path: string }> = []
@@ -52,15 +56,17 @@ export async function POST(request: NextRequest) {
         .select('id, storage_path, client_id')
         .in('id', assetIds)
         .in('client_id', clientIds)
+        .eq('status', 'active')
       
       validAssets = assets?.filter(a => a.storage_path) || []
     } else if (storagePaths && storagePaths.length > 0) {
-      // Fallback to storage path lookup
+      // Fallback to storage path lookup - optimize query
       const { data: assets } = await supabase
         .from('assets')
         .select('id, storage_path, client_id')
         .in('storage_path', storagePaths)
         .in('client_id', clientIds)
+        .eq('status', 'active')
       
       validAssets = assets?.filter(a => a.storage_path) || []
     }

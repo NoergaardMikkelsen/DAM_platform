@@ -12,7 +12,6 @@ export interface Collection {
     title: string
     storage_path: string
     mime_type: string
-    thumbnail_path?: string | null
   }>
 }
 
@@ -117,8 +116,7 @@ export async function loadCollectionsFromDimensions(
           id: asset.id,
           title: asset.title,
           storage_path: asset.storage_path,
-          mime_type: asset.mime_type,
-          thumbnail_path: asset.current_version?.thumbnail_path || null
+          mime_type: asset.mime_type
         }))
 
         const previewVideoCount = previewAssets.filter((a: any) => a.mime_type?.startsWith("video/")).length

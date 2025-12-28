@@ -17,7 +17,6 @@ interface Asset {
   title: string
   storage_path: string
   mime_type: string
-  thumbnail_path?: string | null
 }
 
 interface Collection {
@@ -127,8 +126,8 @@ export default function CollectionsPage() {
     setCollections(allCollections)
     setFilteredCollections(allCollections)
 
-    // Add small delay to ensure collection images have time to load
-    setTimeout(() => setIsLoading(false), 1000)
+    // Set loading to false immediately - collection cards handle their own loading states
+    setIsLoading(false)
   }
 
   const applySearchAndSort = () => {

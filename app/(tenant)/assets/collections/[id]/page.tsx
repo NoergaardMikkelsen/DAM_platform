@@ -207,28 +207,20 @@ export default function CollectionDetailPage() {
             setSignedUrlsCache(signedUrls)
             setSignedUrlsReady(true)
             
-            // Start animation after a short delay to ensure assets are rendered
-            setTimeout(() => {
-              setShouldAnimate(true)
-            }, 200)
+            // Start animation immediately - no delay needed
+            setShouldAnimate(true)
           } else {
             setSignedUrlsReady(true) // Mark as ready even on error
-            setTimeout(() => {
-              setShouldAnimate(true)
-            }, 200)
+            setShouldAnimate(true)
           }
         } catch (error) {
           console.error("Error fetching signed URLs:", error)
           setSignedUrlsReady(true) // Mark as ready even on error
-          setTimeout(() => {
-            setShouldAnimate(true)
-          }, 200)
+          setShouldAnimate(true)
         }
       } else {
         setSignedUrlsReady(true) // No assets to load
-        setTimeout(() => {
-          setShouldAnimate(true)
-        }, 200)
+        setShouldAnimate(true)
       }
 
       const totalAssetsToLoad = assetsWithMedia.length

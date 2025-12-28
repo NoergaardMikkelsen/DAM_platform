@@ -3,11 +3,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 // Individual asset card skeleton
 export function AssetCardSkeleton() {
   return (
-    <div className="break-inside-avoid mb-6">
-      <div className="group overflow-hidden p-0 transition-shadow">
-        <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
-          <div className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100" />
-        </div>
+    <div className="group overflow-hidden p-0 transition-shadow">
+      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
+        <div className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100" />
       </div>
     </div>
   )
@@ -16,9 +14,11 @@ export function AssetCardSkeleton() {
 // Asset grid skeleton with dynamic count
 export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
   return (
-    <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+    <div className="gap-4 sm:gap-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
-        <AssetCardSkeleton key={i} />
+        <div key={i} className="w-full">
+          <AssetCardSkeleton />
+        </div>
       ))}
     </div>
   )
@@ -27,7 +27,7 @@ export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
 // Collection card skeleton with complex shape
 export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <div className="relative flex-shrink-0 w-full sm:w-[280px] aspect-[239/200] overflow-hidden">
+    <div className="relative w-full aspect-[239/200] overflow-hidden">
       <svg viewBox="0 0 239 200" className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <defs>
           <mask id={`skeletonMask-collection-${index}`} maskUnits="userSpaceOnUse" x="0" y="0" width="239" height="200">
@@ -44,11 +44,11 @@ export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
 }
 
 // Collection grid skeleton with dynamic count
-export function CollectionGridSkeleton({ count = 8 }: { count?: number }) {
+export function CollectionGridSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex gap-6 overflow-x-auto pb-2 sm:flex-nowrap">
+    <div className="gap-4 sm:gap-6 grid grid-cols-2 xl:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="flex-shrink-0">
+        <div key={i} className="w-full">
           <CollectionCardSkeleton index={i} />
         </div>
       ))}

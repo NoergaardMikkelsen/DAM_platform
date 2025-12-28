@@ -1,13 +1,14 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
-import { Loader2, Video, FileText } from "lucide-react"
+import { useEffect, useState, useCallback, useRef, memo } from "react"
+import { Loader2, FileText } from "lucide-react"
 
 interface AssetPreviewProps {
   storagePath: string
   mimeType: string
   alt: string
   className?: string
+  style?: React.CSSProperties
   signedUrl?: string
   showLoading?: boolean // Control whether to show loading spinner
   onAssetLoaded?: () => void // Callback when asset is fully loaded
@@ -69,10 +70,10 @@ class GlobalBatchManager {
       clearTimeout(this.batchTimeout)
     }
 
-    // Set new timeout - wait 100ms to collect more requests
+    // Set new timeout - wait 50ms to collect more requests (reduced from 100ms for faster loading)
     this.batchTimeout = setTimeout(() => {
       this.processPendingBatch()
-    }, 100)
+    }, 50)
   }
 
   private async processPendingBatch() {
@@ -144,7 +145,7 @@ class GlobalBatchManager {
 // Export for use in other components
 export const BatchAssetLoader = GlobalBatchManager
 
-export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl, showLoading = true, onAssetLoaded }: AssetPreviewProps) {
+function AssetPreviewComponent({ storagePath, mimeType, alt, className, style, signedUrl, showLoading = true, onAssetLoaded }: AssetPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(signedUrl || null)
   const [loading, setLoading] = useState(false) // Never show loading for pre-loaded assets
   const [error, setError] = useState(false)
@@ -162,9 +163,10 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
       const loader = BatchAssetLoader.getInstance()
       const url = await loader.getSignedUrl(storagePath)
       if (url && url !== '/placeholder.jpg') {
+        // Batch state updates together
         setPreviewUrl(url)
+        setError(false)
         hasLoadedRef.current = true
-        setError(false) // Clear any previous errors
         // Don't set loading to false here - wait for media to actually load
       } else {
         // Only show error after a delay to avoid flashing "failed to load"
@@ -182,28 +184,45 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
     }
   }, [storagePath, showLoading])
 
+  const handleLoad = useCallback(() => {
+    setMediaLoaded(true)
+    onAssetLoaded?.()
+  }, [onAssetLoaded])
+
+  const handleError = useCallback(() => {
+    setError(true)
+    setMediaLoaded(true)
+    if (showLoading) setLoading(false)
+    onAssetLoaded?.() // Call onAssetLoaded even on error so card can be shown
+  }, [showLoading, onAssetLoaded])
+
   useEffect(() => {
     // Don't load if we already have a preview URL
     if (previewUrl || hasLoadedRef.current) {
+      // Batch state updates
       setLoading(false)
       setMediaLoaded(true)
-      setError(false) // Clear errors if we have a URL
+      setError(false)
       return
     }
 
-    // Reset states when props change
-    setError(false)
-    setLoading(false) // Never show loading
-    setMediaLoaded(!!signedUrl)
-    setHasAttemptedLoad(!!signedUrl) // If we have signedUrl, we've attempted load
-
+    // Batch state resets when props change
     if (signedUrl) {
       setPreviewUrl(signedUrl)
       hasLoadedRef.current = true
-      setError(false) // Clear errors
+      setError(false)
+      setMediaLoaded(true)
+      setHasAttemptedLoad(true)
+      setLoading(false)
       // For signed URLs, we still need to wait for media to load in the browser
       return
     }
+
+    // Reset states when props change - batch updates
+    setError(false)
+    setLoading(false)
+    setMediaLoaded(false)
+    setHasAttemptedLoad(false)
 
     loadUrl()
   }, [storagePath, signedUrl, previewUrl, loadUrl])
@@ -255,23 +274,22 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
         src={previewUrl}
         alt={alt}
         className={className}
-        onLoad={() => {
-          setMediaLoaded(true)
-          onAssetLoaded?.()
+        loading="lazy"
+        decoding="async"
+        style={{
+          willChange: 'opacity',
+          contain: 'layout style paint',
+          ...style,
         }}
-        onError={() => {
-          setError(true)
-          setMediaLoaded(true)
-          if (showLoading) setLoading(false)
-          onAssetLoaded?.() // Call onAssetLoaded even on error so card can be shown
-        }}
+        onLoad={handleLoad}
+        onError={handleError}
       />
     )
   }
 
   if (isVideo) {
     return (
-      <div className={`relative ${className}`}>
+      <div className={`relative ${className}`} style={style}>
         {/* Loading overlay that maintains size */}
         {!mediaLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
@@ -287,29 +305,21 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
           preload="metadata"
           muted
           playsInline
-          onLoadedData={() => {
-            setMediaLoaded(true)
-            onAssetLoaded?.()
+          style={{
+            willChange: 'opacity',
+            ...style,
           }}
-          onError={() => {
-            setError(true)
-            setMediaLoaded(true)
-            if (showLoading) setLoading(false)
-          }}
+          onLoadedData={handleLoad}
+          onError={handleError}
         />
-        {/* Video play indicator overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-          <div className="rounded-full bg-white/90 p-2">
-            <Video className="h-4 w-4 text-gray-700" />
-          </div>
-        </div>
+        {/* Video play indicator overlay removed for faster loading */}
       </div>
     )
   }
 
   if (isPdf) {
     return (
-      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative`}>
+      <div className={`${className} bg-white border border-gray-200 overflow-hidden relative`} style={style}>
         {/* Loading overlay that maintains size */}
         {!mediaLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
@@ -323,21 +333,11 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
           src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitW`}
           className="w-full h-full"
           title={`PDF Preview: ${alt}`}
-          style={{ border: 'none', minHeight: '300px' }}
-          onLoad={() => {
-            setMediaLoaded(true)
-            onAssetLoaded?.()
-          }}
-          onError={() => {
-            setError(true)
-            setMediaLoaded(true)
-            if (showLoading) setLoading(false)
-          }}
+          style={{ border: 'none', minHeight: '300px', ...style }}
+          onLoad={handleLoad}
+          onError={handleError}
         />
-        {/* PDF overlay */}
-        <div className="absolute top-2 right-2 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded font-medium backdrop-blur-sm border border-gray-200">
-          PDF
-        </div>
+        {/* PDF overlay removed for faster loading */}
       </div>
     )
   }
@@ -350,4 +350,16 @@ export function AssetPreview({ storagePath, mimeType, alt, className, signedUrl,
     </div>
   )
 }
+
+// Memoize component to prevent unnecessary re-renders
+export const AssetPreview = memo(AssetPreviewComponent, (prevProps, nextProps) => {
+  // Only re-render if critical props change
+  return (
+    prevProps.storagePath === nextProps.storagePath &&
+    prevProps.signedUrl === nextProps.signedUrl &&
+    prevProps.mimeType === nextProps.mimeType &&
+    prevProps.alt === nextProps.alt &&
+    prevProps.className === nextProps.className
+  )
+})
 
