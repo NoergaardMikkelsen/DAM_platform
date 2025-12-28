@@ -80,22 +80,28 @@ export async function loadCollectionsFromDimensions(
     console.log(`[loadCollectionsFromDimensions] Dimension "${dimension.dimension_key}": Found ${assetTags?.length || 0} asset-tag relationships`)
 
     // Create collections for each tag
-    const dimensionCollections = tags
-      .map((tag: any) => {
+    const dimensionCollections = await Promise.all(tags.map(async (tag: any) => {
         const assetIds = tagAssetMap.get(tag.id) || []
-        const tagAssets = allAssets?.filter((a: any) => assetIds.includes(a.id)) || []
+        
+        // Fetch assets directly from database to ensure we get all assets for this tag
+        // This ensures we get assets even if they're not in allAssets
+        let tagAssets: any[] = []
+        
+        if (assetIds.length > 0) {
+          const { data: fetchedAssets } = await supabase
+            .from("assets")
+            .select("id, title, storage_path, mime_type, created_at, file_size")
+            .eq("client_id", clientId)
+            .in("id", assetIds)
+            .eq("status", "active")
+          
+          tagAssets = fetchedAssets || []
+        }
         
         const videoAssets = tagAssets.filter((a: any) => a.mime_type?.startsWith("video/"))
-        const missingVideoIds = assetIds.filter((id: string) => {
-          const asset = allAssets?.find((a: any) => a.id === id)
-          return asset && asset.mime_type?.startsWith("video/") && !tagAssets.find((ta: any) => ta.id === id)
-        })
-
+        
         if (tagAssets.length !== assetIds.length) {
-          console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Found ${assetIds.length} asset IDs in asset_tags, but only ${tagAssets.length} assets in allAssets array`)
-          if (missingVideoIds.length > 0) {
-            console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Missing ${missingVideoIds.length} video assets:`, missingVideoIds)
-          }
+          console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Found ${assetIds.length} asset IDs in asset_tags, but only ${tagAssets.length} active assets loaded`)
         }
         
         if (videoAssets.length > 0) {
@@ -134,10 +140,10 @@ export async function loadCollectionsFromDimensions(
           assetCount: tagAssets.length,
           previewAssets,
         }
-      })
-      .filter((c: any) => c.assetCount > 0)
+      }))
 
-    return dimensionCollections
+    // Filter out collections with no assets
+    return dimensionCollections.filter((c: any) => c.assetCount > 0)
   })
 
   // Wait for all collections to load
