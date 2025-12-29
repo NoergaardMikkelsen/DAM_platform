@@ -57,24 +57,37 @@ export default function AssetsPage() {
   const [collectionsReady, setCollectionsReady] = useState(false) // Track when collections are ready to animate
   const [assetsReady, setAssetsReady] = useState(false) // Track when assets are ready to animate
   const [isUsingCachedData, setIsUsingCachedData] = useState(false) // Track if we're using cached data
+  const [tenantReady, setTenantReady] = useState(false) // Track when tenant is ready
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
 
 
 
+  // Cache helper functions - hook must be called unconditionally per React rules
+  const { getCachedData, setCachedData } = useLocalStorageCache('assets_cache')
+
+  // Wait for tenant to be fully ready before proceeding
   useEffect(() => {
-    // Wait for tenant to be available before loading data
-    if (!tenant?.id) return
-    loadData()
+    if (tenant?.id) {
+      setTenantReady(true)
+    } else {
+      setTenantReady(false)
+    }
   }, [tenant?.id])
+
+  useEffect(() => {
+    // Only load data when tenant is confirmed ready
+    if (!tenantReady || !tenant?.id) {
+      return
+    }
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantReady, tenant?.id])
 
   useEffect(() => {
     applySearchAndSort()
   }, [assets, searchQuery, sortBy])
-
-  // Cache helper functions
-  const { getCachedData, setCachedData } = useLocalStorageCache('assets_cache')
 
   const loadData = async () => {
     // Use tenant from context - tenant layout already verified access
@@ -84,12 +97,14 @@ export default function AssetsPage() {
       setIsLoadingCollections(false)
       return
     }
-    const clientId = tenant.id
+    
+    try {
+      const clientId = tenant.id
 
-    // Try to load from cache first
-    const cachedAssets = getCachedData<Asset[]>('assets')
-    const cachedDimensions = getCachedData<any[]>('dimensions')
-    const cachedCollections = getCachedData<Collection[]>('collections')
+      // Try to load from cache first - only if tenant is ready
+      const cachedAssets = getCachedData<Asset[]>('assets')
+      const cachedDimensions = getCachedData<any[]>('dimensions')
+      const cachedCollections = getCachedData<Collection[]>('collections')
 
     if (cachedAssets && cachedDimensions) {
       // Use cached data - show immediately
@@ -141,6 +156,12 @@ export default function AssetsPage() {
     // No cache - load from database
     setIsUsingCachedData(false) // Reset flag when loading fresh data
     await refreshDataFromDatabase(clientId)
+    } catch (error) {
+      // Handle any errors during data loading
+      console.error('[ASSETS-PAGE] Error loading data:', error)
+      setIsLoading(false)
+      setIsLoadingCollections(false)
+    }
   }
 
   const refreshDataInBackground = async (clientId: string) => {
@@ -423,6 +444,20 @@ export default function AssetsPage() {
     setFilteredAssets(filteredAssets)
     setFilteredCollections(filteredCollectionsResult)
     setIsFilterOpen(false)
+  }
+
+  // Don't render until tenant is ready to prevent server-side rendering issues
+  // This ensures tenant context is fully initialized before rendering
+  if (!tenantReady || !tenant?.id) {
+    return (
+      <>
+        <div className="mx-auto w-full max-w-7xl">
+          <div className="p-4 sm:p-8">
+            <AssetGridSkeleton count={12} />
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (

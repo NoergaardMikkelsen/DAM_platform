@@ -1,7 +1,6 @@
 import type React from "react"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import Head from "next/head"
 import { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { BrandProvider } from "@/lib/context/brand-context"
@@ -34,7 +33,7 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
       const supabase = await createClient()
       const { data: tenant } = await supabase
         .from("clients")
-        .select("name, logo_url, favicon_url, logo_collapsed_url")
+        .select("id, name, logo_url, favicon_url, logo_collapsed_url")
         .eq("slug", tenantSlug)
         .eq("status", "active")
         .single()
@@ -280,9 +279,6 @@ export default async function AuthenticatedLayout({
     <TenantProvider tenant={tenant} userData={userData} role={role}>
       <BrandProvider>
         <SessionSyncProvider>
-          <Head>
-            <title>{tenant.name} - Digital Asset Management</title>
-          </Head>
           <TenantLayoutClient
             tenant={tenant}
             userData={userData}
