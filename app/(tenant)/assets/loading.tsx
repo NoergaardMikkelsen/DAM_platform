@@ -1,21 +1,6 @@
-import { AssetGridSkeleton, CollectionGridSkeleton, PageHeaderSkeleton, SectionHeaderSkeleton } from "@/components/skeleton-loaders"
-
+// This loading.tsx file has been disabled to prevent server-side rendering errors
+// The assets page handles loading state internally with client-side skeletons
 export default function Loading() {
-  return (
-    <div className="p-8">
-      <PageHeaderSkeleton showSearch={true} />
-
-      {/* Collections section skeleton - match maxCollections (typically 4 on desktop) */}
-      <div className="mb-10">
-        <SectionHeaderSkeleton showSort={true} />
-        <CollectionGridSkeleton count={4} />
-      </div>
-
-      {/* Assets section skeleton - match minimum shown (12) */}
-      <div>
-        <SectionHeaderSkeleton showSort={true} />
-        <AssetGridSkeleton count={12} />
-      </div>
-    </div>
-  )
+  // Return null to prevent any server-side rendering
+  return null
 }

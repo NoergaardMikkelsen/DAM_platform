@@ -8,9 +8,6 @@ import { TenantProvider } from "@/lib/context/tenant-context"
 import { SessionSyncProvider } from "@/components/session-sync-provider"
 import TenantLayoutClient from "./layout-client"
 
-// Force dynamic rendering to prevent server-side rendering issues
-export const dynamic = 'force-dynamic'
-
 export async function generateMetadata({ params }: { params: { tenant?: string } }): Promise<Metadata> {
   // Get tenant from URL params or extract from hostname
   const headersList = await headers()
@@ -36,31 +33,22 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
       const supabase = await createClient()
       const { data: tenant } = await supabase
         .from("clients")
-        .select("id, name, logo_url, favicon_url, logo_collapsed_url")
+        .select("name, logo_url, favicon_url, logo_collapsed_url")
         .eq("slug", tenantSlug)
         .eq("status", "active")
         .single()
 
-      if (tenant && tenant.id) {
-        // Only use favicon from storage - no fallback to default
-        // If no favicon_url, use logo_url, but never fallback to default favicon
-        const faviconUrl = tenant.favicon_url || tenant.logo_url
-        const appleIconUrl = tenant.favicon_url || tenant.logo_url
-        
-        // Add cache busting to metadata as well
-        const cacheBuster = tenant.id
-        
+      if (tenant) {
         return {
           title: `${tenant.name} - Digital Asset Management`,
-          icons: faviconUrl ? {
-            icon: `${faviconUrl}?v=${cacheBuster}`,
-            apple: `${appleIconUrl}?v=${cacheBuster}`,
-          } : undefined, // Don't set icons if no favicon/logo available - let client-side handle it
+          icons: {
+            icon: tenant.favicon_url || tenant.logo_url || "/logo/favicon/favicon-16x16.png",
+            apple: tenant.favicon_url || tenant.logo_url || "/apple-icon.png",
+          },
         }
       }
     } catch (error) {
-      // Silently fail - return fallback metadata instead of throwing
-      // This prevents server-side rendering errors
+      console.error('Error fetching tenant metadata:', error)
     }
   }
 
@@ -159,15 +147,28 @@ export default async function AuthenticatedLayout({
 
   // Lookup tenant by slug in database
   debugLog.push(`[TENANT-LAYOUT] Looking up tenant with slug: ${potentialSubdomain}`)
-  const { data: tenant, error: tenantError } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("slug", potentialSubdomain)
-    .eq("status", "active")
-    .single()
+  
+  let tenant = null
+  let tenantError = null
+  
+  try {
+    const result = await supabase
+      .from("clients")
+      .select("*")
+      .eq("slug", potentialSubdomain)
+      .eq("status", "active")
+      .maybeSingle() // Use maybeSingle() to avoid 406 errors
+    
+    tenant = result.data
+    tenantError = result.error
+  } catch (error) {
+    // Catch any unexpected errors during tenant lookup
+    tenantError = error as any
+    debugLog.push(`[TENANT-LAYOUT] Unexpected error during tenant lookup: ${error}`)
+  }
 
   if (tenantError) {
-    debugLog.push(`[TENANT-LAYOUT] Tenant query error: ${tenantError.message}`)
+    debugLog.push(`[TENANT-LAYOUT] Tenant query error: ${tenantError.message || 'Unknown error'}`)
   }
 
   debugLog.push(`[TENANT-LAYOUT] Tenant result: ${tenant ? `found (id: ${tenant.id}, name: ${tenant.name})` : 'not found'}`)
