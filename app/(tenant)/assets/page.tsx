@@ -472,7 +472,7 @@ export default function AssetsPage() {
         </div>
 
         {isLoadingCollections ? (
-          <CollectionGridSkeleton count={6} />
+          <CollectionGridSkeleton count={4} />
         ) : filteredCollections.length === 0 ? (
           <EmptyState
             icon={FolderOpen}
@@ -522,7 +522,9 @@ export default function AssetsPage() {
             </Select>
           </div>
 
-          {filteredAssets.length === 0 ? (
+          {isLoading ? (
+            <AssetGridSkeleton count={12} />
+          ) : filteredAssets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-gray-600">No assets found</p>
             </div>

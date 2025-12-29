@@ -1,38 +1,42 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { Card } from '@/components/ui/card'
+import Link from 'next/link'
 
-// Individual asset card skeleton
+// Individual asset card skeleton - matches actual asset card size
 export function AssetCardSkeleton() {
   return (
-    <div className="group overflow-hidden p-0 transition-shadow w-full" style={{ borderRadius: '20px' }}>
-      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 w-full" style={{ aspectRatio: '1 / 1', borderRadius: '20px' }}>
-        <div className="animate-pulse w-full h-full bg-gray-200" style={{ borderRadius: '20px' }} />
-        <button
-          className="absolute bottom-2 right-2 h-[48px] w-[48px] rounded-full opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center"
-          style={{
-            backgroundColor: '#E5E5E5',
-          }}
-        >
-          <svg
-            viewBox="0 8 25 20"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            preserveAspectRatio="xMidYMid"
+    <Link href="#" className="w-full" onClick={(e) => e.preventDefault()}>
+      <Card className="group overflow-hidden p-0 transition-shadow w-full" style={{ borderRadius: '20px' }}>
+        <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 w-full" style={{ aspectRatio: '1 / 1', borderRadius: '20px' }}>
+          <div className="animate-pulse w-full h-full bg-gray-200" style={{ borderRadius: '20px' }} />
+          <button
+            className="absolute bottom-2 right-2 h-[48px] w-[48px] rounded-full opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center"
             style={{
-              width: '22px',
-              height: '18px',
+              backgroundColor: '#E5E5E5',
             }}
           >
-            <path
-              d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
-              stroke="black"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
+            <svg
+              viewBox="0 8 25 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              preserveAspectRatio="xMidYMid"
+              style={{
+                width: '22px',
+                height: '18px',
+              }}
+            >
+              <path
+                d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                stroke="black"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </button>
+        </div>
+      </Card>
+    </Link>
   )
 }
 
@@ -49,7 +53,7 @@ export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
   )
 }
 
-// Collection card skeleton with complex shape
+// Collection card skeleton with complex shape - matches actual collection card size
 export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
   return (
     <div className="block w-full">

@@ -195,29 +195,37 @@ export default function TaggingPage() {
 
     tagsData = filteredTags || []
 
-    // Get asset counts for each tag
+    // Get asset counts for each tag - tenant-specific
     const tagCountsMap = new Map<string, number>()
 
     if (tagsData.length > 0) {
-      // Get all asset_tags for assets belonging to this tenant
-      // Since RLS is disabled, we need to manually filter by client_id
-      const { data: assetTags } = await supabase
-        .from("asset_tags")
-        .select(`
-          tag_id,
-          assets(client_id)
-        `)
-        .eq("assets.client_id", tenant.id)
+      // First, get all asset IDs for this tenant
+      const { data: tenantAssets } = await supabase
+        .from("assets")
+        .select("id")
+        .eq("client_id", tenant.id)
+        .eq("status", "active")
 
-      // Count occurrences of each tag_id (only for tags we're displaying)
-      const relevantTagIds = new Set(tagsData.map(t => t.id))
-      if (assetTags) {
-        assetTags.forEach((at: AssetTag) => {
-          if (relevantTagIds.has(at.tag_id)) {
-            const currentCount = tagCountsMap.get(at.tag_id) || 0
-            tagCountsMap.set(at.tag_id, currentCount + 1)
-          }
-        })
+      const tenantAssetIds = new Set(tenantAssets?.map((a: { id: string }) => a.id) || [])
+
+      if (tenantAssetIds.size > 0) {
+        // Get all asset_tags for assets belonging to this tenant only
+        const { data: assetTags } = await supabase
+          .from("asset_tags")
+          .select("tag_id, asset_id")
+          .in("asset_id", Array.from(tenantAssetIds))
+
+        // Count occurrences of each tag_id (only for tags we're displaying)
+        const relevantTagIds = new Set(tagsData.map(t => t.id))
+        if (assetTags) {
+          assetTags.forEach((at: AssetTag) => {
+            // Only count if asset belongs to this tenant and tag is relevant
+            if (tenantAssetIds.has(at.asset_id) && relevantTagIds.has(at.tag_id)) {
+              const currentCount = tagCountsMap.get(at.tag_id) || 0
+              tagCountsMap.set(at.tag_id, currentCount + 1)
+            }
+          })
+        }
       }
     }
 
