@@ -68,22 +68,18 @@ export default function AssetsPage() {
   const { getCachedData, setCachedData } = useLocalStorageCache('assets_cache')
 
   // Wait for tenant to be fully ready before proceeding
+  // Use the same pattern as dashboard - check tenant directly in loadData
   useEffect(() => {
+    // Start loading data immediately when tenant is available
+    // This matches the dashboard pattern for consistency
     if (tenant?.id) {
       setTenantReady(true)
+      loadData()
     } else {
       setTenantReady(false)
     }
-  }, [tenant?.id])
-
-  useEffect(() => {
-    // Only load data when tenant is confirmed ready
-    if (!tenantReady || !tenant?.id) {
-      return
-    }
-    loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantReady, tenant?.id])
+  }, [tenant?.id])
 
   useEffect(() => {
     applySearchAndSort()

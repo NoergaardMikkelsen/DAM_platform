@@ -8,6 +8,9 @@ import { TenantProvider } from "@/lib/context/tenant-context"
 import { SessionSyncProvider } from "@/components/session-sync-provider"
 import TenantLayoutClient from "./layout-client"
 
+// Force dynamic rendering to prevent server-side rendering issues
+export const dynamic = 'force-dynamic'
+
 export async function generateMetadata({ params }: { params: { tenant?: string } }): Promise<Metadata> {
   // Get tenant from URL params or extract from hostname
   const headersList = await headers()
@@ -38,7 +41,7 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
         .eq("status", "active")
         .single()
 
-      if (tenant) {
+      if (tenant && tenant.id) {
         // Only use favicon from storage - no fallback to default
         // If no favicon_url, use logo_url, but never fallback to default favicon
         const faviconUrl = tenant.favicon_url || tenant.logo_url
@@ -56,7 +59,8 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
         }
       }
     } catch (error) {
-      console.error('Error fetching tenant metadata:', error)
+      // Silently fail - return fallback metadata instead of throwing
+      // This prevents server-side rendering errors
     }
   }
 
