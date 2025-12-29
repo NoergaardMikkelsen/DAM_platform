@@ -33,7 +33,9 @@ interface UserWithRole {
 }
 
 export default function UsersPage() {
-  const { tenant } = useTenant()
+  const { tenant, role } = useTenant()
+  const isAdmin = role === 'admin' || role === 'superadmin'
+  const canCreate = isAdmin // Only admins and superadmins can create users
   const [allUsers, setAllUsers] = useState<UserWithRole[]>([])
   const [roleFilter, setRoleFilter] = useState("all")
   const [isLoading, setIsLoading] = useState(true)
@@ -126,14 +128,18 @@ export default function UsersPage() {
       align: "right",
       render: (user) => (
         <div className="flex items-center justify-end gap-2">
-          <Link href={`/users/${user.users?.id}`} onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Pencil className="h-4 w-4 text-gray-600" />
-            </Button>
-          </Link>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Trash2 className="h-4 w-4 text-red-600" />
-          </Button>
+          {isAdmin && (
+            <>
+              <Link href={`/users/${user.users?.id}`} onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Pencil className="h-4 w-4 text-gray-600" />
+                </Button>
+              </Link>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Trash2 className="h-4 w-4 text-red-600" />
+              </Button>
+            </>
+          )}
         </div>
       ),
     },
@@ -141,7 +147,7 @@ export default function UsersPage() {
 
   const loadingSkeleton = (
     <>
-      <ListPageHeaderSkeleton showCreateButton={true} />
+      <ListPageHeaderSkeleton showCreateButton={canCreate} />
       <SearchSkeleton />
       <TabsSkeleton count={4} />
       <TableSkeleton rows={8} columns={5} />
@@ -152,11 +158,11 @@ export default function UsersPage() {
     <>
       <TablePage
         title="Users"
-        createButton={{
+        createButton={canCreate ? {
           label: "Create new user",
           onClick: () => setIsCreateModalOpen(true),
           style: { backgroundColor: tenant.primary_color },
-        }}
+        } : undefined}
         search={{
           placeholder: "Search user",
           value: searchQuery,

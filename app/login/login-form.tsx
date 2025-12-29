@@ -32,6 +32,7 @@ function LoginForm({
   const [tenant, setTenant] = useState<TenantBranding | null>(serverTenant || null)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [currentHostname, setCurrentHostname] = useState<string>('')
 
   const redirectTo = searchParams.get('redirect') || '/dashboard'
   
@@ -44,8 +45,23 @@ function LoginForm({
       const host = window.location.hostname
       const isAdmin = host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost')
       setClientIsSystemAdmin(isAdmin)
+      
+      // Track hostname changes to reset error when switching tenants
+      if (host !== currentHostname) {
+        setCurrentHostname(host)
+        // Clear error when hostname changes (tenant switch)
+        setError(null)
+        
+        // Remove error parameter from URL when switching tenants
+        const url = new URL(window.location.href)
+        if (url.searchParams.has('error')) {
+          url.searchParams.delete('error')
+          // Replace URL without reload to remove error parameter
+          window.history.replaceState({}, '', url.toString())
+        }
+      }
     }
-  }, [])
+  }, [currentHostname])
   
   // Use client-side detection if server-side prop is false but we're on admin subdomain
   const effectiveIsSystemAdmin = isSystemAdmin || clientIsSystemAdmin
@@ -109,8 +125,27 @@ function LoginForm({
     loadTenantBranding()
   }, [serverTenant])
 
+
   useEffect(() => {
     const checkSession = async () => {
+      // Check for error parameter in URL
+      const errorParam = searchParams.get('error')
+      if (errorParam === 'no_access') {
+        setError('You do not have access to this tenant. Please contact your administrator.')
+        return
+      }
+
+      // If no error parameter, clear any existing error and remove from URL if present
+      if (!errorParam) {
+        setError(null)
+        // Also remove error parameter from URL if it exists (cleanup)
+        if (typeof window !== 'undefined' && window.location.search.includes('error=')) {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('error')
+          window.history.replaceState({}, '', url.toString())
+        }
+      }
+
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -129,13 +164,14 @@ function LoginForm({
             router.push(redirectUrl)
           }
         } else {
-          router.push('/dashboard')
+          // User doesn't have access to current tenant - don't redirect, show error
+          setError('You do not have access to this tenant. Please contact your administrator.')
         }
       }
     }
 
     checkSession()
-  }, [router])
+  }, [router, searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -412,15 +448,16 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
       }
 
       // Not a superadmin, check explicit tenant access
+      // Use maybeSingle() instead of single() to avoid 406 error when no access
       const { data: accessCheck, error: accessError } = await supabase
         .from("client_users")
         .select("id, role_id")
         .eq("user_id", userId)
         .eq("client_id", tenant.id)
         .eq("status", "active")
-        .single()
+        .maybeSingle()
 
-      if (accessCheck) {
+      if (accessCheck && !accessError) {
         return "/dashboard"
       }
     }

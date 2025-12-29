@@ -15,21 +15,9 @@ export const metadata: Metadata = {
   title: "Digital Asset Management | Nørgård Mikkelsen",
   description: "Professional Digital Asset Management system for managing and organizing your digital assets",
   generator: "Nørgård Mikkelsen",
-  icons: {
-    icon: [
-      {
-        url: "/logo/favicon/favicon-16x16.png",
-        sizes: "16x16",
-        type: "image/png",
-      },
-      {
-        url: "/logo/favicon/favicon-32x32.png",
-        sizes: "32x32",
-        type: "image/png",
-      },
-    ],
-    apple: "/apple-icon.png",
-  },
+  // Don't set icons here - let tenant layout handle favicon from storage
+  // This prevents default favicon from overriding tenant-specific favicons
+  icons: undefined,
 }
 
 export default function RootLayout({

@@ -17,6 +17,7 @@ export type Tenant = {
 type TenantContextType = {
   tenant: Tenant
   userData?: any
+  role?: string | null
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined)
@@ -25,16 +26,17 @@ interface TenantProviderProps {
   children: React.ReactNode
   tenant: Tenant | null
   userData?: any
+  role?: string | null
 }
 
-export function TenantProvider({ children, tenant, userData }: TenantProviderProps) {
+export function TenantProvider({ children, tenant, userData, role }: TenantProviderProps) {
   // Fail fast if no tenant - this should never happen in production
   if (!tenant) {
     throw new Error("Tenant context required but not provided. This indicates a routing or configuration error.")
   }
 
   return (
-    <TenantContext.Provider value={{ tenant, userData }}>
+    <TenantContext.Provider value={{ tenant, userData, role }}>
       {children}
     </TenantContext.Provider>
   )

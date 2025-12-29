@@ -56,6 +56,7 @@ export default function AssetsPage() {
   const [collectionsToShow, setCollectionsToShow] = useState(4) // Max 4 collections
   const [collectionsReady, setCollectionsReady] = useState(false) // Track when collections are ready to animate
   const [assetsReady, setAssetsReady] = useState(false) // Track when assets are ready to animate
+  const [isUsingCachedData, setIsUsingCachedData] = useState(false) // Track if we're using cached data
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -89,10 +90,10 @@ export default function AssetsPage() {
       setAssets(cachedAssets)
       setFilteredAssets(cachedAssets)
       setIsLoading(false)
-      // Mark assets as ready for animation after collections have started
-      const collectionsCount = cachedCollections?.length || 4
-      const collectionsAnimationDuration = Math.min(collectionsCount * 25, 200) + 200 // Reduced buffer for faster loading
-      setTimeout(() => setAssetsReady(true), collectionsAnimationDuration)
+      setIsUsingCachedData(true) // Mark that we're using cached data
+      
+      // Show assets and collections immediately when using cache (no animation delays)
+      setAssetsReady(true)
       
       // Load collections from cache if available
       if (cachedCollections) {
@@ -100,8 +101,8 @@ export default function AssetsPage() {
         setFilteredCollections(cachedCollections)
         setIsLoadingCollections(false)
         setCollectionsToShow(Math.min(cachedCollections.length, 4))
-        // Mark collections as ready for animation
-        setTimeout(() => setCollectionsReady(true), 50)
+        // Mark collections as ready immediately (no delay for cached data)
+        setCollectionsReady(true)
       } else if (cachedDimensions && cachedDimensions.length > 0) {
         // Build collections from cached dimensions and assets
         setIsLoadingCollections(true)
@@ -119,8 +120,8 @@ export default function AssetsPage() {
           setFilteredCollections(allCollections)
           setIsLoadingCollections(false)
           setCollectionsToShow(Math.min(allCollections.length, 4))
-          // Mark collections as ready for animation
-          setTimeout(() => setCollectionsReady(true), 50)
+          // Mark collections as ready immediately when built from cache
+          setCollectionsReady(true)
         })()
       } else {
         setIsLoadingCollections(true)
@@ -132,6 +133,7 @@ export default function AssetsPage() {
     }
 
     // No cache - load from database
+    setIsUsingCachedData(false) // Reset flag when loading fresh data
     await refreshDataFromDatabase(clientId)
   }
 
@@ -482,8 +484,8 @@ export default function AssetsPage() {
             {sortedCollections.slice(0, collectionsToShow).map((collection, index) => (
               <div
                 key={collection.id}
-                className={collectionsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full"}
-                style={collectionsReady ? {
+                className={isUsingCachedData ? "w-full" : (collectionsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full")}
+                style={!isUsingCachedData && collectionsReady ? {
                   animationDelay: `${Math.min(index * 25, 200)}ms`,
                 } : {}}
               >
@@ -529,17 +531,18 @@ export default function AssetsPage() {
               {filteredAssets.map((asset, index) => {
                 const hasMedia = (asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path
                 
-                // Smooth staggered loading - start after collections with minimal stagger
+                // Smooth staggered loading only when loading fresh data
+                // If data is from cache, show immediately without delays
                 const collectionsCount = collectionsToShow
-                const collectionsAnimationDuration = Math.min(collectionsCount * 25, 200) + 200 // Reduced buffer for faster loading
-                const assetDelay = collectionsAnimationDuration + (index * 15) // Reduced stagger delay for smoother flow
+                const collectionsAnimationDuration = isUsingCachedData ? 0 : Math.min(collectionsCount * 25, 200) + 200
+                const assetDelay = isUsingCachedData ? 0 : collectionsAnimationDuration + (index * 15)
                 
                 return (
                 <Link
                   key={asset.id}
                   href={`/assets/${asset.id}?context=all`}
-                  className={assetsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full"}
-                  style={assetsReady ? {
+                  className={isUsingCachedData ? "w-full" : (assetsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full")}
+                  style={!isUsingCachedData && assetsReady ? {
                     animationDelay: `${Math.min(assetDelay, collectionsAnimationDuration + 300)}ms`,
                   } : {}}
                 >

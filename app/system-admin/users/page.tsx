@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { RoleBadge } from "@/components/role-badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -50,6 +51,9 @@ interface ClientAssociation {
   client_id: string
 }
 
+// System client ID for superadmin identification (NMIC demo - not used for tenant access)
+const SYSTEM_CLIENT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
+
 export default function SystemUsersPage() {
   const [allUsers, setAllUsers] = useState<SystemUser[]>([])
   const [userTypeFilter, setUserTypeFilter] = useState("all")
@@ -62,7 +66,7 @@ export default function SystemUsersPage() {
     email: '',
     password: '',
     fullName: '',
-    role: DEFAULT_ROLES.ADMIN // default to admin, can be changed to superadmin
+    role: DEFAULT_ROLES.ADMIN as 'admin' | 'user' | 'superadmin' // default to admin
   })
   const [createUserError, setCreateUserError] = useState<string | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -70,11 +74,14 @@ export default function SystemUsersPage() {
   const [editUserForm, setEditUserForm] = useState({
     fullName: '',
     email: '',
-    role: 'admin'
+    role: 'user' as 'admin' | 'user' | 'superadmin'
   })
   const [editSelectedClients, setEditSelectedClients] = useState<string[]>([])
   const [editUserLoading, setEditUserLoading] = useState(false)
   const [editUserError, setEditUserError] = useState<string | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<SystemUser | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -106,9 +113,13 @@ export default function SystemUsersPage() {
     itemsPerPage,
     totalPages,
     paginatedItems: paginatedUsers,
+    totalItems,
     goToPage,
     nextPage,
     prevPage,
+    firstPage,
+    lastPage,
+    setItemsPerPage,
     isFirstPage,
     isLastPage,
   } = usePagination(filteredUsers, {
@@ -211,6 +222,7 @@ export default function SystemUsersPage() {
       .from("clients")
       .select("id, name, slug")
       .eq("status", "active")
+      .neq("id", SYSTEM_CLIENT_ID) // Exclude system client from selection
       .order("name")
 
     if (error) {
@@ -241,17 +253,30 @@ export default function SystemUsersPage() {
     }
 
     // Find the highest role for the default selection
-    let highestRole = 'admin'
+    // Start with null and only update if we find a role
+    let highestRole: 'admin' | 'user' | 'superadmin' | null = null
     const clientIds: string[] = []
 
     userClientData?.forEach((ucd: { client_id: string; roles: { key: string } }) => {
-      clientIds.push(ucd.client_id)
+      // Exclude system client from client selection list
+      if (ucd.client_id !== SYSTEM_CLIENT_ID) {
+        clientIds.push(ucd.client_id)
+      }
+      // Update highest role based on what we find
       if (ucd.roles.key === 'superadmin') {
         highestRole = 'superadmin'
       } else if (ucd.roles.key === 'admin' && highestRole !== 'superadmin') {
         highestRole = 'admin'
+      } else if (ucd.roles.key === 'user' && highestRole === null) {
+        highestRole = 'user'
       }
     })
+
+    // If no role found, use the user's highest_role from the SystemUser object
+    // This handles cases where user might not have any client associations yet
+    if (highestRole === null) {
+      highestRole = (user.highest_role as 'admin' | 'user' | 'superadmin' | null) || 'user'
+    }
 
     setEditingUser(user)
     setEditUserForm({
@@ -282,69 +307,182 @@ export default function SystemUsersPage() {
         if (updateError) throw updateError
       }
 
-      // Get the role ID for selected role
-      const { data: roleData, error: roleError } = await supabase
-        .from('roles')
-        .select('id')
-        .eq('key', editUserForm.role)
+      // Check if user is currently a superadmin (has entry in system client)
+      const { data: currentSystemClientEntry } = await supabase
+        .from('client_users')
+        .select('id, roles(key)')
+        .eq('user_id', editingUser.id)
+        .eq('client_id', SYSTEM_CLIENT_ID)
+        .eq('status', 'active')
         .single()
 
-      if (roleError) throw roleError
+      const wasSuperadmin = !!currentSystemClientEntry
+      const isBecomingSuperadmin = editUserForm.role === 'superadmin' && !wasSuperadmin
+      const isRemovingSuperadmin = wasSuperadmin && editUserForm.role !== 'superadmin'
 
-      // Get current client associations for this user
-      const { data: currentAssociations, error: currentError } = await supabase
-        .from('client_users')
-        .select('client_id')
-        .eq('user_id', editingUser.id)
-        .eq('status', 'active')
+      // Handle superadmin role changes
+      if (isBecomingSuperadmin) {
+        // User is being promoted to superadmin
+        // 1. Create superadmin entry in system client
+        const { data: superadminRoleData, error: superadminRoleError } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('key', 'superadmin')
+          .single()
 
-      if (currentError) throw currentError
+        if (superadminRoleError) throw superadminRoleError
 
-      const currentClientIds = currentAssociations?.map((ca: ClientAssociation) => ca.client_id) || []
-
-      // Clients to remove (in current but not in selected)
-      const clientsToRemove = currentClientIds.filter((id: string) => !editSelectedClients.includes(id))
-
-      // Clients to add (in selected but not in current)
-      const clientsToAdd = editSelectedClients.filter(id => !currentClientIds.includes(id))
-
-      // Remove associations for clients no longer selected
-      if (clientsToRemove.length > 0) {
-        const { error: removeError } = await supabase
+        const { error: superadminError } = await supabase
           .from('client_users')
-          .update({ status: 'inactive' })
-          .eq('user_id', editingUser.id)
-          .in('client_id', clientsToRemove)
+          .insert({
+            user_id: editingUser.id,
+            client_id: SYSTEM_CLIENT_ID,
+            role_id: superadminRoleData.id,
+            status: 'active'
+          })
 
-        if (removeError) throw removeError
+        if (superadminError) throw superadminError
+
+        // 2. Get all active clients (excluding system client) and create admin entries
+        const { data: allActiveClients, error: clientsError } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('status', 'active')
+          .neq('id', SYSTEM_CLIENT_ID)
+
+        if (clientsError) throw clientsError
+
+        if (allActiveClients && allActiveClients.length > 0) {
+          const { data: adminRoleData, error: adminRoleError } = await supabase
+            .from('roles')
+            .select('id')
+            .eq('key', 'admin')
+            .single()
+
+          if (adminRoleError) throw adminRoleError
+
+          // Get current tenant associations to avoid duplicates
+          const { data: currentTenantAssociations } = await supabase
+            .from('client_users')
+            .select('client_id')
+            .eq('user_id', editingUser.id)
+            .neq('client_id', SYSTEM_CLIENT_ID)
+            .eq('status', 'active')
+
+          const currentTenantIds = currentTenantAssociations?.map((ca: ClientAssociation) => ca.client_id) || []
+
+          // Create admin entries for tenants not already associated
+          const tenantsToAdd = allActiveClients
+            .filter((client: { id: string }) => !currentTenantIds.includes(client.id))
+            .map((client: { id: string }) => ({
+              user_id: editingUser.id,
+              client_id: client.id,
+              role_id: adminRoleData.id,
+              status: 'active'
+            }))
+
+          if (tenantsToAdd.length > 0) {
+            const { error: adminEntriesError } = await supabase
+              .from('client_users')
+              .insert(tenantsToAdd)
+
+            if (adminEntriesError) throw adminEntriesError
+          }
+
+          // Update existing tenant associations to admin role
+          if (currentTenantIds.length > 0) {
+            const { error: updateTenantError } = await supabase
+              .from('client_users')
+              .update({ role_id: adminRoleData.id })
+              .eq('user_id', editingUser.id)
+              .in('client_id', currentTenantIds)
+              .neq('client_id', SYSTEM_CLIENT_ID)
+              .eq('status', 'active')
+
+            if (updateTenantError) throw updateTenantError
+          }
+        }
+      } else if (isRemovingSuperadmin) {
+        // User is being demoted from superadmin
+        // Remove superadmin entry from system client
+        const { error: removeSuperadminError } = await supabase
+          .from('client_users')
+          .delete()
+          .eq('user_id', editingUser.id)
+          .eq('client_id', SYSTEM_CLIENT_ID)
+
+        if (removeSuperadminError) throw removeSuperadminError
       }
 
-      // Add new associations
-      if (clientsToAdd.length > 0) {
-        const newAssociations = clientsToAdd.map(clientId => ({
-          user_id: editingUser.id,
-          client_id: clientId,
-          role_id: roleData.id,
-          status: 'active'
-        }))
-
-        const { error: addError } = await supabase
+      // Handle tenant client associations (for non-superadmin or when superadmin role is maintained)
+      if (editUserForm.role !== 'superadmin' || !isBecomingSuperadmin) {
+        // Get current tenant associations (excluding system client)
+        const { data: currentAssociations, error: currentError } = await supabase
           .from('client_users')
-          .insert(newAssociations)
-
-        if (addError) throw addError
-      }
-
-      // Update existing associations (change role if needed)
-      if (editSelectedClients.length > 0) {
-        const { error: updateError } = await supabase
-          .from('client_users')
-          .update({ role_id: roleData.id })
+          .select('client_id')
           .eq('user_id', editingUser.id)
-          .in('client_id', editSelectedClients)
+          .neq('client_id', SYSTEM_CLIENT_ID)
           .eq('status', 'active')
 
-        if (updateError) throw updateError
+        if (currentError) throw currentError
+
+        const currentClientIds = currentAssociations?.map((ca: ClientAssociation) => ca.client_id) || []
+
+        // Clients to remove (in current but not in selected)
+        const clientsToRemove = currentClientIds.filter((id: string) => !editSelectedClients.includes(id))
+
+        // Clients to add (in selected but not in current)
+        const clientsToAdd = editSelectedClients.filter(id => !currentClientIds.includes(id))
+
+        // Get role ID for client assignments
+        const roleKeyForClients = editUserForm.role === 'superadmin' ? 'admin' : editUserForm.role
+        const { data: roleData, error: roleError } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('key', roleKeyForClients)
+          .single()
+
+        if (roleError) throw roleError
+
+        // Remove associations for clients no longer selected
+        if (clientsToRemove.length > 0) {
+          const { error: removeError } = await supabase
+            .from('client_users')
+            .delete()
+            .eq('user_id', editingUser.id)
+            .in('client_id', clientsToRemove)
+
+          if (removeError) throw removeError
+        }
+
+        // Add new associations
+        if (clientsToAdd.length > 0) {
+          const newAssociations = clientsToAdd.map(clientId => ({
+            user_id: editingUser.id,
+            client_id: clientId,
+            role_id: roleData.id,
+            status: 'active'
+          }))
+
+          const { error: addError } = await supabase
+            .from('client_users')
+            .insert(newAssociations)
+
+          if (addError) throw addError
+        }
+
+        // Update existing associations to ensure they use the correct role
+        if (editSelectedClients.length > 0) {
+          const { error: updateError } = await supabase
+            .from('client_users')
+            .update({ role_id: roleData.id })
+            .eq('user_id', editingUser.id)
+            .in('client_id', editSelectedClients)
+            .neq('client_id', SYSTEM_CLIENT_ID)
+            .eq('status', 'active')
+
+          if (updateError) throw updateError
+        }
       }
 
       // Reset form and close modal
@@ -353,7 +491,7 @@ export default function SystemUsersPage() {
       setEditUserForm({
         fullName: '',
         email: '',
-        role: 'admin'
+        role: 'user' as 'admin' | 'user' | 'superadmin'
       })
       setEditSelectedClients([])
 
@@ -364,6 +502,34 @@ export default function SystemUsersPage() {
       setEditUserError(error instanceof Error ? error.message : "Unknown error")
     } finally {
       setEditUserLoading(false)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return
+
+    const supabase = supabaseRef.current
+    setIsDeleting(true)
+
+    try {
+      // Delete all client_users entries for this user (cascade will handle the rest)
+      const { error } = await supabase
+        .from('client_users')
+        .delete()
+        .eq('user_id', userToDelete.id)
+
+      if (error) throw error
+
+      // Close dialog and reset state
+      setIsDeleteDialogOpen(false)
+      setUserToDelete(null)
+
+      // Reload users list
+      loadUsers()
+    } catch (error: unknown) {
+      setEditUserError(error instanceof Error ? error.message : "Failed to delete user")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -389,29 +555,92 @@ export default function SystemUsersPage() {
       if (authError) throw authError
 
       if (authData.user) {
-        // Get the role ID for selected role
-        const { data: roleData, error: roleError } = await supabase
-          .from('roles')
-          .select('id')
-          .eq('key', createUserForm.role)
-          .single()
+        if (createUserForm.role === 'superadmin') {
+          // Superadmin: 
+          // 1. Create superadmin entry in system client (ONLY for system-admin access identification - not for tenant access)
+          // 2. Automatically create admin entries on ALL active tenants (for tenant access)
+          
+          // Get superadmin role ID
+          const { data: superadminRoleData, error: superadminRoleError } = await supabase
+            .from('roles')
+            .select('id')
+            .eq('key', 'superadmin')
+            .single()
 
-        if (roleError) throw roleError
+          if (superadminRoleError) throw superadminRoleError
 
-        // Create client_users entries for selected clients
-        const clientUserInserts = selectedClients.map(clientId => ({
-          user_id: authData.user.id,
-          client_id: clientId,
-          role_id: roleData.id,
-          status: 'active'
-        }))
+          // Get admin role ID (for tenant assignments)
+          const { data: adminRoleData, error: adminRoleError } = await supabase
+            .from('roles')
+            .select('id')
+            .eq('key', 'admin')
+            .single()
 
-        if (clientUserInserts.length > 0) {
-          const { error: clientUserError } = await supabase
+          if (adminRoleError) throw adminRoleError
+
+          // Create superadmin entry in SYSTEM client (ONLY for system-admin access identification)
+          // This entry does NOT give access to the tenant - it's only used to identify superadmin status
+          const { error: superadminError } = await supabase
             .from('client_users')
-            .insert(clientUserInserts)
+            .insert({
+              user_id: authData.user.id,
+              client_id: SYSTEM_CLIENT_ID, // System client - not a real tenant
+              role_id: superadminRoleData.id,
+              status: 'active'
+            })
 
-          if (clientUserError) throw clientUserError
+          if (superadminError) throw superadminError
+
+          // Get ALL active clients (excluding system client) and create admin entries for superadmin
+          const { data: allActiveClients, error: clientsError } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('status', 'active')
+            .neq('id', SYSTEM_CLIENT_ID) // Exclude system client from tenant assignments
+
+          if (clientsError) throw clientsError
+
+          if (allActiveClients && allActiveClients.length > 0) {
+            // Create admin entries for superadmin on all active tenants (for tenant access)
+            const adminEntries = allActiveClients.map((client: { id: string }) => ({
+              user_id: authData.user.id,
+              client_id: client.id,
+              role_id: adminRoleData.id, // Admin role on tenants (NOT superadmin)
+              status: 'active'
+            }))
+
+            const { error: adminEntriesError } = await supabase
+              .from('client_users')
+              .insert(adminEntries)
+
+            if (adminEntriesError) throw adminEntriesError
+          }
+        } else {
+          // Admin or User: Only create entries for manually selected clients
+          // Get role ID for client assignments
+          const { data: roleData, error: roleError } = await supabase
+            .from('roles')
+            .select('id')
+            .eq('key', createUserForm.role)
+            .single()
+
+          if (roleError) throw roleError
+
+          // Create client_users entries for selected clients only
+          const clientUserInserts = selectedClients.map(clientId => ({
+            user_id: authData.user.id,
+            client_id: clientId,
+            role_id: roleData.id, // Use user's selected role (admin or user)
+            status: 'active'
+          }))
+
+          if (clientUserInserts.length > 0) {
+            const { error: clientUserError } = await supabase
+              .from('client_users')
+              .insert(clientUserInserts)
+
+            if (clientUserError) throw clientUserError
+          }
         }
       }
 
@@ -420,7 +649,7 @@ export default function SystemUsersPage() {
         email: '',
         password: '',
         fullName: '',
-        role: 'admin'
+        role: DEFAULT_ROLES.ADMIN as 'admin' | 'user' | 'superadmin'
       })
       setSelectedClients([])
       setIsCreateModalOpen(false)
@@ -485,7 +714,15 @@ export default function SystemUsersPage() {
           >
             <Pencil className="h-4 w-4 text-gray-600" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8"
+            onClick={() => {
+              setUserToDelete(user)
+              setIsDeleteDialogOpen(true)
+            }}
+          >
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
         </div>
@@ -534,9 +771,13 @@ export default function SystemUsersPage() {
         itemsPerPage,
         totalPages,
         paginatedItems: paginatedUsers,
+        totalItems,
         goToPage,
         nextPage,
         prevPage,
+        firstPage,
+        lastPage,
+        setItemsPerPage,
         isFirstPage,
         isLastPage,
       }}
@@ -594,12 +835,13 @@ export default function SystemUsersPage() {
                 <Label htmlFor="role">System Role *</Label>
                 <Select
                   value={createUserForm.role}
-                  onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value }))}
+                  onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value as 'admin' | 'user' | 'superadmin' }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="superadmin">Superadmin</SelectItem>
                   </SelectContent>
@@ -703,7 +945,7 @@ export default function SystemUsersPage() {
                 <Label htmlFor="editRole">System Role</Label>
                 <Select
                   value={editUserForm.role}
-                  onValueChange={(value) => setEditUserForm(prev => ({ ...prev, role: value }))}
+                  onValueChange={(value) => setEditUserForm(prev => ({ ...prev, role: value as 'admin' | 'user' | 'superadmin' }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -771,6 +1013,29 @@ export default function SystemUsersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete user "{userToDelete?.full_name || userToDelete?.email}"? 
+              This action cannot be undone and will remove all client associations for this user.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TablePage>
   )
 }

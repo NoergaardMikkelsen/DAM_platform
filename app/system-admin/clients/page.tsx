@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Settings, Pencil, Trash2, Building } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -63,6 +64,9 @@ export default function ClientsPage() {
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null)
   const [editClientLoading, setEditClientLoading] = useState(false)
   const [editClientError, setEditClientError] = useState<string | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -372,6 +376,33 @@ export default function ClientsPage() {
     }
   }
 
+  const handleDeleteClient = async () => {
+    if (!clientToDelete) return
+
+    const supabase = supabaseRef.current
+    setIsDeleting(true)
+
+    try {
+      // Delete the client (cascade will handle related records)
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientToDelete.id)
+
+      if (error) throw error
+
+      // Close dialog and reset state
+      setIsDeleteDialogOpen(false)
+      setClientToDelete(null)
+
+      // Reload clients list
+      loadClients()
+    } catch (error: unknown) {
+      setEditClientError(error instanceof Error ? error.message : "Failed to delete client")
+      setIsDeleting(false)
+    }
+  }
+
   const handleNavigateToClient = async (clientSlug: string) => {
     const supabase = createClient()
 
@@ -488,16 +519,43 @@ export default function ClientsPage() {
                       >
                         <Pencil className="h-4 w-4 text-gray-600" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setClientToDelete(client)
+                          setIsDeleteDialogOpen(true)
+                        }}
+                      >
                         <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 bg-black text-white hover:bg-gray-800"
+                        className="h-8 w-8 bg-black text-white hover:bg-gray-800 hover:text-white [&_svg]:opacity-100 [&_svg]:hover:opacity-100"
                         onClick={() => handleNavigateToClient(client.slug)}
                       >
-                        →
+                        <svg
+                          viewBox="0 8 25 20"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          preserveAspectRatio="xMidYMid"
+                          className="shrink-0 opacity-100"
+                          style={{
+                            width: '18px',
+                            height: '16px',
+                          }}
+                        >
+                          <path
+                            d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="1.5"
+                          />
+                        </svg>
                       </Button>
                     </div>
       ),
@@ -773,6 +831,29 @@ export default function ClientsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Client Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete client "{clientToDelete?.name}"? 
+              This action cannot be undone and will permanently remove all associated data including users, assets, and storage.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteClient}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TablePage>
   )
 }

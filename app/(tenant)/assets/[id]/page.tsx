@@ -140,8 +140,9 @@ export default function AssetDetailPage() {
   const id = params.id as string
 
   const router = useRouter()
-  const { tenant } = useTenant()
+  const { tenant, role } = useTenant()
   const { toast } = useToast()
+  const isAdmin = role === 'admin' || role === 'superadmin'
   const supabaseRef = useRef(createClient())
   const [isNavigating, startNavigation] = useTransition()
 
@@ -647,12 +648,12 @@ export default function AssetDetailPage() {
         .select("tag_id")
         .eq("asset_id", asset.id)
 
-      const currentTagIds = new Set(currentAssetTags?.map((at: any) => at.tag_id as string) || [])
-      const newTagIds = new Set(selectedTagIds)
+      const currentTagIds = new Set<string>(currentAssetTags?.map((at: any) => at.tag_id as string) || [])
+      const newTagIds = new Set<string>(selectedTagIds)
 
       // Find tags to add and remove
-      const tagsToAdd = [...newTagIds].filter((id: string) => !currentTagIds.has(id))
-      const tagsToRemove = [...currentTagIds].filter((id: string) => !newTagIds.has(id))
+      const tagsToAdd = Array.from(newTagIds).filter((id) => !currentTagIds.has(id))
+      const tagsToRemove = Array.from(currentTagIds).filter((id) => !newTagIds.has(id))
 
       // Add new tags
       if (tagsToAdd.length > 0) {
@@ -1462,23 +1463,24 @@ export default function AssetDetailPage() {
               </DropdownMenu>
 
               {/* Edit (transform) dropup */}
-              <DropdownMenu 
-                open={editDropdownOpen} 
-                onOpenChange={(open) => {
-                  setEditDropdownOpen(open)
-                  if (open) {
-                    setVersionDropdownOpen(false)
-                    setDownloadDropdownOpen(false)
-                    setIsShareDialogOpen(false)
-                  }
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" className="flex items-center gap-2">
-                    <Wand2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Edit</span>
-                  </Button>
-                </DropdownMenuTrigger>
+              {isAdmin && (
+                <DropdownMenu 
+                  open={editDropdownOpen} 
+                  onOpenChange={(open) => {
+                    setEditDropdownOpen(open)
+                    if (open) {
+                      setVersionDropdownOpen(false)
+                      setDownloadDropdownOpen(false)
+                      setIsShareDialogOpen(false)
+                    }
+                  }}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" className="flex items-center gap-2">
+                      <Wand2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </Button>
+                  </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="center"
                   side="top"
@@ -1515,19 +1517,22 @@ export default function AssetDetailPage() {
                   <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
                     Actions
                   </DropdownMenuLabel>
-                  <DropdownMenuItem
-                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-red-600 focus:bg-red-50 focus:text-red-700"
-                    onSelect={() => {
-                      void deleteAsset()
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                      <span>Delete asset</span>
-                    </div>
-                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-red-600 focus:bg-red-50 focus:text-red-700"
+                      onSelect={() => {
+                        void deleteAsset()
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <span>Delete asset</span>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
 
               {/* Download dropup (right, primary) */}
               <DropdownMenu 
@@ -1759,24 +1764,26 @@ export default function AssetDetailPage() {
                   <AccordionTrigger className="text-sm font-semibold text-gray-800">
                     <div className="flex items-center gap-2 flex-1">
                       <span>Tags</span>
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEditTags()
-                        }}
-                        className="h-6 w-6 p-0 hover:bg-gray-100 cursor-pointer inline-flex items-center justify-center rounded-md transition-colors"
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                      {isAdmin && (
+                        <div
+                          onClick={(e) => {
                             e.stopPropagation()
-                            e.preventDefault()
                             handleEditTags()
-                          }
-                        }}
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </div>
+                          }}
+                          className="h-6 w-6 p-0 hover:bg-gray-100 cursor-pointer inline-flex items-center justify-center rounded-md transition-colors"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              handleEditTags()
+                            }
+                          }}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </div>
+                      )}
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>

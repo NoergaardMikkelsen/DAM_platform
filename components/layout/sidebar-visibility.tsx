@@ -6,6 +6,10 @@ import type { ReactNode } from "react"
 const HIDE_PATTERNS = [/^\/assets\/[^/]+$/]
 
 function shouldHide(pathname: string) {
+  // Don't hide sidebar on collections page
+  if (pathname === '/assets/collections') {
+    return false
+  }
   return HIDE_PATTERNS.some((re) => re.test(pathname))
 }
 

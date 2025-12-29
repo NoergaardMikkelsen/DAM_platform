@@ -54,19 +54,43 @@ export function RoleBadge({
     }
   } else if (role === "user") {
     displayText = "User"
-    badgeClassName = "bg-gray-100 text-gray-800"
+    if (tenantPrimaryColor) {
+      // Use tenant primary color with 50% opacity for user badge background
+      // Text should remain normal color and visibility
+      badgeClassName = "text-gray-800"
+    } else {
+      badgeClassName = "bg-gray-100 text-gray-800"
+    }
   } else {
     displayText = "No Access"
     badgeClassName = "bg-gray-100 text-gray-600"
+  }
+
+  // Helper function to convert hex to rgba with opacity
+  const hexToRgba = (hex: string, opacity: number): string => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+  }
+
+  // Determine background color style
+  let backgroundColorStyle: React.CSSProperties = {}
+  if (tenantPrimaryColor) {
+    if (role === "superadmin" || role === "admin") {
+      // Admin roles get full color
+      backgroundColorStyle.backgroundColor = tenantPrimaryColor
+    } else if (role === "user") {
+      // User role gets 50% opacity on background only (not text)
+      backgroundColorStyle.backgroundColor = hexToRgba(tenantPrimaryColor, 0.5)
+    }
   }
 
   return (
     <Badge
       variant="secondary"
       className={`${badgeClassName} ${className}`}
-      style={tenantPrimaryColor && (role === "superadmin" || role === "admin") ? {
-        backgroundColor: tenantPrimaryColor
-      } : {}}
+      style={backgroundColorStyle}
     >
       {displayText}
     </Badge>

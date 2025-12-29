@@ -3,9 +3,34 @@ import { Skeleton } from '@/components/ui/skeleton'
 // Individual asset card skeleton
 export function AssetCardSkeleton() {
   return (
-    <div className="group overflow-hidden p-0 transition-shadow">
-      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 aspect-square animate-pulse">
-        <div className="absolute bottom-2 right-2 h-[42px] w-[42px] rounded-full bg-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100" />
+    <div className="group overflow-hidden p-0 transition-shadow w-full" style={{ borderRadius: '20px' }}>
+      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 w-full" style={{ aspectRatio: '1 / 1', borderRadius: '20px' }}>
+        <div className="animate-pulse w-full h-full bg-gray-200" style={{ borderRadius: '20px' }} />
+        <button
+          className="absolute bottom-2 right-2 h-[48px] w-[48px] rounded-full opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center"
+          style={{
+            backgroundColor: '#E5E5E5',
+          }}
+        >
+          <svg
+            viewBox="0 8 25 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            preserveAspectRatio="xMidYMid"
+            style={{
+              width: '22px',
+              height: '18px',
+            }}
+          >
+            <path
+              d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+              stroke="black"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </button>
       </div>
     </div>
   )
@@ -27,24 +52,45 @@ export function AssetGridSkeleton({ count = 12 }: { count?: number }) {
 // Collection card skeleton with complex shape
 export function CollectionCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <div className="relative w-full aspect-[239/200] overflow-hidden">
-      <svg viewBox="0 0 239 200" className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <mask id={`skeletonMask-collection-${index}`} maskUnits="userSpaceOnUse" x="0" y="0" width="239" height="200">
-            <path
-              d="M0 179V21C0 9.40202 9.40202 0 21 0H216.195C227.67 0 237.02 9.17764 237.181 20.652C237.598 50.258 238.304 103.407 238.304 123.5C238.304 152 206.152 133 188.658 156C171.163 179 193.386 200 144.499 200H20.9761C9.37811 200 0 190.598 0 179Z"
-              fill="white"
-            />
-          </mask>
-        </defs>
-        <rect x="0" y="0" width="239" height="200" fill="#e5e7eb" mask={`url(#skeletonMask-collection-${index})`} className="animate-pulse" />
-      </svg>
+    <div className="block w-full">
+      <div 
+        className="relative w-full aspect-[239/200] overflow-hidden" 
+        style={{ 
+          containerType: 'inline-size',
+        }}
+      >
+        <svg viewBox="0 0 239 200" className="w-full h-full absolute inset-0" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <mask id={`skeletonMask-collection-${index}`} maskUnits="userSpaceOnUse" x="0" y="0" width="239" height="200">
+              <path
+                d="M0 179V21C0 9.40202 9.40202 0 21 0H216.195C227.67 0 237.02 9.17764 237.181 20.652C237.598 50.258 238.304 103.407 238.304 123.5C238.304 152 206.152 133 188.658 156C171.163 179 193.386 200 144.499 200H20.9761C9.37811 200 0 190.598 0 179Z"
+                fill="white"
+              />
+            </mask>
+          </defs>
+          <rect x="0" y="0" width="239" height="200" fill="#e5e7eb" mask={`url(#skeletonMask-collection-${index})`} className="animate-pulse" />
+        </svg>
+      </div>
     </div>
   )
 }
 
 // Collection grid skeleton with dynamic count
-export function CollectionGridSkeleton({ count = 4 }: { count?: number }) {
+export function CollectionGridSkeleton({ count = 4, useAutoFill = false }: { count?: number; useAutoFill?: boolean }) {
+  if (useAutoFill) {
+    // For collections page - matches the dynamic grid layout
+    return (
+      <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 260px))' }}>
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} className="w-full">
+            <CollectionCardSkeleton index={i} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  
+  // For dashboard and assets library - matches the fixed grid layout (max 4 columns)
   return (
     <div className="gap-4 sm:gap-6 grid grid-cols-2 xl:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (

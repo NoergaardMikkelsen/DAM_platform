@@ -40,12 +40,20 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
         .single()
 
       if (tenant) {
+        // Only use favicon from storage - no fallback to default
+        // If no favicon_url, use logo_url, but never fallback to default favicon
+        const faviconUrl = tenant.favicon_url || tenant.logo_url
+        const appleIconUrl = tenant.favicon_url || tenant.logo_url
+        
+        // Add cache busting to metadata as well
+        const cacheBuster = tenant.id
+        
         return {
           title: `${tenant.name} - Digital Asset Management`,
-          icons: {
-            icon: tenant.favicon_url || tenant.logo_url || "/logo/favicon/favicon-16x16.png",
-            apple: tenant.favicon_url || tenant.logo_url || "/apple-icon.png",
-          },
+          icons: faviconUrl ? {
+            icon: `${faviconUrl}?v=${cacheBuster}`,
+            apple: `${appleIconUrl}?v=${cacheBuster}`,
+          } : undefined, // Don't set icons if no favicon/logo available - let client-side handle it
         }
       }
     } catch (error) {
@@ -196,17 +204,21 @@ export default async function AuthenticatedLayout({
 
   if (!isSuperAdmin) {
     // Not a superadmin, check explicit tenant access
-    const { data: accessCheck } = await supabase
+    // Use maybeSingle() instead of single() to avoid 406 error when no access
+    const { data: accessCheck, error: accessError } = await supabase
       .from("client_users")
       .select("id, role_id")
       .eq("user_id", user.id)
       .eq("client_id", tenant.id)
       .eq("status", "active")
-      .single()
+      .maybeSingle()
 
-    if (!accessCheck) {
-      // No access to this tenant - redirect to login
-      redirect("/login")
+    // If error occurred (not just no results) or no access found, redirect to login with error message
+    if (accessError || !accessCheck) {
+      // No access to this tenant - redirect to login with error parameter
+      debugLog.push(`[TENANT-LAYOUT] No access to tenant - redirecting to login`)
+      console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
+      redirect("/login?error=no_access")
     }
   }
 
@@ -265,7 +277,7 @@ export default async function AuthenticatedLayout({
 
   // Render tenant-scoped layout with loading screen
   return (
-    <TenantProvider tenant={tenant} userData={userData}>
+    <TenantProvider tenant={tenant} userData={userData} role={role}>
       <BrandProvider>
         <SessionSyncProvider>
           <Head>

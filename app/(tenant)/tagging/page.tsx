@@ -72,7 +72,9 @@ interface ChildTag {
 }
 
 export default function TaggingPage() {
-  const { tenant } = useTenant()
+  const { tenant, role } = useTenant()
+  const isAdmin = role === 'admin' || role === 'superadmin'
+  const canCreate = isAdmin // Only admins and superadmins can create tags
   const [tags, setTags] = useState<Tag[]>([])
   const [dimensions, setDimensions] = useState<TagDimension[]>([])
   const [dimensionFilter, setDimensionFilter] = useState("all")
@@ -385,29 +387,33 @@ export default function TaggingPage() {
             </Tooltip>
           ) : (
             <>
-              <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Pencil className="h-4 w-4 text-gray-600" />
-                </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={async (e) => {
-                  e.stopPropagation()
-                  const supabase = supabaseRef.current
-                  const { data: childTags } = await supabase
-                    .from("tags")
-                    .select("id")
-                    .eq("parent_id", tag.id)
-                  
-                  setChildTagsCount(childTags?.length || 0)
-                  setTagToDelete(tag)
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-red-600" />
-              </Button>
+              {isAdmin && (
+                <>
+                  <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Pencil className="h-4 w-4 text-gray-600" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const supabase = supabaseRef.current
+                      const { data: childTags } = await supabase
+                        .from("tags")
+                        .select("id")
+                        .eq("parent_id", tag.id)
+                      
+                      setChildTagsCount(childTags?.length || 0)
+                      setTagToDelete(tag)
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -432,8 +438,8 @@ export default function TaggingPage() {
               <button
                 className={`relative cursor-pointer inline-flex h-[35px] items-center justify-center gap-2 px-6 py-2 text-sm font-thin whitespace-nowrap transition-all ${
                   hasActiveInDropdown 
-                    ? 'bg-white text-gray-900 font-light' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-white text-gray-900 font-medium' 
+                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                 }`}
                 style={{
                   marginRight: '-8px',
@@ -460,8 +466,8 @@ export default function TaggingPage() {
                   onClick={() => setDimensionFilter(dim.dimension_key)}
                   className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
                     dimensionFilter === dim.dimension_key 
-                      ? 'bg-white text-gray-900 font-light' 
-                      : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-white text-gray-900 font-medium' 
+                      : 'text-gray-900 hover:bg-gray-50'
                   }`}
                 >
                   {dim.label}
@@ -472,8 +478,8 @@ export default function TaggingPage() {
                   onClick={() => setDimensionFilter('legacy')}
                   className={`px-3 py-2 text-sm font-thin rounded-sm transition-colors focus:bg-transparent ${
                     dimensionFilter === 'legacy' 
-                      ? 'bg-white text-gray-900 font-light' 
-                      : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-white text-gray-900 font-medium' 
+                      : 'text-gray-900 hover:bg-gray-50'
                   }`}
                 >
                   Legacy
@@ -491,7 +497,7 @@ export default function TaggingPage() {
 
   const loadingSkeleton = (
     <>
-      <ListPageHeaderSkeleton showCreateButton={true} />
+      <ListPageHeaderSkeleton showCreateButton={canCreate} />
       <SearchSkeleton />
       <TabsSkeleton count={3} />
       <TableSkeleton rows={8} columns={5} />
@@ -502,11 +508,11 @@ export default function TaggingPage() {
     <TooltipProvider>
       <TablePage
         title="Tagging"
-        createButton={{
+        createButton={canCreate ? {
           label: "Create new tag",
           onClick: () => setIsCreateModalOpen(true),
           style: { backgroundColor: tenant.primary_color },
-        }}
+        } : undefined}
         search={{
           placeholder: "Search tag",
           value: searchQuery,

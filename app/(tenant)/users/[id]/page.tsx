@@ -33,7 +33,8 @@ interface UserProfile {
 }
 
 export default function UserDetailPage() {
-  const { tenant } = useTenant()
+  const { tenant, role } = useTenant()
+  const isAdmin = role === 'admin' || role === 'superadmin'
   const paramsPromise = useParams()
   const { toast } = useToast()
   const [id, setId] = useState<string>("")
@@ -251,25 +252,31 @@ export default function UserDetailPage() {
             >
               {user.status}
             </Badge>
-            {!isEditing ? (
-              <Button variant="secondary" onClick={() => setIsEditing(true)}>
-                <Settings className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            ) : (
+            {isAdmin && (
               <>
-                <Button variant="secondary" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleEdit} disabled={isLoading}>
-                  Save Changes
-                </Button>
+                {!isEditing ? (
+                  <Button variant="secondary" onClick={() => setIsEditing(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="secondary" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleEdit} disabled={isLoading}>
+                      Save Changes
+                    </Button>
+                  </>
+                )}
               </>
             )}
-            <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
+            {isAdmin && (
+              <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            )}
           </div>
         </div>
       </div>

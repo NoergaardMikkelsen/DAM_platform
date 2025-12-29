@@ -61,9 +61,11 @@ export default function DashboardPage() {
   const supabaseRef = useRef(createClient())
   const { tenant, userData } = useTenant()
 
-
-  // Cache helper functions
-  const { getCachedData, setCachedData } = useLocalStorageCache('dashboard_cache')
+  // Cache helper functions - use shared cache with assets page for better UX
+  const { getCachedData, setCachedData } = useLocalStorageCache('assets_cache')
+  
+  // Track if we're using cached data (for instant display without animations)
+  const [isUsingCachedData, setIsUsingCachedData] = useState(false)
 
   useEffect(() => {
     // Handle cross-subdomain auth transfer (localhost workaround)
@@ -119,22 +121,38 @@ export default function DashboardPage() {
       return
     }
 
-    // Try to load from cache first
+    // Try to load from cache first - use shared cache with assets page
     const cachedAssets = getCachedData<Asset[]>('assets')
     const cachedDimensions = getCachedData<any[]>('dimensions')
     const cachedCollections = getCachedData<Collection[]>('collections')
     const cachedStats = getCachedData<any>('stats')
 
-    if (cachedAssets && cachedDimensions && cachedStats) {
+    // If we have assets and dimensions from cache (shared with assets page), use them immediately
+    // Stats can be loaded separately if not cached
+    if (cachedAssets && cachedDimensions) {
       // Use cached data - show immediately
+      // Batch state updates to prevent multiple re-renders
       setAssets(cachedAssets)
       setFilteredAssets(cachedAssets)
-      setStats(cachedStats)
+      
+      // Mark that we're using cached data (for instant display)
+      setIsUsingCachedData(true)
+      
+      // Use cached stats if available, otherwise will be loaded in background
+      if (cachedStats) {
+        setStats(cachedStats)
+      }
+      
       setIsLoading(false)
-      // Mark assets as ready for animation after collections have started
-      const collectionsCount = cachedCollections?.length || 4
-      const collectionsAnimationDuration = Math.min(collectionsCount * 25, 200) + 200 // Reduced buffer for faster loading
-      setTimeout(() => setAssetsReady(true), collectionsAnimationDuration)
+      
+      // Mark assets as ready for animation immediately if we have cached data
+      // This prevents the "staggered" loading effect when coming from cache
+      setAssetsReady(true)
+      
+      // Mark collections as ready too if we have them cached
+      if (cachedCollections) {
+        setCollectionsReady(true)
+      }
       
       if (cachedCollections) {
         setCollections(cachedCollections)
@@ -168,18 +186,115 @@ export default function DashboardPage() {
         setIsLoadingCollections(true)
       }
       
-      // Refresh in background
-      refreshDataInBackground(clientId)
+      // Refresh in background (will update stats if not cached, and refresh assets/collections)
+      // Only fetch stats if not cached, skip asset fetch if already cached and recent
+      refreshDataInBackground(clientId, true) // Pass flag to indicate we have cached assets
       return
     }
 
     // No cache - load from database
+    setIsUsingCachedData(false) // Reset flag when loading fresh data
     await refreshDataFromDatabase(clientId)
   }
 
-  const refreshDataInBackground = async (clientId: string) => {
+  const refreshDataInBackground = async (clientId: string, hasCachedAssets: boolean = false) => {
     const supabase = supabaseRef.current
     
+    // If we have cached assets, only fetch stats-related data, not all assets
+    // This prevents unnecessary re-fetching when navigating between pages
+    if (hasCachedAssets) {
+      const [
+        { count: totalAssetsCount },
+        { data: recentUploadsData },
+        { data: recentEvents },
+        { data: dimensions }
+      ] = await Promise.all([
+        supabase
+          .from("assets")
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", clientId),
+        supabase
+          .from("assets")
+          .select("id, title, storage_path, mime_type, created_at")
+          .eq("client_id", clientId)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("asset_events")
+          .select("*")
+          .eq("event_type", "download")
+          .eq("client_id", clientId)
+          .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+        getCollectionDimensions(supabase)
+      ])
+
+      const downloadsLastWeek = recentEvents?.length || 0
+      
+      // Get actual storage usage from Storage API
+      let storageUsedGB = 0
+      let storageLimitGB = 10 // Default fallback
+      try {
+        const storageResponse = await fetch(`/api/storage-usage/${clientId}`)
+        if (storageResponse.ok) {
+          const storageData = await storageResponse.json()
+          storageUsedGB = storageData.total_gb || 0
+          storageLimitGB = storageData.storage_limit_gb || 10
+        }
+      } catch (error) {
+        console.error('[DASHBOARD] Error fetching storage usage:', error)
+      }
+      
+      const storagePercentage = storageLimitGB > 0 ? Math.min(Math.round((storageUsedGB / storageLimitGB) * 1000) / 10, 100) : 0
+
+      const statsData = {
+        totalAssets: totalAssetsCount || 0,
+        recentUploads: recentUploadsData || [],
+        downloadsLastWeek,
+        storagePercentage,
+        storageUsedGB,
+        storageLimitGB,
+        userName: userData?.full_name || ""
+      }
+      
+      // Update stats cache and state
+      setCachedData('stats', statsData)
+      setStats(statsData)
+
+      // Only rebuild collections if dimensions changed, otherwise use cached collections
+      const cachedDimensions = getCachedData<any[]>('dimensions')
+      const dimensionsChanged = !cachedDimensions || 
+        JSON.stringify(cachedDimensions) !== JSON.stringify(dimensions || [])
+      
+      if (dimensionsChanged && dimensions && dimensions.length > 0) {
+        // Update dimensions cache
+        setCachedData('dimensions', dimensions)
+        
+        // Rebuild collections with updated dimensions
+        const cachedAssets = getCachedData<Asset[]>('assets')
+        if (cachedAssets) {
+          ;(async () => {
+            const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
+            const allCollections = await loadCollectionsFromDimensions(
+              supabase,
+              dimensions,
+              clientId,
+              cachedAssets
+            )
+            setCachedData('collections', allCollections)
+            setCollections(allCollections)
+            setFilteredCollections(allCollections)
+            setIsLoadingCollections(false)
+            setCollectionsToShow(Math.min(allCollections.length, 4))
+            setTimeout(() => setCollectionsReady(true), 50)
+          })()
+        }
+      }
+      
+      return // Early return - don't fetch all assets
+    }
+    
+    // No cached assets - fetch everything (original behavior)
     const [
       { count: totalAssetsCount },
       { data: recentUploadsData },
@@ -306,34 +421,31 @@ export default function DashboardPage() {
       return allAssets
     })
 
-    // Build collections in background only if dimensions exist and collections aren't already loaded
-    setCollections(prevCollections => {
-      if (prevCollections.length > 0) {
-        return prevCollections // Already loaded, don't rebuild
-      }
-      
-      // Build collections asynchronously
-      if (dimensions && dimensions.length > 0) {
-        ;(async () => {
-          const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
-          const allCollections = await loadCollectionsFromDimensions(
-            supabase,
-            dimensions,
-            clientId,
-            allAssets
-          )
-          setCachedData('collections', allCollections)
-          setCollections(allCollections)
-          setFilteredCollections(allCollections)
-          setIsLoadingCollections(false)
-          setCollectionsToShow(Math.min(allCollections.length, 4))
-          // Mark collections as ready for animation
-          setTimeout(() => setCollectionsReady(true), 50)
-        })()
-      }
-      
-      return prevCollections
-    })
+    // Build collections in background if dimensions exist
+    // Always rebuild to ensure collections are up-to-date with latest assets and dimensions
+    if (dimensions && dimensions.length > 0) {
+      ;(async () => {
+        const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
+        const allCollections = await loadCollectionsFromDimensions(
+          supabase,
+          dimensions,
+          clientId,
+          allAssets
+        )
+        setCachedData('collections', allCollections)
+        setCollections(allCollections)
+        setFilteredCollections(allCollections)
+        setIsLoadingCollections(false)
+        setCollectionsToShow(Math.min(allCollections.length, 4))
+        // Mark collections as ready for animation
+        setTimeout(() => setCollectionsReady(true), 50)
+      })()
+    } else {
+      // No dimensions - no collections possible
+      setCollections([])
+      setFilteredCollections([])
+      setIsLoadingCollections(false)
+    }
 
     // Batch fetch signed URLs for recent uploads (in background)
     const assetsWithMedia = (recentUploadsData || []).filter((asset: Asset) =>
@@ -617,14 +729,16 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <DashboardHeaderSkeleton />
-        <StatsGridSkeleton count={4} />
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="p-4 sm:p-8">
+          <DashboardHeaderSkeleton />
+          <StatsGridSkeleton count={4} />
+        </div>
 
         {/* Collections section skeleton */}
-        <div className="mb-8">
+        <div className="mb-10 relative px-4 sm:px-8">
           <SectionHeaderSkeleton showSort={true} />
-          <CollectionGridSkeleton count={6} />
+          <CollectionGridSkeleton count={4} />
         </div>
       </div>
     )
@@ -652,7 +766,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Welcome {stats.userName}</h1>
               <p className="mt-2 text-gray-600">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse varius enim
+                Manage your digital assets, explore collections, and track your storage usage all in one place.
               </p>
             </div>
             <Button variant="secondary" onClick={() => setIsFilterOpen(true)}>
@@ -748,8 +862,8 @@ export default function DashboardPage() {
             {sortedCollections.slice(0, collectionsToShow).map((collection, index) => (
               <div
                 key={collection.id}
-                className={collectionsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full"}
-                style={collectionsReady ? {
+                className={isUsingCachedData ? "w-full" : (collectionsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full")}
+                style={!isUsingCachedData && collectionsReady ? {
                   animationDelay: `${Math.min(index * 25, 200)}ms`,
                 } : {}}
               >
@@ -799,17 +913,18 @@ export default function DashboardPage() {
             {sortedAssets.map((asset, index) => {
               const hasMedia = (asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path
               
-              // Smooth staggered loading - start after collections with minimal stagger
+              // Smooth staggered loading only when loading fresh data
+              // If data is from cache, show immediately without delays
               const collectionsCount = collectionsToShow
-              const collectionsAnimationDuration = Math.min(collectionsCount * 25, 200) + 200 // Reduced buffer for faster loading
-              const assetDelay = collectionsAnimationDuration + (index * 15) // Reduced stagger delay for smoother flow
+              const collectionsAnimationDuration = isUsingCachedData ? 0 : Math.min(collectionsCount * 25, 200) + 200
+              const assetDelay = isUsingCachedData ? 0 : collectionsAnimationDuration + (index * 15)
               
               return (
                 <Link
                   key={asset.id}
                   href={`/assets/${asset.id}?context=all`}
-                  className={assetsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full"}
-                  style={assetsReady ? {
+                  className={isUsingCachedData ? "w-full" : (assetsReady ? "animate-stagger-fade-in w-full" : "opacity-0 w-full")}
+                  style={!isUsingCachedData && assetsReady ? {
                     animationDelay: `${Math.min(assetDelay, collectionsAnimationDuration + 300)}ms`,
                   } : {}}
                 >

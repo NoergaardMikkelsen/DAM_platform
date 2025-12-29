@@ -33,7 +33,8 @@ interface Tag {
 }
 
 export default function TagDetailPage() {
-  const { tenant } = useTenant()
+  const { tenant, role } = useTenant()
+  const isAdmin = role === 'admin' || role === 'superadmin'
   const params = useParams()
   const id = params?.id as string
   const [tag, setTag] = useState<Tag | null>(null)
@@ -245,7 +246,7 @@ export default function TagDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!tag.is_system && (
+            {!tag.is_system && isAdmin && (
               <>
                 {!isEditing ? (
                   <Button variant="secondary" onClick={() => setIsEditing(true)}>

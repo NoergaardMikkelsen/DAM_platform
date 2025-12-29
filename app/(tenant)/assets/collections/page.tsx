@@ -139,18 +139,22 @@ export default function CollectionsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <PageHeaderSkeleton showBackLink={true} showSearch={true} />
-        <SortingSkeleton />
-        <CollectionGridSkeleton count={12} />
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="p-4 sm:p-8">
+          <PageHeaderSkeleton showBackLink={true} showSearch={true} />
+          <SortingSkeleton />
+          <CollectionGridSkeleton count={12} useAutoFill={true} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="mb-8">
+    <>
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="p-4 sm:p-8">
+          {/* Header */}
+          <div className="mb-8">
         <button
           onClick={() => router.push('/assets')}
           className="mb-4 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
@@ -214,6 +218,8 @@ export default function CollectionsPage() {
           ))}
         </div>
       )}
-    </div>
+        </div>
+      </div>
+    </>
   )
 }

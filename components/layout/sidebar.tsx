@@ -92,18 +92,16 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
       ]
     }
     
-    // Tenant context - show client admin navigation for admins/superadmins
-    if (role === "admin" || role === "superadmin") {
-      return [
-        { href: "/users", label: "Users", icon: Users },
-        { href: "/tagging", label: "Tagging", icon: Tag },
-      ]
-    }
-    return []
+    // Tenant context - show client admin navigation for all users (but create buttons are hidden for user role)
+    return [
+      { href: "/users", label: "Users", icon: Users },
+      { href: "/tagging", label: "Tagging", icon: Tag },
+    ]
   }
 
   const adminNavItems = getAdminNavItems()
   const isAdmin = role === "admin" || role === "superadmin"
+  const showAdminSection = adminNavItems.length > 0 // Show admin section if there are admin nav items
 
   // Button size for calculations
   const buttonSize = 48;
@@ -280,7 +278,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
               )
             })}
 
-            {isAdmin && (
+            {showAdminSection && (
               <>
                 {!isCollapsed && <div className="mb-4 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin</div>}
                 {adminNavItems.map((item) => {
@@ -393,7 +391,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         <div className={`pb-20 pt-2 relative z-10 ${isCollapsed ? 'px-4' : 'px-4'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
             <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: tenant?.primary_color || '#000000' }}>
                 {(user.full_name || user.email)
                   .split(" ")
                   .map((n) => n[0])
