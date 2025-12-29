@@ -64,8 +64,10 @@ export default function AssetsPage() {
 
 
   useEffect(() => {
+    // Wait for tenant to be available before loading data
+    if (!tenant?.id) return
     loadData()
-  }, [])
+  }, [tenant?.id])
 
   useEffect(() => {
     applySearchAndSort()
@@ -74,10 +76,14 @@ export default function AssetsPage() {
   // Cache helper functions
   const { getCachedData, setCachedData } = useLocalStorageCache('assets_cache')
 
-  // Use refs to access current values in effects
-
   const loadData = async () => {
     // Use tenant from context - tenant layout already verified access
+    // Guard against tenant not being ready
+    if (!tenant?.id) {
+      setIsLoading(false)
+      setIsLoadingCollections(false)
+      return
+    }
     const clientId = tenant.id
 
     // Try to load from cache first

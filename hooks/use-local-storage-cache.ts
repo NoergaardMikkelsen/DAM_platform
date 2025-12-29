@@ -5,12 +5,17 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 export function useLocalStorageCache(prefix: string = 'cache') {
   const { tenant } = useTenant()
 
-  const getCacheKey = (key: string) => `${prefix}_${tenant.id}_${key}`
+  const getCacheKey = (key: string) => {
+    if (!tenant?.id) return null
+    return `${prefix}_${tenant.id}_${key}`
+  }
 
   const getCachedData = <T,>(key: string): T | null => {
     if (typeof window === 'undefined') return null
+    if (!tenant?.id) return null // Guard against tenant not being ready
     try {
       const cacheKey = getCacheKey(key)
+      if (!cacheKey) return null
       const cached = localStorage.getItem(cacheKey)
       if (!cached) return null
       
@@ -46,8 +51,10 @@ export function useLocalStorageCache(prefix: string = 'cache') {
 
   const setCachedData = <T,>(key: string, data: T) => {
     if (typeof window === 'undefined') return
+    if (!tenant?.id) return // Guard against tenant not being ready
     try {
       const cacheKey = getCacheKey(key)
+      if (!cacheKey) return
       const cacheValue = JSON.stringify({
         data,
         timestamp: Date.now()
@@ -101,7 +108,10 @@ export function useLocalStorageCache(prefix: string = 'cache') {
 
   const invalidateCache = (key: string) => {
     if (typeof window === 'undefined') return
-    localStorage.removeItem(getCacheKey(key))
+    if (!tenant?.id) return // Guard against tenant not being ready
+    const cacheKey = getCacheKey(key)
+    if (!cacheKey) return
+    localStorage.removeItem(cacheKey)
   }
 
   return {
