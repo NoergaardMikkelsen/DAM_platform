@@ -13,8 +13,7 @@ interface RoleBadgeProps {
  * Global RoleBadge component for consistent role badge styling across admin and tenant contexts
  * 
  * Terminology:
- * - "superadmin" in system-admin context → displays as "Superadmin"
- * - "superadmin" in tenant context → displays as "Admin" (since superadmin is just an admin on a client's side)
+ * - "superadmin" → displays as "Superadmin"
  * - "admin" → displays as "Admin"
  * - "user" → displays as "User"
  */
@@ -30,20 +29,8 @@ export function RoleBadge({
   let badgeClassName: string
 
   if (role === "superadmin") {
-    if (isSystemAdminContext) {
-      // Superadmin in system-admin context - show as "Superadmin"
-      displayText = "Superadmin"
-      badgeClassName = "bg-red-100 text-red-800"
-    } else {
-      // Superadmin in tenant context - show as "Admin"
-      displayText = "Admin"
-      if (tenantPrimaryColor) {
-        // Use tenant primary color for admin badge
-        badgeClassName = "text-white"
-      } else {
-        badgeClassName = "bg-blue-100 text-blue-800"
-      }
-    }
+    displayText = "Superadmin"
+    badgeClassName = "bg-red-100 text-red-800"
   } else if (role === "admin") {
     displayText = "Admin"
     if (tenantPrimaryColor) {

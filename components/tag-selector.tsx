@@ -91,8 +91,8 @@ export function TagSelector({
         onSelect(newTagId)
         setSearchQuery("")
       }
-    } catch (error) {
-      console.error("Error creating tag:", error)
+    } catch {
+      // Error creating tag - silently fail
     } finally {
       setIsCreating(false)
     }

@@ -37,7 +37,6 @@ export function useTags(
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Failed to load tags")
         setError(error)
-        console.error("Error loading tags:", error)
       } finally {
         setIsLoading(false)
       }
@@ -58,7 +57,6 @@ export function useTags(
         } catch (err) {
           const error = err instanceof Error ? err : new Error("Failed to load tags")
           setError(error)
-          console.error("Error loading tags:", error)
         } finally {
           setIsLoading(false)
         }

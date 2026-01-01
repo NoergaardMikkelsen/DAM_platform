@@ -15,11 +15,17 @@ interface AssetPreviewProps {
 }
 
 // Global batch manager to coordinate all asset loading requests
+interface BatchRequest {
+  storagePath: string
+  assetId?: string
+}
+
 class GlobalBatchManager {
   private static instance: GlobalBatchManager
   private pendingRequests = new Map<string, { promise: Promise<string>, resolve: (url: string) => void }>()
   private loadedUrls = new Map<string, string>()
-  private batchQueue: string[] = []
+  private batchQueue: BatchRequest[] = []
+  private assetIdMap = new Map<string, string>() // Map storagePath -> assetId
   private batchTimeout: NodeJS.Timeout | null = null
   private isProcessingBatch = false
 
@@ -30,10 +36,15 @@ class GlobalBatchManager {
     return GlobalBatchManager.instance
   }
 
-  async getSignedUrl(storagePath: string): Promise<string> {
+  async getSignedUrl(storagePath: string, assetId?: string): Promise<string> {
     // Return cached URL if available
     if (this.loadedUrls.has(storagePath)) {
       return this.loadedUrls.get(storagePath)!
+    }
+
+    // Store assetId mapping if provided
+    if (assetId) {
+      this.assetIdMap.set(storagePath, assetId)
     }
 
     // Return pending promise if request is already in progress
@@ -49,15 +60,27 @@ class GlobalBatchManager {
 
     // Now that promise is created, we can safely store it
     this.pendingRequests.set(storagePath, { promise, resolve: resolveCallback! })
-    this.addToBatch(storagePath, resolveCallback!)
+    this.addToBatch(storagePath, assetId, resolveCallback!)
 
     return promise
   }
 
-  private addToBatch(storagePath: string, resolve: (url: string) => void) {
-    // Add to batch queue
-    if (!this.batchQueue.includes(storagePath)) {
-      this.batchQueue.push(storagePath)
+  // Force process batch immediately (useful for collection cards)
+  forceProcessBatch(): void {
+    if (this.batchQueue.length > 0 && !this.isProcessingBatch) {
+      if (this.batchTimeout) {
+        clearTimeout(this.batchTimeout)
+        this.batchTimeout = null
+      }
+      this.processPendingBatch()
+    }
+  }
+
+  private addToBatch(storagePath: string, assetId: string | undefined, resolve: (url: string) => void) {
+    // Add to batch queue if not already there
+    const exists = this.batchQueue.some(req => req.storagePath === storagePath)
+    if (!exists) {
+      this.batchQueue.push({ storagePath, assetId })
     }
 
     // Schedule batch processing
@@ -70,74 +93,114 @@ class GlobalBatchManager {
       clearTimeout(this.batchTimeout)
     }
 
-    // Set new timeout - wait 50ms to collect more requests (reduced from 100ms for faster loading)
+    // Set new timeout - wait 100ms to collect more requests
+    // This ensures all collection card requests are batched together
+    // But also process immediately if queue is getting large (prevent delays)
+    const queueSize = this.batchQueue.length
+    const delay = queueSize >= 10 ? 50 : 100 // Process faster if many requests
+    
     this.batchTimeout = setTimeout(() => {
       this.processPendingBatch()
-    }, 50)
+    }, delay)
   }
 
   private async processPendingBatch() {
     if (this.isProcessingBatch || this.batchQueue.length === 0) return
 
     this.isProcessingBatch = true
-    const paths = [...this.batchQueue]
+    
+    // Wait a tiny bit more to ensure all collection card requests are collected
+    await new Promise(resolve => setTimeout(resolve, 10))
+    
+    const requests = [...this.batchQueue]
     this.batchQueue = []
 
-    // Processing batch
+    // Extract storage paths and asset IDs
+    const storagePaths = requests.map(req => req.storagePath)
+    const assetIds = requests
+      .map(req => req.assetId || this.assetIdMap.get(req.storagePath))
+      .filter((id): id is string => !!id)
 
-    try {
-      const response = await fetch('/api/assets/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storagePaths: paths })
-      })
 
-      if (!response.ok) {
-        throw new Error(`Batch API returned ${response.status}: ${response.statusText}`)
+    // Retry logic for failed batches
+    let retries = 0
+    const maxRetries = 2
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch('/api/assets/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            storagePaths,
+            assetIds: assetIds.length > 0 ? assetIds : undefined
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error(`Batch API returned ${response.status}: ${response.statusText}`)
+        }
+
+        const { signedUrls } = await response.json()
+
+        // Store all returned URLs and resolve pending promises
+        Object.entries(signedUrls || {}).forEach(([path, url]) => {
+          this.loadedUrls.set(path, url as string)
+          const pending = this.pendingRequests.get(path)
+          if (pending) {
+            pending.resolve(url as string)
+            this.pendingRequests.delete(path)
+          }
+        })
+
+        // Resolve remaining pending requests with fallback
+        storagePaths.forEach(path => {
+          if (!this.loadedUrls.has(path)) {
+            // Don't set placeholder immediately - let it retry or use proxy
+            const pending = this.pendingRequests.get(path)
+            if (pending) {
+              // Use proxy URL as fallback instead of placeholder
+              pending.resolve(`/api/assets/${encodeURIComponent(path)}`)
+              this.pendingRequests.delete(path)
+            }
+          } else {
+            // Make sure all pending requests are resolved
+            const pending = this.pendingRequests.get(path)
+            if (pending) {
+              pending.resolve(this.loadedUrls.get(path)!)
+              this.pendingRequests.delete(path)
+            }
+          }
+        })
+
+        // Success - break out of retry loop
+        break
+
+      } catch {
+        retries++
+        
+        if (retries > maxRetries) {
+          // Final failure - resolve all with proxy URLs as fallback
+          storagePaths.forEach(path => {
+            const pending = this.pendingRequests.get(path)
+            if (pending) {
+              // Use proxy URL instead of placeholder - better than nothing
+              pending.resolve(`/api/assets/${encodeURIComponent(path)}`)
+              this.pendingRequests.delete(path)
+            }
+          })
+        } else {
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 200 * retries))
+        }
       }
-
-      const { signedUrls } = await response.json()
-      // Got signed URLs
-
-      // Store all returned URLs and resolve pending promises
-      Object.entries(signedUrls).forEach(([path, url]) => {
-        this.loadedUrls.set(path, url as string)
-        const pending = this.pendingRequests.get(path)
-        if (pending) {
-          pending.resolve(url as string)
-          this.pendingRequests.delete(path)
-        }
-      })
-
-      // Resolve remaining pending requests with fallback
-      paths.forEach(path => {
-        if (!this.loadedUrls.has(path)) {
-          console.warn('[GlobalBatchManager] No URL returned for', path)
-          this.loadedUrls.set(path, '/placeholder.jpg')
-        }
-
-        const pending = this.pendingRequests.get(path)
-        if (pending) {
-          const url = this.loadedUrls.get(path) || '/placeholder.jpg'
-          pending.resolve(url)
-          this.pendingRequests.delete(path)
-        }
-      })
-
-    } catch (error) {
-      console.error('[GlobalBatchManager] Batch load failed:', error)
-
-      // Resolve all pending requests with fallback
-      paths.forEach(path => {
-        this.loadedUrls.set(path, '/placeholder.jpg')
-        const pending = this.pendingRequests.get(path)
-        if (pending) {
-          pending.resolve('/placeholder.jpg')
-          this.pendingRequests.delete(path)
-        }
-      })
-    } finally {
-      this.isProcessingBatch = false
+    }
+    
+    this.isProcessingBatch = false
+    
+    // Check if there are more requests queued while we were processing
+    if (this.batchQueue.length > 0) {
+      this.scheduleBatchProcessing()
     }
   }
 }

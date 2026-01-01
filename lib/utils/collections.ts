@@ -1,3 +1,5 @@
+"use client"
+
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getParentTagId } from "./tags"
 import type { TagDimension } from "@/lib/types/database"
@@ -77,36 +79,30 @@ export async function loadCollectionsFromDimensions(
       tagAssetMap.set(at.tag_id, [...current, at.asset_id])
     })
 
-    console.log(`[loadCollectionsFromDimensions] Dimension "${dimension.dimension_key}": Found ${assetTags?.length || 0} asset-tag relationships`)
 
     // Create collections for each tag
     const dimensionCollections = await Promise.all(tags.map(async (tag: any) => {
         const assetIds = tagAssetMap.get(tag.id) || []
+        
         
         // Fetch assets directly from database to ensure we get all assets for this tag
         // This ensures we get assets even if they're not in allAssets
         let tagAssets: any[] = []
         
         if (assetIds.length > 0) {
-          const { data: fetchedAssets } = await supabase
+          const { data: fetchedAssets, error: fetchError } = await supabase
             .from("assets")
             .select("id, title, storage_path, mime_type, created_at, file_size")
             .eq("client_id", clientId)
             .in("id", assetIds)
             .eq("status", "active")
           
+          
           tagAssets = fetchedAssets || []
         }
         
         const videoAssets = tagAssets.filter((a: any) => a.mime_type?.startsWith("video/"))
         
-        if (tagAssets.length !== assetIds.length) {
-          console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Found ${assetIds.length} asset IDs in asset_tags, but only ${tagAssets.length} active assets loaded`)
-        }
-        
-        if (videoAssets.length > 0) {
-          console.log(`[loadCollectionsFromDimensions] Collection "${tag.label}": ${videoAssets.length} video assets found`)
-        }
 
         // Sort assets to prioritize videos and images for preview (but keep original order as fallback)
         // This ensures videos are included in preview if they exist
@@ -118,20 +114,18 @@ export async function loadCollectionsFromDimensions(
           return 0
         })
 
-        const previewAssets = sortedForPreview.slice(0, 4).map((asset: any) => ({
-          id: asset.id,
-          title: asset.title,
-          storage_path: asset.storage_path,
-          mime_type: asset.mime_type
-        }))
-
-        const previewVideoCount = previewAssets.filter((a: any) => a.mime_type?.startsWith("video/")).length
-        const previewTypes = previewAssets.map((a: any) => a.mime_type?.startsWith("video/") ? "video" : a.mime_type?.startsWith("image/") ? "image" : "other").join(", ")
-        console.log(`[loadCollectionsFromDimensions] Collection "${tag.label}": Preview assets types: [${previewTypes}] (${previewVideoCount} videos)`)
-        
-        if (videoAssets.length > 0 && previewVideoCount === 0) {
-          console.warn(`[loadCollectionsFromDimensions] Collection "${tag.label}": Has ${videoAssets.length} videos but none in previewAssets! Total assets: ${tagAssets.length}`)
-        }
+        const previewAssets = sortedForPreview.slice(0, 4).map((asset: any) => {
+          // Ensure all required fields are present
+          if (!asset || !asset.id || !asset.storage_path || !asset.mime_type) {
+            return null
+          }
+          return {
+            id: asset.id,
+            title: asset.title || '',
+            storage_path: asset.storage_path,
+            mime_type: asset.mime_type
+          }
+        }).filter((a): a is { id: string; title: string; storage_path: string; mime_type: string } => a !== null) // Filter out any null entries
 
         return {
           id: tag.id,

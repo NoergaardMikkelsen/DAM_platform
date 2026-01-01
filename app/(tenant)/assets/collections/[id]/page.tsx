@@ -33,8 +33,8 @@ type AssetTagRow = { asset_id: string }
 
 export default function CollectionDetailPage() {
   const { tenant } = useTenant()
-  const params = useParams() as { id: string }
-  const id = params.id
+  const params = useParams() as { id?: string }
+  const id = params?.id
 
   const [assets, setAssets] = useState<Asset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
@@ -68,116 +68,130 @@ export default function CollectionDetailPage() {
         if (newCount >= minAssetsToShow || newCount >= totalAssets) {
           setIsLoading(false)
           // Start stagger animation once we have enough assets loaded
-          if (!shouldAnimate) {
-            setShouldAnimate(true)
-          }
+          setShouldAnimate(true)
         }
       }
       
       return newCount
     })
-  }, [totalAssets, signedUrlsReady])
+  }, [totalAssets, signedUrlsReady, shouldAnimate])
 
   useEffect(() => {
-    if (!id || id === "undefined") return
+    // Wait for tenant to be available before loading data
+    // This prevents server-side errors when tenant context isn't ready yet
+    if (!tenant?.id || !id || id === "undefined") {
+      setIsLoading(true)
+      return
+    }
+    
+    // Only load data when both tenant and id are ready
     loadData()
-  }, [id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, tenant?.id])
 
   useEffect(() => {
     applySearchAndSort()
   }, [assets, searchQuery, sortBy])
 
   const loadData = async () => {
-    if (!id || id === "undefined") {
-      setIsLoading(false)
-      return
-    }
-
-    const supabase = supabaseRef.current
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      router.push("/login")
-      return
-    }
-
-    // Try to get client ID from tenant context, fallback to lookup
-    let clientId: string
-
-    if (tenant?.id) {
-      clientId = tenant.id
-    } else {
-      // Fallback: lookup client_id from client_users table
-      const supabase = supabaseRef.current
-      const {
-        data: user,
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (userError || !user) {
-        setError("Authentication required")
+    try {
+      if (!id || id === "undefined") {
         setIsLoading(false)
         return
       }
 
-      const { data: clientUsers, error: clientError } = await supabase
-        .from("client_users")
-        .select("client_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-        .single()
+      // Guard: ensure tenant is available before proceeding
+      if (!tenant?.id) {
+        setIsLoading(false)
+        return
+      }
 
-      if (clientError || !clientUsers?.client_id) {
+      const supabase = supabaseRef.current
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      if (authError || !user) {
+        setIsLoading(false)
+        router.push("/login")
+        return
+      }
+
+      // Get client ID from tenant context (should always be available)
+      const clientId = tenant.id
+
+      if (!clientId) {
         setError("No active client found")
         setIsLoading(false)
         return
       }
 
-      clientId = clientUsers.client_id
-    }
+      // Fetch collection tag (any tag that generates collections)
+      const { data: tag, error: tagError } = await supabase
+        .from("tags")
+        .select("id, label, slug")
+        .eq("id", id)
+        .or(`client_id.eq.${clientId},client_id.is.null`)
+        .single()
 
-    // Fetch collection tag (any tag that generates collections)
-    const { data: tag } = await supabase
-      .from("tags")
-      .select("id, label, slug")
-      .eq("id", id)
-      .or(`client_id.eq.${clientId},client_id.is.null`)
-      .single()
+      if (tagError || !tag) {
+        console.error('[COLLECTION-PAGE] Error fetching tag:', tagError)
+        setIsLoading(false)
+        router.push("/assets")
+        return
+      }
 
-    if (!tag) {
-      router.push("/assets")
-      return
-    }
+      setCollectionName(tag.label)
 
-    setCollectionName(tag.label)
+      // Get all assets in this collection (via asset_tags junction table)
+      const { data: assetTags, error: assetTagsError } = await supabase
+        .from("asset_tags")
+        .select("asset_id")
+        .eq("tag_id", id)
 
-    // Get all assets in this collection (via asset_tags junction table)
-    const { data: assetTags } = await supabase
-      .from("asset_tags")
-      .select("asset_id")
-      .eq("tag_id", id)
+      if (assetTagsError) {
+        console.error('[COLLECTION-PAGE] Error fetching asset tags:', assetTagsError)
+        setError("Failed to load collection assets")
+        setIsLoading(false)
+        return
+      }
 
-    const assetIds = assetTags?.map((at: any) => at.asset_id) || []
+      const assetIds = assetTags?.map((at: any) => at.asset_id) || []
 
-    if (assetIds.length === 0) {
-      setAssets([])
-      setFilteredAssets([])
-      setIsLoading(false)
-      return
-    }
+      if (assetIds.length === 0) {
+        setAssets([])
+        setFilteredAssets([])
+        setIsLoading(false)
+        setSignedUrlsReady(true)
+        setShouldAnimate(true)
+        return
+      }
 
-    const { data: assetsData } = await supabase
-      .from("assets")
-      .select("id, title, storage_path, mime_type, created_at, file_size")
-      .eq("client_id", clientId)
-      .in("id", assetIds)
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
+      const { data: assetsData, error: assetsError } = await supabase
+        .from("assets")
+        .select("id, title, storage_path, mime_type, created_at, file_size")
+        .eq("client_id", clientId)
+        .in("id", assetIds)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
 
-    if (assetsData) {
+      if (assetsError) {
+        console.error('[COLLECTION-PAGE] Error fetching assets:', assetsError)
+        setError("Failed to load collection assets")
+        setIsLoading(false)
+        return
+      }
+
+      if (!assetsData) {
+        setAssets([])
+        setFilteredAssets([])
+        setIsLoading(false)
+        setSignedUrlsReady(true)
+        setShouldAnimate(true)
+        return
+      }
+
       setAssets(assetsData)
       setFilteredAssets(assetsData)
 
@@ -188,53 +202,97 @@ export default function CollectionDetailPage() {
         asset.mime_type === "application/pdf"
       )
 
-      if (assetsWithMedia.length > 0) {
-        try {
-          const assetIds = assetsWithMedia.map((a: Asset) => a.id)
-          const storagePaths = assetsWithMedia.map((a: Asset) => a.storage_path).filter(Boolean)
-          
-          const batchResponse = await fetch('/api/assets/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              storagePaths,
-              assetIds 
-            })
-          })
-          
-          if (batchResponse.ok) {
-            const { signedUrls } = await batchResponse.json()
-            setSignedUrlsCache(signedUrls)
-            setSignedUrlsReady(true)
-            
-            // Start animation immediately - no delay needed
-            setShouldAnimate(true)
-          } else {
-            setSignedUrlsReady(true) // Mark as ready even on error
-            setShouldAnimate(true)
-          }
-        } catch (error) {
-          console.error("Error fetching signed URLs:", error)
-          setSignedUrlsReady(true) // Mark as ready even on error
-          setShouldAnimate(true)
-        }
-      } else {
-        setSignedUrlsReady(true) // No assets to load
-        setShouldAnimate(true)
-      }
-
       const totalAssetsToLoad = assetsWithMedia.length
       setTotalAssets(totalAssetsToLoad)
       setLoadedAssets(0) // Reset counter
-      setSignedUrlsReady(false) // Reset signed URLs ready state
 
       // If no assets need to be loaded, hide skeleton immediately
       if (totalAssetsToLoad === 0) {
         setIsLoading(false)
         setSignedUrlsReady(true)
         setShouldAnimate(true) // Start animation immediately if no assets to load
+        return
       }
-      // Otherwise, wait for smart threshold in handleAssetLoaded
+
+      // Fetch signed URLs in background - don't await, let it load asynchronously
+      // This matches the pattern from asset library page for consistency
+      if (assetsWithMedia.length > 0) {
+        const assetIdsForUrls = assetsWithMedia.map((a: Asset) => a.id).filter(Boolean)
+        const storagePaths = assetsWithMedia.map((a: Asset) => a.storage_path).filter(Boolean)
+        
+        console.log(`[COLLECTION-PAGE] Fetching signed URLs for ${assetIdsForUrls.length} assets`)
+        
+        // Chunk large batches to avoid timeout (process in chunks of 50)
+        const BATCH_SIZE = 50
+        const chunks: Array<{ assetIds: string[], storagePaths: string[] }> = []
+        
+        for (let i = 0; i < assetIdsForUrls.length; i += BATCH_SIZE) {
+          chunks.push({
+            assetIds: assetIdsForUrls.slice(i, i + BATCH_SIZE),
+            storagePaths: storagePaths.slice(i, i + BATCH_SIZE)
+          })
+        }
+        
+        // Process chunks sequentially to avoid overwhelming the API
+        const processChunks = async () => {
+          const allSignedUrls: Record<string, string> = {}
+          
+          for (const chunk of chunks) {
+            try {
+              const response = await fetch('/api/assets/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  storagePaths: chunk.storagePaths,
+                  assetIds: chunk.assetIds 
+                })
+              })
+              
+              if (response.ok) {
+                const { signedUrls } = await response.json()
+                if (signedUrls) {
+                  Object.assign(allSignedUrls, signedUrls)
+                  // Update cache incrementally as chunks complete
+                  setSignedUrlsCache(prev => ({ ...prev, ...signedUrls }))
+                }
+              } else {
+                console.warn(`[COLLECTION-PAGE] Batch chunk failed with status ${response.status}`)
+              }
+            } catch (error) {
+              console.error(`[COLLECTION-PAGE] Error fetching chunk:`, error)
+            }
+          }
+          
+          const urlCount = Object.keys(allSignedUrls).length
+          console.log(`[COLLECTION-PAGE] Received ${urlCount} signed URLs out of ${assetIdsForUrls.length} requested`)
+          setSignedUrlsReady(true)
+          setShouldAnimate(true)
+        }
+        
+        // Start processing chunks asynchronously
+        processChunks().catch((error) => {
+          console.error('[COLLECTION-PAGE] Error processing chunks:', error)
+          // Mark as ready even on error - assets will use fallback/proxy URLs via BatchAssetLoader
+          setSignedUrlsReady(true)
+          setShouldAnimate(true)
+        })
+      } else {
+        // No media assets to load
+        setSignedUrlsReady(true)
+        setShouldAnimate(true)
+      }
+      
+      // Show content immediately - don't wait for signed URLs
+      // Assets will load progressively as signed URLs become available
+      setIsLoading(false)
+      setShouldAnimate(true)
+    } catch (error) {
+      // Handle any unexpected errors during data loading
+      console.error('[COLLECTION-PAGE] Unexpected error loading data:', error)
+      setError("Failed to load collection. Please try again.")
+      setIsLoading(false)
+      setSignedUrlsReady(true)
+      setShouldAnimate(true)
     }
   }
 
@@ -363,12 +421,13 @@ export default function CollectionDetailPage() {
                 <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200 w-full" style={{ borderRadius: '20px' }}>
                   {(asset.mime_type.startsWith("image/") || asset.mime_type.startsWith("video/") || asset.mime_type === "application/pdf") && asset.storage_path && (
                     <AssetPreview
+                      key={`${asset.id}-${signedUrlsCache?.[asset.storage_path] ? 'cached' : 'loading'}`} // Force re-render when cache updates
                       storagePath={asset.storage_path}
                       mimeType={asset.mime_type}
                       alt={asset.title}
                       className={asset.mime_type === "application/pdf" ? "w-full h-full object-contain absolute inset-0" : "w-full h-full object-cover absolute inset-0"}
                       style={{ borderRadius: '20px' }}
-                      signedUrl={signedUrlsCache[asset.storage_path]} // Pass cached signed URL if available
+                      signedUrl={signedUrlsCache?.[asset.storage_path] || undefined} // Pass cached signed URL if available
                       showLoading={false}
                       onAssetLoaded={handleAssetLoaded}
                     />

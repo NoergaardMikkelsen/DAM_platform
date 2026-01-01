@@ -94,16 +94,23 @@ export async function createTag(
   // Determine tag_type for backward compatibility
   const tagType = determineTagType(dimensionKey)
 
+  // Determine if this is a parent tag or subtag
+  // Parent tags (parent_id IS NULL) are system tags (is_system = true, client_id = NULL)
+  // Subtags (parent_id IS NOT NULL) are client-specific (is_system = false, client_id = clientId)
+  const isParentTag = finalParentId === null || finalParentId === undefined
+  const isSystemTag = isParentTag
+  const tagClientId = isParentTag ? null : clientId
+
   // Insert new tag
   const { data, error } = await supabase
     .from("tags")
     .insert({
-      client_id: clientId,
+      client_id: tagClientId,
       dimension_key: dimensionKey,
       parent_id: finalParentId || null,
       label: label.trim(),
       slug,
-      is_system: false,
+      is_system: isSystemTag,
       sort_order: sortOrder,
       created_by: userId,
       tag_type: tagType,
@@ -112,7 +119,6 @@ export async function createTag(
     .single()
 
   if (error) {
-    console.error("Error creating tag:", error)
     return null
   }
 
@@ -147,5 +153,108 @@ export function createTagHandler(
       dimension,
     })
   }
+}
+
+/**
+ * Options for creating a system tag (visible across all tenants)
+ */
+export interface CreateSystemTagOptions {
+  /** The tag label */
+  label: string
+  /** The dimension key */
+  dimensionKey: string
+  /** The user ID creating the tag */
+  userId: string
+  /** The tag dimension object */
+  dimension: TagDimension
+  /** Optional parent tag ID (for hierarchical tags) */
+  parentId?: string | null
+  /** Optional sort order (default: 0) */
+  sortOrder?: number
+}
+
+/**
+ * Create a new system tag (client_id = NULL, is_system = true)
+ * System tags are visible across all tenants
+ * @param supabase - Supabase client instance
+ * @param options - System tag creation options
+ * @returns The created tag ID, or null if creation failed or tag already exists
+ */
+export async function createSystemTag(
+  supabase: SupabaseClient,
+  options: CreateSystemTagOptions
+): Promise<string | null> {
+  const {
+    label,
+    dimensionKey,
+    userId,
+    dimension,
+    parentId,
+    sortOrder = 0,
+  } = options
+
+  // Generate slug from label
+  const slug = generateSlug(label.trim())
+
+  // Get parent tag ID if hierarchical (if not provided)
+  let finalParentId = parentId
+  if (dimension.is_hierarchical && finalParentId === undefined) {
+    // For system tags, parent should also be a system tag (client_id IS NULL)
+    const { data: parentTag } = await supabase
+      .from("tags")
+      .select("id")
+      .eq("dimension_key", dimensionKey)
+      .is("parent_id", null)
+      .is("client_id", null)
+      .eq("is_system", true)
+      .maybeSingle()
+    
+    finalParentId = parentTag?.id || null
+  }
+
+  // Check if tag already exists before creating (check system tags only)
+  const { data: existing } = await supabase
+    .from("tags")
+    .select("id")
+    .eq("dimension_key", dimensionKey)
+    .eq("slug", slug)
+    .is("client_id", null)
+    .eq("is_system", true)
+    .maybeSingle()
+
+  if (existing) {
+    return existing.id
+  }
+
+  // Determine tag_type for backward compatibility
+  const tagType = determineTagType(dimensionKey)
+
+  // System tags always have client_id = NULL and is_system = true
+  // Parent tags (parent_id IS NULL) are system tags
+  // Subtags (parent_id IS NOT NULL) can also be system tags if created by superadmin
+  const isParentTag = finalParentId === null || finalParentId === undefined
+
+  // Insert new system tag
+  const { data, error } = await supabase
+    .from("tags")
+    .insert({
+      client_id: null, // System tags have no client_id
+      dimension_key: dimensionKey,
+      parent_id: finalParentId || null,
+      label: label.trim(),
+      slug,
+      is_system: true, // Always true for system tags
+      sort_order: sortOrder,
+      created_by: userId,
+      tag_type: tagType,
+    })
+    .select("id")
+    .single()
+
+  if (error) {
+    return null
+  }
+
+  return data?.id || null
 }
 

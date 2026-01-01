@@ -31,14 +31,16 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
   if (tenantSlug && tenantSlug !== 'admin') {
     try {
       const supabase = await createClient()
-      const { data: tenant } = await supabase
+      // Use maybeSingle() to avoid errors if tenant doesn't exist (shouldn't happen, but safer)
+      const { data: tenant, error: tenantError } = await supabase
         .from("clients")
         .select("name, logo_url, favicon_url, logo_collapsed_url")
         .eq("slug", tenantSlug)
         .eq("status", "active")
-        .single()
+        .maybeSingle()
 
-      if (tenant) {
+      // Only return tenant-specific metadata if tenant exists and no error
+      if (!tenantError && tenant) {
         return {
           title: `${tenant.name} - Digital Asset Management`,
           icons: {
@@ -48,7 +50,12 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
         }
       }
     } catch (error) {
-      console.error('Error fetching tenant metadata:', error)
+      // Silently fail - return fallback metadata instead of throwing
+      // This prevents server-side rendering errors
+      // Don't log in production to avoid exposing errors
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error fetching tenant metadata:', error)
+      }
     }
   }
 
@@ -189,41 +196,24 @@ export default async function AuthenticatedLayout({
   }
 
   // TENANT ACCESS VALIDATION: Check if user has access to this tenant
-  // Superadmins get automatic access to all tenants (via superadmin role in any client)
-  // Other users need explicit client_users membership for this specific tenant
-  
-  // First check if user is superadmin
-  const { data: superadminCheck } = await supabase
+  // Only check client_users table - superadmins must also have client_users entries
+  const { data: accessCheck, error: accessError } = await supabase
     .from("client_users")
     .select(`
       id,
+      role_id,
       roles!inner(key)
     `)
     .eq("user_id", user.id)
+    .eq("client_id", tenant.id)
     .eq("status", "active")
-    .eq("roles.key", "superadmin")
-    .limit(1)
+    .maybeSingle()
 
-  const isSuperAdmin = superadminCheck && superadminCheck.length > 0
-
-  if (!isSuperAdmin) {
-    // Not a superadmin, check explicit tenant access
-    // Use maybeSingle() instead of single() to avoid 406 error when no access
-    const { data: accessCheck, error: accessError } = await supabase
-      .from("client_users")
-      .select("id, role_id")
-      .eq("user_id", user.id)
-      .eq("client_id", tenant.id)
-      .eq("status", "active")
-      .maybeSingle()
-
-    // If error occurred (not just no results) or no access found, redirect to login with error message
-    if (accessError || !accessCheck) {
-      // No access to this tenant - redirect to login with error parameter
-      debugLog.push(`[TENANT-LAYOUT] No access to tenant - redirecting to login`)
-      console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
-      redirect("/login?error=no_access")
-    }
+  // If no access found, redirect to login
+  if (accessError || !accessCheck) {
+    debugLog.push(`[TENANT-LAYOUT] No access to tenant - redirecting to login`)
+    console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
+    redirect("/login?error=no_access")
   }
 
   // Get user data
@@ -248,29 +238,10 @@ export default async function AuthenticatedLayout({
 
   debugLog.push(`[TENANT-LAYOUT] All checks passed - rendering layout`)
 
-  // Get user role within this tenant
-  // Superadmins always get "superadmin" role
-  // Other users get their role from explicit client_users membership
-  let role: string | null = null
-  
-  if (isSuperAdmin) {
-    role = "superadmin"
-  } else {
-    const { data: clientUsers } = await supabase
-      .from("client_users")
-      .select(`
-        role_id,
-        roles!inner(key)
-      `)
-      .eq("user_id", user.id)
-      .eq("client_id", tenant.id)
-      .eq("status", "active")
-      .limit(1)
-
-    const roleEntry = clientUsers?.[0]?.roles as { key?: string } | { key?: string }[] | null | undefined
-    const roleKey = Array.isArray(roleEntry) ? roleEntry[0]?.key : roleEntry?.key
-    role = roleKey?.toLowerCase() || null
-  }
+  // Get user role within this tenant from client_users entry
+  const roleEntry = accessCheck?.roles as { key?: string } | { key?: string }[] | null | undefined
+  const roleKey = Array.isArray(roleEntry) ? roleEntry[0]?.key : roleEntry?.key
+  const role = roleKey?.toLowerCase() || null
 
   // Apply tenant branding
   // Note: This sets CSS variables that BrandContext will use

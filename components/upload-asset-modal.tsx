@@ -451,8 +451,6 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
             .select("id")
             .single()
 
-          console.log("Database insert result:", { newAsset, dbError })
-          
           if (dbError) {
             logError("Database error:", dbError)
             logError("Full error details:", JSON.stringify(dbError, null, 2))
@@ -605,13 +603,14 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="sr-only">Upload Asset</DialogTitle>
-          <DialogDescription className="sr-only">Upload assets to your library</DialogDescription>
-        </DialogHeader>
-        {/* Progress Indicator */}
-        <div className="mb-8 pt-6">
+      <DialogContent className="!max-w-2xl w-full max-h-[90vh] flex flex-col p-0">
+        <div className="px-6 pt-6 flex-shrink-0">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Upload Asset</DialogTitle>
+            <DialogDescription className="sr-only">Upload assets to your library</DialogDescription>
+          </DialogHeader>
+          {/* Progress Indicator */}
+          <div className="mb-8 pt-6">
           <Stepper
             steps={steps.map((s, i) => ({ label: s.label }))}
             activeStep={currentStep - 1}
@@ -638,9 +637,11 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
             }}
           />
         </div>
+        </div>
 
-        {/* Step Content */}
-        <div className="min-h-[400px]">
+        {/* Step Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 min-h-0">
+          <div className="min-h-[400px]">
           {/* Step 1: Upload Type & File Selection */}
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -1051,8 +1052,10 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex justify-center items-center gap-3 mt-6 pt-6 border-t border-gray-200">
+        </div>
+
+        {/* Actions - Fixed at bottom */}
+        <div className="flex justify-center items-center gap-3 px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0">
           {currentStep > 1 && (
             <Button 
               type="button" 

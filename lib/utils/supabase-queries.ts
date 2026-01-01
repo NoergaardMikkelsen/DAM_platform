@@ -96,14 +96,11 @@ export async function getAllActiveAssetsForClient<T = any>(
     const { data, error } = await query.range(from, to) as { data: T[] | null; error: any }
 
     if (error) {
-      console.error("Error fetching assets in batch:", error)
       return { data: null, error }
     }
 
     if (data && data.length > 0) {
       allAssets.push(...(data as T[]))
-      const videoCount = (data as any[]).filter((a: any) => a.mime_type?.startsWith("video/")).length
-      console.log(`[getAllActiveAssetsForClient] Fetched batch ${Math.floor(from / batchSize) + 1}: ${data.length} assets (${videoCount} videos) (total: ${allAssets.length})`)
       // If we got fewer results than batchSize, we've reached the end
       hasMore = data.length === batchSize
       from += batchSize
@@ -111,9 +108,6 @@ export async function getAllActiveAssetsForClient<T = any>(
       hasMore = false
     }
   }
-
-  const totalVideos = (allAssets as any[]).filter((a: any) => a.mime_type?.startsWith("video/")).length
-  console.log(`[getAllActiveAssetsForClient] Total assets fetched: ${allAssets.length} (${totalVideos} videos)`)
 
   return { data: allAssets, error: null } as { data: T[]; error: null }
 }
@@ -154,6 +148,7 @@ export async function getTagsForClient<T = any>(
   let query = supabase
     .from("tags")
     .select(columns)
+    // Include both system tags (client_id IS NULL, is_system = true) and client-specific tags
     .or(`client_id.eq.${clientId},client_id.is.null`)
 
   if (options?.dimensionKey) {

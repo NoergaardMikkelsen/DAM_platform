@@ -54,6 +54,9 @@ import { uploadAsset, getImageDimensions, getVideoDimensions } from "@/lib/utils
 import { BatchAssetLoader } from "@/components/asset-preview"
 import { useToast } from "@/hooks/use-toast"
 import { formatDate } from "@/lib/utils/date"
+import { TagBadgeSelector } from "@/components/tag-badge-selector"
+import { createTagHandler as createTagHandlerUtil } from "@/lib/utils/tag-creation"
+import type { TagDimension } from "@/lib/types/database"
 
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -145,6 +148,7 @@ export default function AssetDetailPage() {
   const isAdmin = role === 'admin' || role === 'superadmin'
   const supabaseRef = useRef(createClient())
   const [isNavigating, startNavigation] = useTransition()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Memoize search params values to avoid unnecessary re-renders
   const searchContext = useMemo(() =>
@@ -166,6 +170,8 @@ export default function AssetDetailPage() {
   const [isEditingTags, setIsEditingTags] = useState(false)
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
+  const [tagDimensions, setTagDimensions] = useState<TagDimension[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [isDownloadingVideoCustom, setIsDownloadingVideoCustom] = useState(false)
   const [isMediaLoading, setIsMediaLoading] = useState(false)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
@@ -236,6 +242,9 @@ export default function AssetDetailPage() {
         router.push("/login")
         return
       }
+
+      // Set current user ID for permission checks
+      setCurrentUserId(user.id)
 
       // 1. HENT ASSET DATA FØRST (kritisk)
       const assetResult = await supabase.from("assets").select("*").eq("id", targetId).single()
@@ -585,13 +594,23 @@ export default function AssetDetailPage() {
     const clientId = asset.client_id
 
     try {
-      // Get dimensions to check which are hierarchical
-      const { data: dimensions } = await supabase
-        .from("tag_dimensions")
-        .select("dimension_key, is_hierarchical")
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+      }
 
+      // Get all tag dimensions (including empty ones)
+      const { data: dimensionsData } = await supabase
+        .from("tag_dimensions")
+        .select("*")
+        .order("display_order", { ascending: true })
+
+      setTagDimensions(dimensionsData || [])
+
+      // Get dimensions to check which are hierarchical
       const hierarchicalDimensions = new Set(
-        dimensions?.filter((d: any) => d.is_hierarchical).map((d: any) => d.dimension_key) || []
+        (dimensionsData || []).filter((d: any) => d.is_hierarchical).map((d: any) => d.dimension_key) || []
       )
 
       // Get all available tags for this tenant, excluding parent tags for hierarchical dimensions
@@ -634,6 +653,11 @@ export default function AssetDetailPage() {
       newSelected.add(tagId)
     }
     setSelectedTagIds(newSelected)
+  }
+
+  const getCreateTagHandler = (dimension: TagDimension) => {
+    if (!asset || !userId) return undefined
+    return createTagHandlerUtil(supabaseRef.current, dimension, asset.client_id, userId)
   }
 
   const handleSaveTags = async () => {
@@ -680,6 +704,27 @@ export default function AssetDetailPage() {
           throw deleteError
         }
       }
+
+      // Reload available tags to include newly created tags
+      const hierarchicalDimensions = new Set(
+        tagDimensions.filter((d: any) => d.is_hierarchical).map((d: any) => d.dimension_key) || []
+      )
+
+      const { data: tagsData } = await supabase
+        .from("tags")
+        .select("id, label, dimension_key, slug, parent_id")
+        .or(`client_id.eq.${asset.client_id},client_id.is.null`)
+        .order("dimension_key")
+        .order("sort_order")
+
+      const filteredTags = (tagsData || []).filter((tag: any) => {
+        if (hierarchicalDimensions.has(tag.dimension_key)) {
+          return tag.parent_id !== null
+        }
+        return true
+      })
+
+      setAvailableTags(filteredTags)
 
       // Reload asset data to reflect changes
       await loadAsset(asset.id, true)
@@ -1440,15 +1485,17 @@ export default function AssetDetailPage() {
                   <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-gray-400">
                     Versioning
                   </DropdownMenuLabel>
-                  <DropdownMenuItem
-                    className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
-                    onSelect={() => fileInputRef.current?.click()}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Upload className="h-4 w-4 text-gray-600" />
-                      <span>Replace file</span>
-              </div>
-                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
+                      onSelect={() => fileInputRef.current?.click()}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Upload className="h-4 w-4 text-gray-600" />
+                        <span>Replace file</span>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     disabled={!asset.previous_version_id}
                     className="cursor-pointer text-sm rounded-2xl px-3 py-2.5 text-gray-800 focus:bg-gray-100"
@@ -1764,7 +1811,8 @@ export default function AssetDetailPage() {
                   <AccordionTrigger className="text-sm font-semibold text-gray-800">
                     <div className="flex items-center gap-2 flex-1">
                       <span>Tags</span>
-                      {isAdmin && (
+                      {/* Show edit button if user is admin OR if user uploaded this asset */}
+                      {(isAdmin || (currentUserId && asset?.uploaded_by === currentUserId)) && (
                         <div
                           onClick={(e) => {
                             e.stopPropagation()
@@ -1872,45 +1920,82 @@ export default function AssetDetailPage() {
                   <DialogTitle>Edit Tags</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4">
-                  {/* Group tags by dimension */}
+                <div className="space-y-6">
+                  {/* Organization Tags */}
                   {(() => {
-                    // Get unique dimensions from available tags
-                    const dimensions = [...new Set(availableTags.map(tag => tag.dimension_key))].sort()
-                    return dimensions.map(dimensionKey => {
-                      const dimensionTags = availableTags.filter(tag => tag.dimension_key === dimensionKey)
-                      if (dimensionTags.length === 0) return null
+                    const collectionGeneratingDimensions = tagDimensions.filter(
+                      (d) => d.generates_collection && d.dimension_key !== "file_type"
+                    )
+                    
+                    if (collectionGeneratingDimensions.length === 0) return null
 
-                      // Get dimension label from tag_dimensions
-                      const dimensionLabel = dimensionKey.split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                      ).join(' ')
-
-                      return (
-                        <div key={dimensionKey} className="space-y-2">
-                          <h4 className="text-sm font-medium text-gray-900">
-                            {dimensionLabel} Tags
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            {dimensionTags.map(tag => (
-                              <div key={tag.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={tag.id}
-                                  checked={selectedTagIds.has(tag.id)}
-                                  onCheckedChange={() => handleTagToggle(tag.id)}
-                                />
-                                <label
-                                  htmlFor={tag.id}
-                                  className="text-sm text-gray-700 cursor-pointer"
-                                >
-                                  {tag.label}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
+                    return (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
+                          Organization
+                          <span className="ml-2 text-red-500 normal-case">*</span>
+                        </h4>
+                        <div className="space-y-4">
+                          {collectionGeneratingDimensions.map((dimension) => {
+                            const dimensionTags = availableTags.filter(tag => tag.dimension_key === dimension.dimension_key)
+                            const selectedTagsForDimension = dimensionTags.filter(tag => selectedTagIds.has(tag.id))
+                            
+                            return (
+                              <TagBadgeSelector
+                                key={dimension.dimension_key}
+                                dimension={dimension}
+                                selectedTagIds={selectedTagsForDimension.map(t => t.id)}
+                                onToggle={(tagId) => handleTagToggle(tagId)}
+                                onCreate={getCreateTagHandler(dimension)}
+                                clientId={asset?.client_id || ''}
+                                userId={userId}
+                              />
+                            )
+                          })}
                         </div>
-                      )
-                    })
+                      </div>
+                    )
+                  })()}
+
+                  {/* Descriptive Tags */}
+                  {(() => {
+                    const descriptiveDimensions = tagDimensions.filter(
+                      (d) => !d.generates_collection && d.dimension_key !== "department" && d.dimension_key !== "file_type" && d.dimension_key !== "content_type"
+                    )
+                    
+                    if (descriptiveDimensions.length === 0) return null
+
+                    return (
+                      <div className="pt-8 border-t border-gray-200">
+                        <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
+                          Additional Tags
+                        </h4>
+                        <Accordion type="single" collapsible className="w-full">
+                          {descriptiveDimensions.map((dimension) => {
+                            const dimensionTags = availableTags.filter(tag => tag.dimension_key === dimension.dimension_key)
+                            const selectedTagsForDimension = dimensionTags.filter(tag => selectedTagIds.has(tag.id))
+                            
+                            return (
+                              <AccordionItem key={dimension.dimension_key} value={dimension.dimension_key} className="border-gray-200">
+                                <AccordionTrigger className="text-sm font-medium text-gray-700 hover:no-underline py-3">
+                                  {dimension.label}
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-4">
+                                  <TagBadgeSelector
+                                    dimension={dimension}
+                                    selectedTagIds={selectedTagsForDimension.map(t => t.id)}
+                                    onToggle={(tagId) => handleTagToggle(tagId)}
+                                    onCreate={getCreateTagHandler(dimension)}
+                                    clientId={asset?.client_id || ''}
+                                    userId={userId}
+                                  />
+                                </AccordionContent>
+                              </AccordionItem>
+                            )
+                          })}
+                        </Accordion>
+                      </div>
+                    )
                   })()}
                 </div>
 

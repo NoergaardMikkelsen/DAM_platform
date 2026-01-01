@@ -51,8 +51,7 @@ interface ClientAssociation {
   client_id: string
 }
 
-// System client ID for superadmin identification (NMIC demo - not used for tenant access)
-const SYSTEM_CLIENT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
+// Note: Superadmin identification now uses system_admins table instead of SYSTEM_CLIENT_ID
 
 export default function SystemUsersPage() {
   const [allUsers, setAllUsers] = useState<SystemUser[]>([])
@@ -222,7 +221,6 @@ export default function SystemUsersPage() {
       .from("clients")
       .select("id, name, slug")
       .eq("status", "active")
-      .neq("id", SYSTEM_CLIENT_ID) // Exclude system client from selection
       .order("name")
 
     if (error) {
@@ -257,20 +255,30 @@ export default function SystemUsersPage() {
     let highestRole: 'admin' | 'user' | 'superadmin' | null = null
     const clientIds: string[] = []
 
+    // Check if user is a system admin (superadmin)
+    const { data: systemAdminCheck } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const isSystemAdmin = !!systemAdminCheck
+
     userClientData?.forEach((ucd: { client_id: string; roles: { key: string } }) => {
-      // Exclude system client from client selection list
-      if (ucd.client_id !== SYSTEM_CLIENT_ID) {
-        clientIds.push(ucd.client_id)
-      }
+      // Include all client associations (no need to exclude system client anymore)
+      clientIds.push(ucd.client_id)
       // Update highest role based on what we find
-      if (ucd.roles.key === 'superadmin') {
-        highestRole = 'superadmin'
-      } else if (ucd.roles.key === 'admin' && highestRole !== 'superadmin') {
+      if (ucd.roles.key === 'admin' && highestRole !== 'superadmin') {
         highestRole = 'admin'
-      } else if (ucd.roles.key === 'user' && highestRole === null) {
+      } else if (ucd.roles.key === 'user' && !highestRole) {
         highestRole = 'user'
       }
     })
+
+    // If user is a system admin, set role to superadmin
+    if (isSystemAdmin) {
+      highestRole = 'superadmin'
+    }
 
     // If no role found, use the user's highest_role from the SystemUser object
     // This handles cases where user might not have any client associations yet
@@ -307,23 +315,21 @@ export default function SystemUsersPage() {
         if (updateError) throw updateError
       }
 
-      // Check if user is currently a superadmin (has entry in system client)
-      const { data: currentSystemClientEntry } = await supabase
-        .from('client_users')
-        .select('id, roles(key)')
-        .eq('user_id', editingUser.id)
-        .eq('client_id', SYSTEM_CLIENT_ID)
-        .eq('status', 'active')
-        .single()
+      // Check if user is currently a superadmin (has entry in system_admins table)
+      const { data: currentSystemAdminEntry } = await supabase
+        .from('system_admins')
+        .select('id')
+        .eq('id', editingUser.id)
+        .maybeSingle()
 
-      const wasSuperadmin = !!currentSystemClientEntry
+      const wasSuperadmin = !!currentSystemAdminEntry
       const isBecomingSuperadmin = editUserForm.role === 'superadmin' && !wasSuperadmin
       const isRemovingSuperadmin = wasSuperadmin && editUserForm.role !== 'superadmin'
 
       // Handle superadmin role changes
       if (isBecomingSuperadmin) {
         // User is being promoted to superadmin
-        // 1. Create superadmin entry in system client
+        // 1. Get superadmin role ID
         const { data: superadminRoleData, error: superadminRoleError } = await supabase
           .from('roles')
           .select('id')
@@ -332,23 +338,24 @@ export default function SystemUsersPage() {
 
         if (superadminRoleError) throw superadminRoleError
 
+        // 2. Create superadmin entry in system_admins table
+        // This identifies the user as a superadmin and gives access to system-admin area
+        // Note: No need to create entry in client_users for SYSTEM_CLIENT_ID anymore
         const { error: superadminError } = await supabase
-          .from('client_users')
+          .from('system_admins')
           .insert({
-            user_id: editingUser.id,
-            client_id: SYSTEM_CLIENT_ID,
-            role_id: superadminRoleData.id,
-            status: 'active'
+            id: editingUser.id,
+            role_id: superadminRoleData.id
           })
 
         if (superadminError) throw superadminError
 
-        // 2. Get all active clients (excluding system client) and create admin entries
+        // 3. Get all active clients and create admin entries for superadmin
+        // Superadmins get admin role on all tenants (not superadmin role) for tenant access
         const { data: allActiveClients, error: clientsError } = await supabase
           .from('clients')
           .select('id')
           .eq('status', 'active')
-          .neq('id', SYSTEM_CLIENT_ID)
 
         if (clientsError) throw clientsError
 
@@ -366,7 +373,6 @@ export default function SystemUsersPage() {
             .from('client_users')
             .select('client_id')
             .eq('user_id', editingUser.id)
-            .neq('client_id', SYSTEM_CLIENT_ID)
             .eq('status', 'active')
 
           const currentTenantIds = currentTenantAssociations?.map((ca: ClientAssociation) => ca.client_id) || []
@@ -396,7 +402,6 @@ export default function SystemUsersPage() {
               .update({ role_id: adminRoleData.id })
               .eq('user_id', editingUser.id)
               .in('client_id', currentTenantIds)
-              .neq('client_id', SYSTEM_CLIENT_ID)
               .eq('status', 'active')
 
             if (updateTenantError) throw updateTenantError
@@ -404,24 +409,22 @@ export default function SystemUsersPage() {
         }
       } else if (isRemovingSuperadmin) {
         // User is being demoted from superadmin
-        // Remove superadmin entry from system client
+        // Remove superadmin entry from system_admins table
         const { error: removeSuperadminError } = await supabase
-          .from('client_users')
+          .from('system_admins')
           .delete()
-          .eq('user_id', editingUser.id)
-          .eq('client_id', SYSTEM_CLIENT_ID)
+          .eq('id', editingUser.id)
 
         if (removeSuperadminError) throw removeSuperadminError
       }
 
       // Handle tenant client associations (for non-superadmin or when superadmin role is maintained)
       if (editUserForm.role !== 'superadmin' || !isBecomingSuperadmin) {
-        // Get current tenant associations (excluding system client)
+        // Get current tenant associations
         const { data: currentAssociations, error: currentError } = await supabase
           .from('client_users')
           .select('client_id')
           .eq('user_id', editingUser.id)
-          .neq('client_id', SYSTEM_CLIENT_ID)
           .eq('status', 'active')
 
         if (currentError) throw currentError
@@ -478,7 +481,6 @@ export default function SystemUsersPage() {
             .update({ role_id: roleData.id })
             .eq('user_id', editingUser.id)
             .in('client_id', editSelectedClients)
-            .neq('client_id', SYSTEM_CLIENT_ID)
             .eq('status', 'active')
 
           if (updateError) throw updateError
@@ -557,8 +559,10 @@ export default function SystemUsersPage() {
       if (authData.user) {
         if (createUserForm.role === 'superadmin') {
           // Superadmin: 
-          // 1. Create superadmin entry in system client (ONLY for system-admin access identification - not for tenant access)
+          // 1. Create superadmin entry in system_admins table (for system-admin access identification)
           // 2. Automatically create admin entries on ALL active tenants (for tenant access)
+          // Note: Superadmins do NOT need an entry in client_users for SYSTEM_CLIENT_ID anymore
+          // Superadmin identification is now handled via system_admins table
           
           // Get superadmin role ID
           const { data: superadminRoleData, error: superadminRoleError } = await supabase
@@ -578,25 +582,23 @@ export default function SystemUsersPage() {
 
           if (adminRoleError) throw adminRoleError
 
-          // Create superadmin entry in SYSTEM client (ONLY for system-admin access identification)
-          // This entry does NOT give access to the tenant - it's only used to identify superadmin status
+          // Create superadmin entry in system_admins table
+          // This identifies the user as a superadmin and gives access to system-admin area
           const { error: superadminError } = await supabase
-            .from('client_users')
+            .from('system_admins')
             .insert({
-              user_id: authData.user.id,
-              client_id: SYSTEM_CLIENT_ID, // System client - not a real tenant
-              role_id: superadminRoleData.id,
-              status: 'active'
+              id: authData.user.id,
+              role_id: superadminRoleData.id
             })
 
           if (superadminError) throw superadminError
 
-          // Get ALL active clients (excluding system client) and create admin entries for superadmin
+          // Get ALL active clients and create admin entries for superadmin
+          // Superadmins get admin role on all tenants (not superadmin role) for tenant access
           const { data: allActiveClients, error: clientsError } = await supabase
             .from('clients')
             .select('id')
             .eq('status', 'active')
-            .neq('id', SYSTEM_CLIENT_ID) // Exclude system client from tenant assignments
 
           if (clientsError) throw clientsError
 

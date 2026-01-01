@@ -525,3 +525,11 @@ thead tr th:last-child {
     @apply cursor-not-allowed;
   }
 }
+
+/* Landing page - Adobe Fonts (Canada Type Gibson) */
+/* Font name from Webflow: canada-type-gibson */
+/* Using !important to override Geist font from root layout */
+.landing-page,
+.landing-page * {
+  font-family: 'canada-type-gibson', sans-serif !important;
+}

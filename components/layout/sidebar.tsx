@@ -1,14 +1,15 @@
 "use client"
 
-import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings, BarChart3, Shield, Briefcase } from "lucide-react"
+import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings, BarChart3, Shield, Briefcase, Tags, ArrowLeftRight } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
 import { UploadAssetModal } from "@/components/upload-asset-modal"
+import { SwitchClientDialog } from "@/components/switch-client-dialog"
 
 type SidebarProps = {
   user: {
@@ -25,9 +26,41 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [isSwitchClientDialogOpen, setIsSwitchClientDialogOpen] = useState(false)
+  const [hasMultipleClients, setHasMultipleClients] = useState(false)
 
   // Only use tenant context in tenant layout, not in system-admin
   const tenant = isSystemAdminContext ? null : useTenant().tenant
+
+  // Check if user has multiple clients
+  useEffect(() => {
+    if (isSystemAdminContext) {
+      setHasMultipleClients(false)
+      return
+    }
+
+    const checkMultipleClients = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setHasMultipleClients(false)
+          return
+        }
+
+        const { data: clientUsers } = await supabase
+          .from("client_users")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+
+        setHasMultipleClients((clientUsers?.length || 0) > 1)
+      } catch {
+        setHasMultipleClients(false)
+      }
+    }
+
+    checkMultipleClients()
+  }, [isSystemAdminContext, supabase])
 
 
   const handleLogout = async () => {
@@ -55,8 +88,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         window.location.href = '/login'
       }, 100)
 
-    } catch (error) {
-      console.error('Logout error:', error)
+    } catch {
       // Fallback - still redirect to login
       window.location.href = '/login'
     }
@@ -88,6 +120,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
         { href: "/system-admin/dashboard", label: "System Overview", icon: BarChart3 },
         { href: "/system-admin/clients", label: "Client Management", icon: Briefcase },
         { href: "/system-admin/users", label: "System Users", icon: Shield },
+        { href: "/system-admin/tags", label: "System Tags", icon: Tags },
         { href: "/system-admin/settings", label: "System Settings", icon: Settings },
       ]
     }
@@ -171,7 +204,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
       {/* Content container */}
       <div className="relative z-10 flex h-full flex-col">
         {/* Logo */}
-        <div className={`flex items-center ${isCollapsed ? 'h-16 px-4 justify-center' : 'h-20 px-6'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
+        <div className={`flex items-center ${isCollapsed ? 'h-16 px-4 justify-center mb-6' : 'h-20 px-6 mb-8'}`} style={{ transition: 'padding 300ms ease-in-out, margin-bottom 300ms ease-in-out' }}>
           {isSystemAdminContext && role === "superadmin" ? (
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
               <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-black text-white font-bold text-sm`}>
@@ -196,8 +229,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4">
-          <div className={`space-y-2 ${isCollapsed ? 'px-4' : 'px-3'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
-            {mainNavItems.length > 0 && !isCollapsed && <div className="mb-4 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Main</div>}
+          <div className={`space-y-3 ${isCollapsed ? 'px-4' : 'px-3'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
             {mainNavItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
@@ -206,7 +238,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="relative block w-full mb-2 group"
+                  className="relative block w-full group"
                   title={isCollapsed ? item.label : undefined}
                 >
                   <div
@@ -280,7 +312,6 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
             {showAdminSection && (
               <>
-                {!isCollapsed && <div className="mb-4 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin</div>}
                 {adminNavItems.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
@@ -289,7 +320,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="relative block w-full mb-2 group"
+                      className="relative block w-full group"
                       title={isCollapsed ? item.label : undefined}
                     >
                       <div
@@ -365,9 +396,9 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
           </div>
         </div>
 
-        {/* Upload Button - Only show in tenant context (not in system admin context) */}
+        {/* Upload Button, Switch Client, Profile, and Logout - Only show in tenant context (not in system admin context) */}
         {!isSystemAdminContext && (
-          <div className={`${isCollapsed ? 'px-3 py-2' : 'px-3 py-2'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
+          <div className={`${isCollapsed ? 'px-3' : 'px-3'} space-y-2 pb-12`} style={{ transition: 'padding 300ms ease-in-out' }}>
             <Button
               onClick={() => setIsUploadModalOpen(true)}
               className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}
@@ -384,43 +415,102 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
               <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
               {!isCollapsed && 'Upload'}
             </Button>
+            
+            {/* Switch Client Button - Only show if user has multiple clients */}
+            {hasMultipleClients && (
+              <Button
+                onClick={() => setIsSwitchClientDialogOpen(true)}
+                className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}
+                title={isCollapsed ? "Switch client" : undefined}
+                variant="secondary"
+                style={{
+                  borderRadius: isCollapsed ? '50%' : '25px',
+                  padding: isCollapsed ? '0' : '12px 16px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'width 300ms ease-in-out, height 300ms ease-in-out, border-radius 300ms ease-in-out, padding 300ms ease-in-out',
+                }}
+              >
+                <ArrowLeftRight className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
+                {!isCollapsed && 'Switch client'}
+              </Button>
+            )}
+
+            {/* User Profile */}
+            <div className={`relative z-10 ${isCollapsed ? 'px-0' : 'px-0'}`}>
+              <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 rounded-lg p-2'}`}>
+                <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: tenant?.primary_color || '#000000' }}>
+                    {(user.full_name || user.email)
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()}
+                  </div>
+                  {!isCollapsed && (
+                    <div className="flex-1 overflow-hidden">
+                      <div className="truncate text-sm font-medium text-gray-900">{user.full_name || user.email}</div>
+                      <div className="truncate text-xs text-gray-500">{user.email}</div>
+                    </div>
+                  )}
+                </Link>
+              </div>
+            </div>
+
+            {/* Logout Button */}
+            <Button
+              className={`${isCollapsed ? 'w-10 h-10 p-0 justify-center mx-auto' : 'w-full justify-start'} text-gray-600`}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                transition: 'width 300ms ease-in-out, padding 300ms ease-in-out',
+              }}
+              onClick={handleLogout}
+              title={isCollapsed ? "Log out" : undefined}
+            >
+              <LogOut className="h-4 w-4" />
+              {!isCollapsed && <span className="ml-2">Log out</span>}
+            </Button>
           </div>
         )}
 
-        {/* User Profile */}
-        <div className={`pb-20 pt-2 relative z-10 ${isCollapsed ? 'px-4' : 'px-4'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
-          <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
-            <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: tenant?.primary_color || '#000000' }}>
-                {(user.full_name || user.email)
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()}
-              </div>
-              {!isCollapsed && (
-                <div className="flex-1 overflow-hidden">
-                  <div className="truncate text-sm font-medium text-gray-900">{user.full_name || user.email}</div>
-                  <div className="truncate text-xs text-gray-500">{user.email}</div>
+        {/* User Profile - Only show in system admin context */}
+        {isSystemAdminContext && (
+          <div className={`pb-20 pt-2 relative z-10 ${isCollapsed ? 'px-4' : 'px-4'}`} style={{ transition: 'padding 300ms ease-in-out' }}>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center mb-2' : 'gap-3 rounded-lg p-2'}`}>
+              <Link href={isSystemAdminContext && role === "superadmin" ? "/system-admin/profile" : "/profile"} className={`${isCollapsed ? 'block' : 'flex items-center gap-3 rounded-lg p-2'}`} title={isCollapsed ? "Profile" : undefined}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: tenant?.primary_color || '#000000' }}>
+                  {(user.full_name || user.email)
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()}
                 </div>
-              )}
-            </Link>
+                {!isCollapsed && (
+                  <div className="flex-1 overflow-hidden">
+                    <div className="truncate text-sm font-medium text-gray-900">{user.full_name || user.email}</div>
+                    <div className="truncate text-xs text-gray-500">{user.email}</div>
+                  </div>
+                )}
+              </Link>
+            </div>
+            <Button
+              className={`${isCollapsed ? 'w-10 h-10 p-0 justify-center mb-4' : 'w-full justify-start'} text-gray-600`}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                transition: 'width 300ms ease-in-out, padding 300ms ease-in-out',
+              }}
+              onClick={handleLogout}
+              title={isCollapsed ? "Log out" : undefined}
+            >
+              <LogOut className="h-4 w-4" />
+              {!isCollapsed && <span className="ml-2">Log out</span>}
+            </Button>
           </div>
-          <Button
-            className={`${isCollapsed ? 'w-10 h-10 p-0 justify-center mb-4' : 'w-full justify-start'} text-gray-600`}
-            style={{
-              backgroundColor: 'transparent',
-              border: 'none',
-              boxShadow: 'none',
-              transition: 'width 300ms ease-in-out, padding 300ms ease-in-out',
-            }}
-            onClick={handleLogout}
-            title={isCollapsed ? "Log out" : undefined}
-          >
-            <LogOut className="h-4 w-4" />
-            {!isCollapsed && <span className="ml-2">Log out</span>}
-          </Button>
-        </div>
+        )}
 
         {/* Toggle Button */}
         {/* When expanded: positioned perfectly in the SVG indentation notch */}
@@ -471,14 +561,19 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
       {/* Upload Modal - Only render in tenant context */}
       {!isSystemAdminContext && (
-        <UploadAssetModal
-          open={isUploadModalOpen}
-          onOpenChange={setIsUploadModalOpen}
-          onSuccess={() => {
-            // Could refresh data or show success message
-            console.log('Upload completed successfully')
-          }}
-        />
+        <>
+          <UploadAssetModal
+            open={isUploadModalOpen}
+            onOpenChange={setIsUploadModalOpen}
+            onSuccess={() => {
+              // Upload completed successfully
+            }}
+          />
+          <SwitchClientDialog
+            open={isSwitchClientDialogOpen}
+            onOpenChange={setIsSwitchClientDialogOpen}
+          />
+        </>
       )}
     </div>
   )

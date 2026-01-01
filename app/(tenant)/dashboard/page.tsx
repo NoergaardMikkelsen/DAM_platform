@@ -19,6 +19,7 @@ import { DashboardHeaderSkeleton, StatsGridSkeleton, CollectionGridSkeleton, Sec
 import { sortItems } from "@/lib/utils/sorting"
 import { getActiveAssetsForClient, getCollectionDimensions } from "@/lib/utils/supabase-queries"
 import type { Collection } from "@/lib/utils/collections"
+import { loadCollectionsFromDimensions } from "@/lib/utils/collections"
 import { useLocalStorageCache } from "@/hooks/use-local-storage-cache"
 
 interface Asset {
@@ -154,19 +155,42 @@ export default function DashboardPage() {
         setCollectionsReady(true)
       }
       
-      if (cachedCollections) {
+      if (cachedCollections && cachedCollections.length > 0) {
+        // Show cached collections immediately, but rebuild in background to ensure previewAssets are fresh
         setCollections(cachedCollections)
         setFilteredCollections(cachedCollections)
         setIsLoadingCollections(false)
         setCollectionsToShow(Math.min(cachedCollections.length, 4))
         // Mark collections as ready for animation
         setTimeout(() => setCollectionsReady(true), 50)
+        
+        // Rebuild collections in background to ensure previewAssets are up-to-date
+        // This ensures images load correctly even when coming from cache
+        if (cachedDimensions && cachedDimensions.length > 0) {
+          const supabase = supabaseRef.current
+          ;(async () => {
+            const allCollections = await loadCollectionsFromDimensions(
+              supabase,
+              cachedDimensions,
+              clientId,
+              cachedAssets
+            )
+            // Only update if collections actually changed (to prevent unnecessary re-renders)
+            const currentIds = cachedCollections.map(c => c.id).sort().join(',')
+            const newIds = allCollections.map(c => c.id).sort().join(',')
+            if (currentIds !== newIds || JSON.stringify(cachedCollections) !== JSON.stringify(allCollections)) {
+              setCachedData('collections', allCollections)
+              setCollections(allCollections)
+              setFilteredCollections(allCollections)
+              setCollectionsToShow(Math.min(allCollections.length, 4))
+            }
+          })()
+        }
       } else if (cachedDimensions && cachedDimensions.length > 0) {
         // Keep loading state true while building collections
         setIsLoadingCollections(true)
         const supabase = supabaseRef.current
         ;(async () => {
-          const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
           const allCollections = await loadCollectionsFromDimensions(
             supabase,
             cachedDimensions,
@@ -261,20 +285,23 @@ export default function DashboardPage() {
       setCachedData('stats', statsData)
       setStats(statsData)
 
-      // Only rebuild collections if dimensions changed, otherwise use cached collections
+      // Always rebuild collections to ensure they're up-to-date with latest assets
+      // This ensures previewAssets are correctly loaded even when coming from cache
       const cachedDimensions = getCachedData<any[]>('dimensions')
       const dimensionsChanged = !cachedDimensions || 
         JSON.stringify(cachedDimensions) !== JSON.stringify(dimensions || [])
       
-      if (dimensionsChanged && dimensions && dimensions.length > 0) {
-        // Update dimensions cache
-        setCachedData('dimensions', dimensions)
+      if (dimensions && dimensions.length > 0) {
+        // Update dimensions cache if changed
+        if (dimensionsChanged) {
+          setCachedData('dimensions', dimensions)
+        }
         
-        // Rebuild collections with updated dimensions
+        // Always rebuild collections to ensure previewAssets are fresh
+        // This is important because assets may have been updated even if dimensions haven't changed
         const cachedAssets = getCachedData<Asset[]>('assets')
         if (cachedAssets) {
           ;(async () => {
-            const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
             const allCollections = await loadCollectionsFromDimensions(
               supabase,
               dimensions,
@@ -425,7 +452,6 @@ export default function DashboardPage() {
     // Always rebuild to ensure collections are up-to-date with latest assets and dimensions
     if (dimensions && dimensions.length > 0) {
       ;(async () => {
-        const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
         const allCollections = await loadCollectionsFromDimensions(
           supabase,
           dimensions,
@@ -607,7 +633,6 @@ export default function DashboardPage() {
     } else {
       // Build collections for each dimension - load asynchronously in background (don't await)
       ;(async () => {
-        const { loadCollectionsFromDimensions } = await import("@/lib/utils/collections")
         const allCollections = await loadCollectionsFromDimensions(
           supabase,
           dimensions,

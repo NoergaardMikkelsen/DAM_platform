@@ -15,6 +15,8 @@ import { useTenant } from "@/lib/context/tenant-context"
 import { formatDate } from "@/lib/utils/date"
 import { useToast } from "@/hooks/use-toast"
 import { handleError, handleSuccess } from "@/lib/utils/error-handling"
+import { getSortOrderLabel, SORT_ORDER_OPTIONS } from "@/lib/utils/sorting"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Tag {
   id: string
@@ -40,6 +42,7 @@ export default function TagDetailPage() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
     label: "",
     slug: "",
@@ -50,9 +53,16 @@ export default function TagDetailPage() {
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
+    loadCurrentUser()
     if (!id) return
     loadTag()
   }, [id])
+
+  const loadCurrentUser = async () => {
+    const supabase = supabaseRef.current
+    const { data: { user } } = await supabase.auth.getUser()
+    setCurrentUserId(user?.id || null)
+  }
 
   const loadTag = async () => {
     // Use tenant from context - tenant layout already verified access
@@ -129,7 +139,6 @@ export default function TagDetailPage() {
       .eq("id", tag.id)
 
     if (error) {
-      console.error("Error updating tag:", error)
       if (error.code === "42501" || error.message?.includes("permission")) {
         alert("You don't have permission to edit this tag.")
       } else {
@@ -246,7 +255,8 @@ export default function TagDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!tag.is_system && isAdmin && (
+            {/* Show edit/delete buttons if tag is not system AND (user is admin OR user created this tag) */}
+            {!tag.is_system && (isAdmin || (currentUserId && tag.created_by === currentUserId)) && (
               <>
                 {!isEditing ? (
                   <Button variant="secondary" onClick={() => setIsEditing(true)}>
@@ -263,10 +273,13 @@ export default function TagDetailPage() {
                     </Button>
                   </>
                 )}
-                <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
+                {/* Only admins can delete tags */}
+                {isAdmin && (
+                  <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -300,8 +313,8 @@ export default function TagDetailPage() {
                   </Badge>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Sort Order</Label>
-                  <p className="text-gray-900">{tag.sort_order}</p>
+                  <Label className="text-sm font-medium text-gray-700">Display Priority</Label>
+                  <p className="text-gray-900">{getSortOrderLabel(tag.sort_order)}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Created By</Label>
@@ -333,13 +346,25 @@ export default function TagDetailPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sort_order">Sort Order</Label>
-                  <Input
-                    id="sort_order"
-                    type="number"
-                    value={editForm.sort_order}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
-                  />
+                  <Label htmlFor="sort_order">Display Priority</Label>
+                  <Select
+                    value={getSortOrderLabel(editForm.sort_order)}
+                    onValueChange={(value) => {
+                      const sortValue = SORT_ORDER_OPTIONS.find(opt => opt.label === value)?.value ?? 0
+                      setEditForm(prev => ({ ...prev, sort_order: sortValue }))
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORT_ORDER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.label}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}

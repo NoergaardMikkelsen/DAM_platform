@@ -154,8 +154,8 @@ export function TagBadgeSelector({
           setShowCreate(false)
         }, 100)
       }
-    } catch (error) {
-      console.error("Error creating tag:", error)
+    } catch {
+      // Error creating tag - silently fail
     } finally {
       setIsCreating(false)
     }

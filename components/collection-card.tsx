@@ -57,8 +57,9 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
   // Media can load in background while card is already visible
 
   useEffect(() => {
+    
     // Check if previewAssets actually changed by comparing IDs
-    const currentAssetIds = previewAssets.slice(0, 4).map(a => a.id).join(',')
+    const currentAssetIds = previewAssets.slice(0, 4).map(a => a?.id).filter(Boolean).join(',')
     
     // Only reset if assets actually changed
     if (prevAssetIdsRef.current !== currentAssetIds) {
@@ -74,7 +75,9 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
     }
     
     const fetchImageUrls = async () => {
+      
       const loader = BatchAssetLoader.getInstance()
+      
       const assetData: Array<{
         type: string
         storagePath: string
@@ -86,7 +89,8 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
 
       // Collect all paths that need URLs
       for (const asset of previewAssets.slice(0, 4)) {
-        if (asset.storage_path) {
+        // Ensure asset has required properties
+        if (asset && asset.storage_path && asset.mime_type) {
           const cleanPath = asset.storage_path.replace(/^\/+|\/+$/g, "")
 
           if (asset.mime_type.startsWith("video/")) {
@@ -112,6 +116,7 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
             })
           }
         } else {
+          // Missing storage_path or mime_type - use placeholder
           assetData.push({
             type: "placeholder",
             storagePath: "",
@@ -144,22 +149,26 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
         } else {
           types.push(data.type)
 
+          // Find the asset ID for this storage path - normalize paths for matching
+          const cleanPreviewPath = data.storagePath.replace(/^\/+|\/+$/g, "")
+          const asset = previewAssets.find((a: any) => {
+            if (!a?.storage_path) return false
+            const cleanAssetPath = a.storage_path.replace(/^\/+|\/+$/g, "")
+            return cleanAssetPath === cleanPreviewPath || a.storage_path === data.storagePath
+          })
+          const assetId = asset?.id
+
+
           if (data.isVideo) {
             // Direct video URL for both display and playback (no thumbnail handling)
-            const videoPromise = loader.getSignedUrl(data.storagePath)
-              .catch((error) => {
-                console.error(`[CollectionCard] "${label}": Error getting video URL for ${data.storagePath}:`, error)
-                return ""
-              })
+            const videoPromise = loader.getSignedUrl(data.storagePath, assetId)
+              .catch(() => "")
             videoUrlPromises.push(videoPromise)
             urlPromises.push(videoPromise) // Use video URL directly for display
           } else {
             videoUrlPromises.push(Promise.resolve(""))
             urlPromises.push(
-              loader.getSignedUrl(data.storagePath).catch((error) => {
-                console.error(`[CollectionCard] "${label}": Error getting URL for ${data.storagePath}:`, error)
-                return ""
-              })
+              loader.getSignedUrl(data.storagePath, assetId).catch(() => "")
             )
           }
         }
@@ -168,10 +177,12 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
       // Wait for all URLs to resolve with error handling
       // No timeout needed - URLs can load in background while card is visible
       try {
+        
         const [urls, videoUrls] = await Promise.all([
           Promise.all(urlPromises),
           Promise.all(videoUrlPromises)
         ]) as [string[], string[]]
+
 
         // Batch all state updates together to prevent multiple re-renders
         // Use React's automatic batching (React 18+) - all setState calls in async callbacks are batched
@@ -180,8 +191,8 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
         setVideoUrls(videoUrls)
         setLoadedImages([false, false, false, false])
         setUrlsResolved(true) // Mark URLs as resolved last - this triggers card visibility
-      } catch (error) {
-        console.error(`[CollectionCard] "${label}": Error resolving URLs:`, error)
+        
+      } catch {
         // Set empty URLs on error to prevent infinite loading - batch updates
         setImageUrls(["", "", "", ""])
         setAssetTypes(types)
@@ -191,12 +202,35 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
       }
     }
 
-    if (previewAssets.length > 0) {
-      fetchImageUrls().catch((error) => {
-        console.error(`[CollectionCard] "${label}": Error in fetchImageUrls:`, error)
-      })
+    // Only fetch URLs if we have valid preview assets with storage_path
+    const validPreviewAssets = previewAssets.filter(a => {
+      const isValid = a && a.storage_path && a.mime_type
+      return isValid
+    })
+    
+    
+    if (validPreviewAssets.length > 0) {
+      
+      const loader = BatchAssetLoader.getInstance()
+      
+      // Start fetching URLs
+      fetchImageUrls()
+        .then(() => {
+          // After URLs are fetched, force process batch to ensure they're loaded
+          // This helps with timing issues where batch hasn't processed yet
+          setTimeout(() => {
+            loader.forceProcessBatch()
+          }, 150) // Wait a bit for batch to collect, then force process
+        })
+        .catch(() => {
+          // Still mark as resolved on error so card can show
+          setUrlsResolved(true)
+        })
+    } else {
+      // If no valid preview assets, mark as resolved immediately to show card
+      setUrlsResolved(true)
     }
-  }, [previewAssets])
+  }, [previewAssets, label])
 
   return (
     <Link href={`/assets/collections/${id}`} className="block w-full">
@@ -303,8 +337,7 @@ function CollectionCardComponent({ id, label, assetCount, previewAssets, onLoade
                     onLoadedMetadata={() => {
                       handleImageLoad(0)
                     }}
-                    onError={(e) => {
-                      console.error(`[CollectionCard] "${label}": Video 0 error:`, e, `URL: ${videoUrls[0]}`)
+                    onError={() => {
                       handleImageLoad(0)
                     }}
                   />

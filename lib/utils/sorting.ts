@@ -85,3 +85,30 @@ export function filterBySearch<T extends SortableItem>(
   })
 }
 
+/**
+ * Sort order options for tags - user-friendly labels
+ */
+export const SORT_ORDER_OPTIONS = [
+  { value: -2, label: "Highest priority" },
+  { value: -1, label: "High priority" },
+  { value: 0, label: "Normal" },
+  { value: 1, label: "Low priority" },
+  { value: 2, label: "Lowest priority" },
+] as const
+
+/**
+ * Convert sort_order number to user-friendly label
+ */
+export function getSortOrderLabel(sortOrder: number): string {
+  const option = SORT_ORDER_OPTIONS.find(opt => opt.value === sortOrder)
+  return option?.label || "Normal"
+}
+
+/**
+ * Convert user-friendly label to sort_order number
+ */
+export function getSortOrderValue(label: string): number {
+  const option = SORT_ORDER_OPTIONS.find(opt => opt.label === label)
+  return option?.value ?? 0
+}
+

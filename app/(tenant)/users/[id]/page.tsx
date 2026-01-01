@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/client"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +15,7 @@ import { useTenant } from "@/lib/context/tenant-context"
 import { formatDate } from "@/lib/utils/date"
 import { useToast } from "@/hooks/use-toast"
 import { handleError, handleSuccess } from "@/lib/utils/error-handling"
+import { EditUserModal } from "@/components/edit-user-modal"
 
 interface UserProfile {
   id: string
@@ -40,14 +40,7 @@ export default function UserDetailPage() {
   const [id, setId] = useState<string>("")
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    department: "",
-    current_position: ""
-  })
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -121,45 +114,13 @@ export default function UserDetailPage() {
     }
 
     setUser(userProfile)
-    setEditForm({
-      full_name: userProfile.full_name,
-      email: userProfile.email,
-      phone: userProfile.phone || "",
-      department: userProfile.department || "",
-      current_position: userProfile.current_position || ""
-    })
 
     setIsLoading(false)
   }
 
-  const handleEdit = async () => {
-    if (!user) return
-
-    const supabase = supabaseRef.current
-    setIsLoading(true)
-
-    const { error } = await supabase
-      .from("users")
-      .update({
-        full_name: editForm.full_name,
-        phone: editForm.phone || null,
-        department: editForm.department || null,
-        current_position: editForm.current_position || null
-      })
-      .eq("id", user.id)
-
-    if (error) {
-      handleError(error, toast, {
-        title: "Failed to update user",
-        description: "Could not update user information. Please try again.",
-      })
-    } else {
-      setIsEditing(false)
-      handleSuccess(toast, "User information updated successfully")
-      await loadUser() // Reload data
-    }
-
-    setIsLoading(false)
+  const handleEditSuccess = () => {
+    loadUser()
+    handleSuccess(toast, "User information updated successfully")
   }
 
   const handleDelete = async () => {
@@ -253,23 +214,10 @@ export default function UserDetailPage() {
               {user.status}
             </Badge>
             {isAdmin && (
-              <>
-                {!isEditing ? (
-                  <Button variant="secondary" onClick={() => setIsEditing(true)}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                ) : (
-                  <>
-                    <Button variant="secondary" onClick={() => setIsEditing(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleEdit} disabled={isLoading}>
-                      Save Changes
-                    </Button>
-                  </>
-                )}
-              </>
+              <Button variant="secondary" onClick={() => setIsEditModalOpen(true)}>
+                <Settings className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
             )}
             {isAdmin && (
               <Button variant="secondary" onClick={handleDelete} disabled={isLoading}>
@@ -289,68 +237,26 @@ export default function UserDetailPage() {
             <CardDescription>Personal and professional details</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!isEditing ? (
-              <>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Full Name</Label>
-                  <p className="text-gray-900">{user.full_name}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Email</Label>
-                  <p className="text-gray-900">{user.email}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Phone</Label>
-                  <p className="text-gray-900">{user.phone || "Not provided"}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Department</Label>
-                  <p className="text-gray-900">{user.department || "Not specified"}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Position</Label>
-                  <p className="text-gray-900">{user.current_position || "Not specified"}</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="full_name">Full Name</Label>
-                  <Input
-                    id="full_name"
-                    value={editForm.full_name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+45 12 34 56 78"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
-                    value={editForm.department}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
-                    placeholder="Marketing"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="current_position">Current Position</Label>
-                  <Input
-                    id="current_position"
-                    value={editForm.current_position}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, current_position: e.target.value }))}
-                    placeholder="Marketing Manager"
-                  />
-                </div>
-              </>
-            )}
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Full Name</Label>
+              <p className="text-gray-900">{user.full_name}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Email</Label>
+              <p className="text-gray-900">{user.email}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Phone</Label>
+              <p className="text-gray-900">{user.phone || "Not provided"}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Department</Label>
+              <p className="text-gray-900">{user.department || "Not specified"}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Position</Label>
+              <p className="text-gray-900">{user.current_position || "Not specified"}</p>
+            </div>
           </CardContent>
         </Card>
 
@@ -414,6 +320,24 @@ export default function UserDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Edit User Modal */}
+      {user && (
+        <EditUserModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          onSuccess={handleEditSuccess}
+          userId={user.id}
+          initialData={{
+            full_name: user.full_name,
+            email: user.email,
+            phone: user.phone,
+            department: user.department,
+            current_position: user.current_position,
+            role: user.role,
+          }}
+        />
+      )}
     </div>
   )
 }

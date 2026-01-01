@@ -4,6 +4,14 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowUpRight } from "lucide-react"
+import type { Metadata } from "next"
+
+// Metadata for landing page - includes Adobe Fonts CSS
+export const metadata: Metadata = {
+  other: {
+    'adobe-fonts': '/api/fonts/adobe',
+  },
+}
 
 export default async function LandingPage() {
   const headersList = await headers()
@@ -45,8 +53,91 @@ export default async function LandingPage() {
   }
 
   // Landing page - only shown on main domain
+  // Kit ID from Webflow: gtv6qgd (found in Network tab: use.typekit.net/gtv6qgd.js)
+  const adobeFontsKitId = process.env.ADOBE_FONTS_API_TOKEN || 'gtv6qgd'
+  
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#6d293a' }}>
+    <>
+      {/* Adobe Fonts - only loaded on landing page */}
+      {/* Using Adobe Fonts JavaScript embed (same as Webflow) */}
+      {/* Kit ID: gtv6qgd - found from Webflow Network tab: use.typekit.net/gtv6qgd.js */}
+      <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
+      <script
+        src={`https://use.typekit.net/${adobeFontsKitId}.js`}
+        crossOrigin="anonymous"
+        async
+      />
+      {/* Call Typekit.load() after script loads */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function() {
+              var attempts = 0;
+              var maxAttempts = 100; // Try for up to 5 seconds
+              function loadTypekit() {
+                attempts++;
+                if (typeof window !== 'undefined' && window.Typekit && window.Typekit.load) {
+                  try {
+                    window.Typekit.load();
+                    console.log('[ADOBE-FONTS] Typekit.load() called successfully');
+                  } catch(e) {
+                    console.error('[ADOBE-FONTS] Error calling Typekit.load():', e);
+                  }
+                } else if (attempts < maxAttempts) {
+                  setTimeout(loadTypekit, 50);
+                } else {
+                  console.warn('[ADOBE-FONTS] Typekit not found after', attempts, 'attempts');
+                }
+              }
+              // Start checking immediately and also on DOMContentLoaded
+              loadTypekit();
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadTypekit);
+              }
+            })();
+          `,
+        }}
+      />
+      {/* Force font application - using canada-type-gibson from Webflow */}
+      {/* Typekit also adds .tk-canada-type-gibson class, but we use font-family directly */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            .landing-page,
+            .landing-page * {
+              font-family: 'canada-type-gibson', sans-serif !important;
+            }
+            /* Ensure font loads even if Typekit hasn't loaded yet */
+            @font-face {
+              font-family: 'canada-type-gibson';
+              font-display: swap;
+            }
+          `,
+        }}
+      />
+      {/* Debug script to check what fonts are loaded and help find Kit ID */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            setTimeout(function() {
+              if (typeof document !== 'undefined' && document.fonts) {
+                document.fonts.ready.then(function() {
+                  console.log('[ADOBE-FONTS] All fonts loaded');
+                  var fonts = Array.from(document.fonts).map(f => f.family);
+                  console.log('[ADOBE-FONTS] Available fonts:', fonts);
+                  var gibsonFonts = fonts.filter(f => f.toLowerCase().includes('gibson') || f.toLowerCase().includes('canada'));
+                  if (gibsonFonts.length > 0) {
+                    console.log('[ADOBE-FONTS] Found Gibson fonts:', gibsonFonts);
+                  } else {
+                    console.warn('[ADOBE-FONTS] Gibson font not found. Check Network tab for typekit requests to find Kit ID.');
+                  }
+                });
+              }
+            }, 3000);
+          `,
+        }}
+      />
+      <div className="min-h-screen flex flex-col landing-page" style={{ backgroundColor: '#6d293a' }}>
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-start">
@@ -141,7 +232,7 @@ export default async function LandingPage() {
               {/* Social Media */}
               <div className="text-center md:text-left">
                 <h3 className="text-lg md:text-xl font-bold mb-4">Følg os</h3>
-                <div className="flex items-center justify-center space-x-6">
+                <div className="flex items-center justify-center md:justify-start space-x-6">
                   <a 
                     href="https://www.facebook.com/nmic.dk"
                     target="_blank"
@@ -194,5 +285,6 @@ export default async function LandingPage() {
         </div>
       </footer>
     </div>
+    </>
   )
 }

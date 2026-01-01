@@ -6,11 +6,11 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { RoleBadge } from "@/components/role-badge"
 import { Pencil, Trash2 } from "lucide-react"
-import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { CreateUserModal } from "@/components/create-user-modal"
+import { EditUserModal } from "@/components/edit-user-modal"
 import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION } from "@/lib/constants"
@@ -40,6 +40,8 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState("all")
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<{ id: string; full_name: string; email: string; phone?: string | null; department?: string | null; current_position?: string | null; role?: string } | null>(null)
   const supabaseRef = useRef(createClient())
 
   // Use search filter hook
@@ -101,6 +103,61 @@ export default function UsersPage() {
     loadUsers()
   }
 
+  const handleEditUser = async (user: UserWithRole) => {
+    if (!user.users?.id) return
+
+    const supabase = supabaseRef.current
+    const clientId = tenant.id
+    
+    // Fetch full user data via client_users to respect RLS policies
+    // Same structure as used in the detail page
+    const { data: userData, error } = await supabase
+      .from("client_users")
+      .select(`
+        user_id,
+        roles (
+          key
+        ),
+        users (
+          id,
+          full_name,
+          email,
+          phone,
+          department,
+          current_position
+        )
+      `)
+      .eq("user_id", user.users.id)
+      .eq("client_id", clientId)
+      .single()
+
+    if (error || !userData || !userData.users) {
+      return
+    }
+
+    // Handle roles - it can be an object or array depending on Supabase version
+    const roleKey = Array.isArray(userData.roles) 
+      ? userData.roles[0]?.key 
+      : (userData.roles as any)?.key
+
+    setEditingUser({
+      id: userData.users.id,
+      full_name: userData.users.full_name,
+      email: userData.users.email,
+      phone: userData.users.phone,
+      department: userData.users.department,
+      current_position: userData.users.current_position,
+      role: roleKey || user.roles?.key || "user",
+    })
+    setIsEditModalOpen(true)
+  }
+
+  const handleEditSuccess = () => {
+    loadUsers()
+    setIsEditModalOpen(false)
+    setEditingUser(null)
+  }
+
   const columns: TableColumn<UserWithRole>[] = [
     {
       header: "Name",
@@ -130,11 +187,17 @@ export default function UsersPage() {
         <div className="flex items-center justify-end gap-2">
           {isAdmin && (
             <>
-              <Link href={`/users/${user.users?.id}`} onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Pencil className="h-4 w-4 text-gray-600" />
-                </Button>
-              </Link>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEditUser(user)
+                }}
+              >
+                <Pencil className="h-4 w-4 text-gray-600" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <Trash2 className="h-4 w-4 text-red-600" />
               </Button>
@@ -201,6 +264,27 @@ export default function UsersPage() {
           onOpenChange={setIsCreateModalOpen}
           onSuccess={handleCreateSuccess}
         />
+        {editingUser && (
+          <EditUserModal
+            open={isEditModalOpen}
+            onOpenChange={(open) => {
+              setIsEditModalOpen(open)
+              if (!open) {
+                setEditingUser(null)
+              }
+            }}
+            onSuccess={handleEditSuccess}
+            userId={editingUser.id}
+            initialData={{
+              full_name: editingUser.full_name,
+              email: editingUser.email,
+              phone: editingUser.phone,
+              department: editingUser.department,
+              current_position: editingUser.current_position,
+              role: editingUser.role,
+            }}
+          />
+        )}
       </TablePage>
     </>
   )

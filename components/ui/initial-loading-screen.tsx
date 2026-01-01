@@ -30,8 +30,6 @@ export function InitialLoadingScreen({
     }
   }, [onComplete])
 
-  console.log('[LOADING] Rendering loading screen, isVisible:', isVisible)
-
   if (!isVisible) return null
 
   return (

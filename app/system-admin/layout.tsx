@@ -46,19 +46,15 @@ export default function SystemAdminLayout({
         return
       }
 
-      // Check if user has superadmin role in any client
+      // Check if user is a system admin using system_admins table
       const { data: superadminCheck, error: adminError } = await supabase
-        .from("client_users")
-        .select(`
-          id,
-          roles!inner(key)
-        `)
-        .eq("user_id", session.user.id)
-        .eq("status", "active")
-        .eq("roles.key", "superadmin")
+        .from("system_admins")
+        .select("id")
+        .eq("id", session.user.id)
         .limit(1)
+        .maybeSingle()
 
-      if (adminError || !superadminCheck || superadminCheck.length === 0) {
+      if (adminError || !superadminCheck) {
         console.info('[SYSTEM-ADMIN-LAYOUT] User is not superadmin')
         setIsAuthorized(false)
         setIsLoading(false)

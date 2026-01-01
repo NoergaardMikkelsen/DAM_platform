@@ -88,21 +88,38 @@ async function executeMigration(client: Client, migration: Migration): Promise<v
     // Execute the SQL
     await client.query(migration.content)
 
-    // Record migration execution
+    // Record migration execution (update if exists to track re-execution)
     await client.query(
-      "INSERT INTO schema_migrations (filename, checksum, executed_by) VALUES ($1, $2, $3) ON CONFLICT (filename) DO NOTHING",
+      `INSERT INTO schema_migrations (filename, checksum, executed_by, executed_at) 
+       VALUES ($1, $2, $3, now()) 
+       ON CONFLICT (filename) 
+       DO UPDATE SET checksum = EXCLUDED.checksum, executed_at = now(), executed_by = EXCLUDED.executed_by`,
       [migration.filename, migration.checksum, "migration_execute"],
     )
 
     console.log(`✓ Completed: ${migration.filename}`)
   } catch (error: any) {
     // Handle "already exists" errors gracefully - these mean the migration was already applied
+    // But for migrations using CREATE OR REPLACE, we should still execute them
     const alreadyExistsErrors = [
       "42701", // duplicate_column
       "42P07", // duplicate_table
       "42710", // duplicate_object
       "42P16", // duplicate_schema
     ]
+    
+    // For migration 059, we want to allow re-execution even if some objects exist
+    // because it uses CREATE OR REPLACE and DROP POLICY IF EXISTS
+    if (migration.filename === "059_update_rls_policies_from_permission_matrix.sql") {
+      // This migration uses CREATE OR REPLACE, so it should run successfully
+      // If we get here, there's a real error
+      console.error(`✗ Failed: ${migration.filename}`)
+      console.error(`  Error: ${error.message}`)
+      if (error.code) {
+        console.error(`  Code: ${error.code}`)
+      }
+      throw error
+    }
     
     if (alreadyExistsErrors.includes(error.code)) {
       console.log(`⚠ Skipped: ${migration.filename} (already applied)`)

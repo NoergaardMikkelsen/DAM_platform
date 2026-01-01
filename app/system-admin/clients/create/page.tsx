@@ -318,27 +318,16 @@ export default function CreateClientPage() {
         console.error("Failed to get admin role:", adminRoleError)
         // Don't throw error - client is created, just log the role issue
       } else if (clientData && adminRole) {
-        // System client ID for superadmin identification (NMIC demo - not used for tenant access)
-        const SYSTEM_CLIENT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
-
-        // Get all users with superadmin role from system client only
+        // Get all system admins (superadmins) from system_admins table
         const { data: superadminUsers, error: superadminError } = await supabase
-          .from('client_users')
-          .select(`
-            user_id,
-            roles!inner(key)
-          `)
-          .eq('client_id', SYSTEM_CLIENT_ID) // Only check system client for superadmins
-          .eq('roles.key', 'superadmin')
-          .eq('status', 'active')
+          .from('system_admins')
+          .select('id')
 
         if (superadminError) {
           console.error("Failed to get superadmin users:", superadminError)
         } else if (superadminUsers && superadminUsers.length > 0) {
           // Get unique user IDs
-          const superadminUserIds: string[] = Array.from(new Set(
-            superadminUsers.map((su: any) => su.user_id as string)
-          ))
+          const superadminUserIds: string[] = superadminUsers.map((su: any) => su.id as string)
 
           // Create client_users entries for all superadmins with admin role on the new client
           const clientUserInserts = superadminUserIds.map((userId: string) => ({

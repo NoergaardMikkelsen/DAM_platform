@@ -58,8 +58,8 @@ export async function getUserRole(clientId: string) {
 }
 
 /**
- * Check if user has superadmin role in any client
- * Superadmins have access to system-admin area and all tenants
+ * Check if user is a system admin (superadmin)
+ * Uses the dedicated system_admins table instead of client_users
  */
 export async function isUserSuperAdmin(): Promise<boolean> {
   const supabase = await createClient()
@@ -69,19 +69,16 @@ export async function isUserSuperAdmin(): Promise<boolean> {
 
   if (!user) return false
 
-  // Check if user has superadmin role in any client
-  const { data: superadminCheck } = await supabase
-    .from("client_users")
-    .select(`
-      id,
-      roles!inner(key)
-    `)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .eq("roles.key", "superadmin")
+  // Check if user exists in system_admins table
+  const { data: superadminCheck, error } = await supabase
+    .from("system_admins")
+    .select("id")
+    .eq("id", user.id)
     .limit(1)
+    .maybeSingle()
 
-  return !!superadminCheck && superadminCheck.length > 0
+  // If error or no data, user is not a superadmin
+  return !error && !!superadminCheck
 }
 
 export async function getAllTenantsForSuperAdmin() {

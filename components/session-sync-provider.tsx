@@ -16,9 +16,8 @@ export function SessionSyncProvider({ children }: { children: React.ReactNode })
       try {
         const supabase = createClient()
         await syncSessionAcrossSubdomains(supabase)
-      } catch (error) {
-        // Session sync is optional - don't log errors since it's not critical
-        console.log('[SESSION-SYNC-PROVIDER] Session sync completed (may have failed, but not critical)')
+      } catch {
+        // Session sync is optional - silently fail since it's not critical
       }
     }
 

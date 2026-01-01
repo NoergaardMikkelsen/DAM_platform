@@ -218,10 +218,17 @@ function LoginForm({
       if (loginData?.user) {
         // Set session in Supabase client
         if (loginData.session) {
-          await supabase.auth.setSession({
+          const { error: sessionError } = await supabase.auth.setSession({
             access_token: loginData.session.access_token,
             refresh_token: loginData.session.refresh_token,
           })
+          
+          if (sessionError) {
+            console.error('[LOGIN-FORM] Session error:', sessionError)
+            setError('Failed to set session. Please try again.')
+            setIsLoading(false)
+            return
+          }
         }
 
         // Simple redirect logic:
@@ -384,19 +391,15 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
 
   // 1. System Admin Context (admin.brandassets.space or admin.localhost*)
   if (host === 'admin.brandassets.space' || host === 'admin.localhost' || host.startsWith('admin.localhost:')) {
-    // Check if user has superadmin role
+    // Check if user is superadmin using system_admins table
     const { data: superadminCheck, error: superadminError } = await supabase
-      .from('client_users')
-      .select(`
-        id,
-        roles!inner(key)
-      `)
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .eq('roles.key', 'superadmin')
+      .from('system_admins')
+      .select('id')
+      .eq('id', userId)
       .limit(1)
+      .maybeSingle()
 
-    if (superadminCheck && superadminCheck.length > 0) {
+    if (superadminCheck && !superadminError) {
       return '/system-admin/dashboard'
     }
     return null
@@ -429,26 +432,8 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
       .single()
 
     if (tenant) {
-      // Check if user is superadmin (they have access to all tenants)
-      const { data: superadminCheck, error: superadminError } = await supabase
-        .from("client_users")
-        .select(`
-          id,
-          roles!inner(key)
-        `)
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .eq("roles.key", "superadmin")
-        .limit(1)
-
-      const isSuperAdmin = superadminCheck && superadminCheck.length > 0
-
-      if (isSuperAdmin) {
-        return "/dashboard"
-      }
-
-      // Not a superadmin, check explicit tenant access
-      // Use maybeSingle() instead of single() to avoid 406 error when no access
+      // Check tenant access in client_users table only
+      // Superadmins must also have client_users entries to access tenants
       const { data: accessCheck, error: accessError } = await supabase
         .from("client_users")
         .select("id, role_id")
@@ -469,18 +454,15 @@ async function determineUserRedirect(userId: string, supabase: any, host: string
   // Check what access the user has and redirect accordingly
 
   // Priority: Superadmin > Any Tenant Access
+  // Check if user is superadmin using system_admins table
   const { data: superadminCheck, error: superadminError } = await supabase
-    .from('client_users')
-    .select(`
-      id,
-      roles!inner(key)
-    `)
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .eq('roles.key', 'superadmin')
+    .from('system_admins')
+    .select('id')
+    .eq('id', userId)
     .limit(1)
+    .maybeSingle()
 
-  if (superadminCheck && superadminCheck.length > 0) {
+  if (superadminCheck && !superadminError) {
     return '/system-admin/dashboard'
   }
 

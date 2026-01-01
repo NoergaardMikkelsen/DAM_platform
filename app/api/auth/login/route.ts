@@ -27,9 +27,9 @@ export async function POST(request: Request) {
     })
 
     if (error) {
-      console.log('[LOGIN-API] Supabase error:', error.message)
+      console.error('[LOGIN-API] Supabase error:', error.message, error)
       return NextResponse.json(
-        { error: error.message },
+        { error: error.message || 'Login failed' },
         { status: 400 }
       )
     }
@@ -72,15 +72,38 @@ export async function POST(request: Request) {
     // For production: use .brandassets.space
     // NOTE: httpOnly must be false for Supabase client-side to read session
     authCookies.forEach(cookie => {
+      // For localhost subdomains, we need to ensure cookies work across subdomains
+      // But we can't set domain for localhost, so we rely on browser default behavior
       response.cookies.set(cookie.name, cookie.value, {
         ...(isProduction ? { domain: '.brandassets.space' } : {}),
         path: '/',
-        httpOnly: false, // Must be false for client-side Supabase
+        httpOnly: false, // Must be false for Supabase client-side to read session
         secure: isProduction,
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 7 days
       })
     })
+    
+    // Also ensure Supabase's default auth cookies are set
+    // Supabase sets these automatically, but we need to make sure they're in the response
+    if (data.session.access_token) {
+      // Set the access token cookie explicitly
+      response.cookies.set(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`, JSON.stringify({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at,
+        expires_in: data.session.expires_in,
+        token_type: data.session.token_type,
+        user: data.user,
+      }), {
+        ...(isProduction ? { domain: '.brandassets.space' } : {}),
+        path: '/',
+        httpOnly: false,
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+      })
+    }
 
     // Also set the session tokens explicitly
     if (data.session.access_token && data.session.refresh_token) {
@@ -98,10 +121,10 @@ export async function POST(request: Request) {
     }
 
     return response
-  } catch (error) {
+  } catch (error: any) {
     console.error('[LOGIN-API] Unexpected error:', error)
     return NextResponse.json(
-      { error: "Failed to login" },
+      { error: error?.message || "Failed to login" },
       { status: 500 }
     )
   }

@@ -19,13 +19,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Pencil, Plus, Search, Trash2, Info } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { getTagsForClient } from "@/lib/utils/supabase-queries"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
 import { CreateTagModal } from "@/components/create-tag-modal"
+import { EditTagModal } from "@/components/edit-tag-modal"
 import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
 import { PAGINATION } from "@/lib/constants"
@@ -83,6 +83,9 @@ export default function TaggingPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [childTagsCount, setChildTagsCount] = useState<number>(0)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingTag, setEditingTag] = useState<Tag | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -122,8 +125,15 @@ export default function TaggingPage() {
   })
 
   useEffect(() => {
+    loadCurrentUser()
     loadTags()
   }, [])
+
+  const loadCurrentUser = async () => {
+    const supabase = supabaseRef.current
+    const { data: { user } } = await supabase.auth.getUser()
+    setCurrentUserId(user?.id || null)
+  }
 
   // Update dimensions based on actually loaded tags (after filtering)
   useEffect(() => {
@@ -356,6 +366,29 @@ export default function TaggingPage() {
     loadTags()
   }
 
+  const handleEditTag = async (tag: Tag) => {
+    // System tags cannot be edited from tenant area
+    if (tag.is_system) {
+      alert("System tags can only be edited from the system admin area.")
+      return
+    }
+
+    // Check if user has permission to edit (admin or creator)
+    if (!isAdmin && currentUserId !== tag.created_by) {
+      alert("You don't have permission to edit this tag.")
+      return
+    }
+
+    setEditingTag(tag)
+    setIsEditModalOpen(true)
+  }
+
+  const handleEditSuccess = () => {
+    loadTags()
+    setIsEditModalOpen(false)
+    setEditingTag(null)
+  }
+
   const columns: TableColumn<Tag>[] = [
     {
       header: "Tag",
@@ -395,31 +428,41 @@ export default function TaggingPage() {
             </Tooltip>
           ) : (
             <>
-              {isAdmin && (
+              {/* Show edit button if user is admin OR if user created this tag */}
+              {(isAdmin || (currentUserId && tag.created_by === currentUserId)) && (
                 <>
-                  <Link href={`/tagging/${tag.id}`} onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Pencil className="h-4 w-4 text-gray-600" />
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
                     className="h-8 w-8"
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
-                      const supabase = supabaseRef.current
-                      const { data: childTags } = await supabase
-                        .from("tags")
-                        .select("id")
-                        .eq("parent_id", tag.id)
-                      
-                      setChildTagsCount(childTags?.length || 0)
-                      setTagToDelete(tag)
+                      handleEditTag(tag)
                     }}
                   >
-                    <Trash2 className="h-4 w-4 text-red-600" />
+                    <Pencil className="h-4 w-4 text-gray-600" />
                   </Button>
+                  {/* Only admins can delete tags */}
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        const supabase = supabaseRef.current
+                        const { data: childTags } = await supabase
+                          .from("tags")
+                          .select("id")
+                          .eq("parent_id", tag.id)
+                        
+                        setChildTagsCount(childTags?.length || 0)
+                        setTagToDelete(tag)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  )}
                 </>
               )}
             </>
@@ -577,6 +620,24 @@ export default function TaggingPage() {
           onOpenChange={setIsCreateModalOpen}
           onSuccess={handleCreateSuccess}
         />
+        {editingTag && (
+          <EditTagModal
+            open={isEditModalOpen}
+            onOpenChange={(open) => {
+              setIsEditModalOpen(open)
+              if (!open) {
+                setEditingTag(null)
+              }
+            }}
+            onSuccess={handleEditSuccess}
+            tagId={editingTag.id}
+            initialData={{
+              label: editingTag.label,
+              dimension_key: editingTag.dimension_key,
+              sort_order: editingTag.sort_order,
+            }}
+          />
+        )}
         <AlertDialog 
           open={!!tagToDelete} 
           onOpenChange={(open) => {

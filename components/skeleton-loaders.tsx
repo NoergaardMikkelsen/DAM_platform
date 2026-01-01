@@ -1,11 +1,10 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
-import Link from 'next/link'
 
 // Individual asset card skeleton - matches actual asset card size
 export function AssetCardSkeleton() {
   return (
-    <Link href="#" className="w-full" onClick={(e) => e.preventDefault()}>
+    <div className="w-full">
       <Card className="group overflow-hidden p-0 transition-shadow w-full" style={{ borderRadius: '20px' }}>
         <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 w-full" style={{ aspectRatio: '1 / 1', borderRadius: '20px' }}>
           <div className="animate-pulse w-full h-full bg-gray-200" style={{ borderRadius: '20px' }} />
@@ -36,7 +35,7 @@ export function AssetCardSkeleton() {
           </button>
         </div>
       </Card>
-    </Link>
+    </div>
   )
 }
 

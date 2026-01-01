@@ -1,3 +1,5 @@
+"use client"
+
 import type { Tag, TagDimension } from "@/lib/types/database"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -40,12 +42,15 @@ export async function getParentTagId(
 ): Promise<string | null> {
   if (!dimension.is_hierarchical) return null
 
+  // Parent tags are now system tags (client_id IS NULL, is_system = true)
+  // Try to find system parent tag first, then fallback to client-specific if needed
   const { data: parentTag } = await supabase
     .from("tags")
     .select("id")
     .eq("dimension_key", dimension.dimension_key)
     .is("parent_id", null)
-    .or(`client_id.eq.${clientId},client_id.is.null`)
+    .is("client_id", null) // Parent tags are system tags (client_id IS NULL)
+    .eq("is_system", true) // Parent tags are system tags
     .maybeSingle()
 
   return parentTag?.id || null
@@ -100,7 +105,6 @@ export async function loadTagsForDimension(
   const { data: tags, error } = await query
 
   if (error) {
-    console.error("Error loading tags:", error)
     return []
   }
 
