@@ -126,6 +126,14 @@ export function TagBadgeSelector({
     }
   }
 
+  const handleTagClick = (e: React.MouseEvent, tag: Tag) => {
+    // Don't toggle if clicking on the X icon (handled separately)
+    if ((e.target as HTMLElement).closest('svg')) {
+      return
+    }
+    handleSelectTag(tag)
+  }
+
   const handleCreateTag = async () => {
     if (!createValue.trim() || !onCreate || exactMatch) return
 
@@ -210,8 +218,8 @@ export function TagBadgeSelector({
           <button
             key={tag.id}
             type="button"
-            onClick={() => handleSelectTag(tag)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
+            onClick={(e) => handleTagClick(e, tag)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
               isSelected(tag.id)
                 ? "text-white shadow-sm"
                 : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
@@ -221,14 +229,19 @@ export function TagBadgeSelector({
               borderColor: tenant.primary_color,
             } : undefined}
           >
-            <span>{tag.label}</span>
+            <span className="flex-1">{tag.label}</span>
             {isSelected(tag.id) && (
               <X 
-                className="h-3 w-3" 
+                className="h-3 w-3 flex-shrink-0 cursor-pointer" 
                 onClick={(e) => {
                   e.stopPropagation()
+                  e.preventDefault()
                   handleRemoveTag(tag.id)
-                }} 
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                }}
               />
             )}
           </button>
