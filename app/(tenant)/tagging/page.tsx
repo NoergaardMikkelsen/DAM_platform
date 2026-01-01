@@ -24,7 +24,6 @@ import { useRouter } from "next/navigation"
 import { useTenant } from "@/lib/context/tenant-context"
 import { getTagsForClient } from "@/lib/utils/supabase-queries"
 import { ListPageHeaderSkeleton, SearchSkeleton, TabsSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
-import { CreateTagModal } from "@/components/create-tag-modal"
 import { EditTagModal } from "@/components/edit-tag-modal"
 import { formatDate } from "@/lib/utils/date"
 import { usePagination } from "@/hooks/use-pagination"
@@ -74,7 +73,6 @@ interface ChildTag {
 export default function TaggingPage() {
   const { tenant, role } = useTenant()
   const isAdmin = role === 'admin' || role === 'superadmin'
-  const canCreate = isAdmin // Only admins and superadmins can create tags
   const [tags, setTags] = useState<Tag[]>([])
   const [dimensions, setDimensions] = useState<TagDimension[]>([])
   const [dimensionFilter, setDimensionFilter] = useState("all")
@@ -82,7 +80,6 @@ export default function TaggingPage() {
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [childTagsCount, setChildTagsCount] = useState<number>(0)
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingTag, setEditingTag] = useState<Tag | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -362,10 +359,6 @@ export default function TaggingPage() {
     }
   }
 
-  const handleCreateSuccess = () => {
-    loadTags()
-  }
-
   const handleEditTag = async (tag: Tag) => {
     // System tags cannot be edited from tenant area
     if (tag.is_system) {
@@ -559,11 +552,6 @@ export default function TaggingPage() {
     <TooltipProvider>
       <TablePage
         title="Tagging"
-        createButton={canCreate ? {
-          label: "Create new tag",
-          onClick: () => setIsCreateModalOpen(true),
-          style: { backgroundColor: tenant.primary_color },
-        } : undefined}
         search={{
           placeholder: "Search tag",
           value: searchQuery,
@@ -615,11 +603,6 @@ export default function TaggingPage() {
         isLoading={isLoading}
         loadingSkeleton={loadingSkeleton}
       >
-        <CreateTagModal
-          open={isCreateModalOpen}
-          onOpenChange={setIsCreateModalOpen}
-          onSuccess={handleCreateSuccess}
-        />
         {editingTag && (
           <EditTagModal
             open={isEditModalOpen}

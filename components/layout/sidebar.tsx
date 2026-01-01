@@ -566,7 +566,12 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
             open={isUploadModalOpen}
             onOpenChange={setIsUploadModalOpen}
             onSuccess={() => {
-              // Upload completed successfully
+              // Dispatch custom event to refresh assets list
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('assets-uploaded'))
+              }
+              // Also refresh router for server components
+              router.refresh()
             }}
           />
           <SwitchClientDialog

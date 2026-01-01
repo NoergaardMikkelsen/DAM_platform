@@ -136,7 +136,6 @@ export default function CollectionDetailPage() {
         .single()
 
       if (tagError || !tag) {
-        console.error('[COLLECTION-PAGE] Error fetching tag:', tagError)
         setIsLoading(false)
         router.push("/assets")
         return
@@ -151,7 +150,6 @@ export default function CollectionDetailPage() {
         .eq("tag_id", id)
 
       if (assetTagsError) {
-        console.error('[COLLECTION-PAGE] Error fetching asset tags:', assetTagsError)
         setError("Failed to load collection assets")
         setIsLoading(false)
         return
@@ -177,7 +175,6 @@ export default function CollectionDetailPage() {
         .order("created_at", { ascending: false })
 
       if (assetsError) {
-        console.error('[COLLECTION-PAGE] Error fetching assets:', assetsError)
         setError("Failed to load collection assets")
         setIsLoading(false)
         return
@@ -220,8 +217,6 @@ export default function CollectionDetailPage() {
         const assetIdsForUrls = assetsWithMedia.map((a: Asset) => a.id).filter(Boolean)
         const storagePaths = assetsWithMedia.map((a: Asset) => a.storage_path).filter(Boolean)
         
-        console.log(`[COLLECTION-PAGE] Fetching signed URLs for ${assetIdsForUrls.length} assets`)
-        
         // Chunk large batches to avoid timeout (process in chunks of 50)
         const BATCH_SIZE = 50
         const chunks: Array<{ assetIds: string[], storagePaths: string[] }> = []
@@ -255,23 +250,18 @@ export default function CollectionDetailPage() {
                   // Update cache incrementally as chunks complete
                   setSignedUrlsCache(prev => ({ ...prev, ...signedUrls }))
                 }
-              } else {
-                console.warn(`[COLLECTION-PAGE] Batch chunk failed with status ${response.status}`)
               }
-            } catch (error) {
-              console.error(`[COLLECTION-PAGE] Error fetching chunk:`, error)
+            } catch {
+              // Error fetching chunk - continue with next chunk
             }
           }
           
-          const urlCount = Object.keys(allSignedUrls).length
-          console.log(`[COLLECTION-PAGE] Received ${urlCount} signed URLs out of ${assetIdsForUrls.length} requested`)
           setSignedUrlsReady(true)
           setShouldAnimate(true)
         }
         
         // Start processing chunks asynchronously
-        processChunks().catch((error) => {
-          console.error('[COLLECTION-PAGE] Error processing chunks:', error)
+        processChunks().catch(() => {
           // Mark as ready even on error - assets will use fallback/proxy URLs via BatchAssetLoader
           setSignedUrlsReady(true)
           setShouldAnimate(true)
@@ -286,9 +276,8 @@ export default function CollectionDetailPage() {
       // Assets will load progressively as signed URLs become available
       setIsLoading(false)
       setShouldAnimate(true)
-    } catch (error) {
+    } catch {
       // Handle any unexpected errors during data loading
-      console.error('[COLLECTION-PAGE] Unexpected error loading data:', error)
       setError("Failed to load collection. Please try again.")
       setIsLoading(false)
       setSignedUrlsReady(true)

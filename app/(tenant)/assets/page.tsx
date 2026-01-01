@@ -85,6 +85,19 @@ export default function AssetsPage() {
     applySearchAndSort()
   }, [assets, searchQuery, sortBy])
 
+  // Listen for asset upload events to refresh the list
+  useEffect(() => {
+    const handleAssetUploaded = () => {
+      loadData()
+    }
+
+    window.addEventListener('assets-uploaded', handleAssetUploaded)
+    return () => {
+      window.removeEventListener('assets-uploaded', handleAssetUploaded)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant?.id])
+
   const loadData = async () => {
     // Use tenant from context - tenant layout already verified access
     // Guard against tenant not being ready

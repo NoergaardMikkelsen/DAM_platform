@@ -9,6 +9,7 @@ import { X, Plus, AlertTriangle } from "lucide-react"
 import type { Tag, TagDimension } from "@/lib/types/database"
 import { fuzzyMatch } from "@/lib/utils/tags"
 import { useTags } from "@/lib/hooks/use-tags"
+import { useTenant } from "@/lib/context/tenant-context"
 
 interface TagBadgeSelectorProps {
   dimension: TagDimension
@@ -33,9 +34,11 @@ export function TagBadgeSelector({
   userId,
   className = "",
 }: TagBadgeSelectorProps) {
+  const { tenant } = useTenant()
   const [showCreate, setShowCreate] = useState(false)
   const [createValue, setCreateValue] = useState("")
   const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const createInputRef = useRef<HTMLInputElement>(null)
   const createRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
@@ -136,14 +139,21 @@ export function TagBadgeSelector({
       handleSelectTag(existingTag)
       setShowCreate(false)
       setCreateValue("")
+      setCreateError(null)
       return
     }
 
     setIsCreating(true)
+    setCreateError(null)
     try {
+      if (!onCreate) {
+        throw new Error("Tag creation is not available")
+      }
+      
       const newTagId = await onCreate(trimmedValue)
       if (newTagId) {
         setCreateValue("")
+        setCreateError(null)
         reload?.()
         setTimeout(() => {
           if (isMultiSelect && onToggle) {
@@ -153,9 +163,12 @@ export function TagBadgeSelector({
           }
           setShowCreate(false)
         }, 100)
+      } else {
+        setCreateError("Failed to create tag. You may not have permission to create tags in this dimension.")
       }
-    } catch {
-      // Error creating tag - silently fail
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to create tag"
+      setCreateError(errorMessage)
     } finally {
       setIsCreating(false)
     }
@@ -200,9 +213,13 @@ export function TagBadgeSelector({
             onClick={() => handleSelectTag(tag)}
             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
               isSelected(tag.id)
-                ? "border-primary bg-primary text-white shadow-sm"
+                ? "text-white shadow-sm"
                 : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
             }`}
+            style={isSelected(tag.id) ? {
+              backgroundColor: tenant.primary_color,
+              borderColor: tenant.primary_color,
+            } : undefined}
           >
             <span>{tag.label}</span>
             {isSelected(tag.id) && (
@@ -233,7 +250,7 @@ export function TagBadgeSelector({
             {showCreate && (
               <div
                 ref={createRef}
-                className="absolute top-full left-0 mt-2 w-80 rounded-lg border border-gray-200 bg-white shadow-lg z-50"
+                className="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white shadow-lg z-50"
               >
                 <div className="p-4 space-y-3">
                   {/* Exact match warning */}
@@ -315,16 +332,24 @@ export function TagBadgeSelector({
                       type="text"
                       placeholder={`Enter ${dimension.label.toLowerCase()} name...`}
                       value={createValue}
-                      onChange={(e) => setCreateValue(e.target.value)}
+                      onChange={(e) => {
+                        setCreateValue(e.target.value)
+                        setCreateError(null)
+                      }}
                       onKeyDown={handleKeyDown}
                       disabled={isCreating}
+                      className={createError ? "border-red-500" : ""}
                     />
+                    {createError && (
+                      <p className="text-xs text-red-600">{createError}</p>
+                    )}
                     <div className="flex gap-2">
                       <Button
                         onClick={handleCreateTag}
                         disabled={isCreating || !createValue.trim() || !!exactMatch}
                         size="sm"
                         className="flex-1"
+                        style={{ backgroundColor: tenant.primary_color }}
                       >
                         {isCreating ? "Creating..." : "Create"}
                       </Button>
@@ -333,6 +358,7 @@ export function TagBadgeSelector({
                         onClick={() => {
                           setShowCreate(false)
                           setCreateValue("")
+                          setCreateError(null)
                         }}
                         size="sm"
                         disabled={isCreating}
