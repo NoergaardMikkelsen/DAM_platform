@@ -592,6 +592,7 @@ export function UploadAssetModal({ open, onOpenChange, onSuccess }: UploadAssetM
         <DialogContent className="!max-w-2xl w-full">
           <DialogHeader>
             <DialogTitle className="sr-only">Upload Asset</DialogTitle>
+            <DialogDescription className="sr-only">Uploading asset, please wait</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: tenant.primary_color }} />

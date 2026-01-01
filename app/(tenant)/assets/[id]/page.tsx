@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useTenant } from "@/lib/context/tenant-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -1918,6 +1918,9 @@ export default function AssetDetailPage() {
               <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Tags</DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Edit tags for this asset. Select or create tags to organize your assets.
+                  </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6">
@@ -2064,6 +2067,9 @@ export default function AssetDetailPage() {
         <DialogContent className="rounded-3xl border border-gray-100 bg-white/98 shadow-[0_20px_70px_-20px_rgba(15,23,42,0.25)] backdrop-blur max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-900">Share Asset</DialogTitle>
+            <DialogDescription className="sr-only">
+              Share this asset with others
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
