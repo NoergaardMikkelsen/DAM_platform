@@ -73,6 +73,7 @@ interface ChildTag {
 export default function TaggingPage() {
   const { tenant, role } = useTenant()
   const isAdmin = role === 'admin' || role === 'superadmin'
+  const canCreate = false // Tag creation is only allowed via upload modal
   const [tags, setTags] = useState<Tag[]>([])
   const [dimensions, setDimensions] = useState<TagDimension[]>([])
   const [dimensionFilter, setDimensionFilter] = useState("all")

@@ -54,7 +54,6 @@ export async function generateMetadata({ params }: { params: { tenant?: string }
       // This prevents server-side rendering errors
       // Don't log in production to avoid exposing errors
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error fetching tenant metadata:', error)
       }
     }
   }
@@ -116,7 +115,6 @@ export default async function AuthenticatedLayout({
 
   if (!user) {
     debugLog.push(`[TENANT-LAYOUT] No user - redirecting to login`)
-    console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/login")
   }
 
@@ -140,7 +138,6 @@ export default async function AuthenticatedLayout({
   // Skip invalid subdomains (empty, admin, www, etc.)
   if (!potentialSubdomain || potentialSubdomain === 'admin' || potentialSubdomain === 'www' || potentialSubdomain === '') {
     debugLog.push(`[TENANT-LAYOUT] Invalid subdomain - redirecting`)
-    console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     // Don't redirect admin subdomains - let them be handled by system-admin routing
     if (hostWithoutPort === 'admin.brandassets.space' || hostWithoutPort === 'admin.localhost') {
       debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - this should not happen, redirecting to system-admin`)
@@ -183,7 +180,6 @@ export default async function AuthenticatedLayout({
   if (!tenant) {
     // No tenant found with this slug - redirect to main site
     debugLog.push(`[TENANT-LAYOUT] Tenant not found - redirecting`)
-    console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     // Don't redirect admin subdomains - let them be handled by system-admin routing
     if (hostWithoutPort === 'admin.brandassets.space' || hostWithoutPort === 'admin.localhost') {
       debugLog.push(`[TENANT-LAYOUT] Admin subdomain detected - this should not happen, redirecting to system-admin`)
@@ -212,7 +208,6 @@ export default async function AuthenticatedLayout({
   // If no access found, redirect to login
   if (accessError || !accessCheck) {
     debugLog.push(`[TENANT-LAYOUT] No access to tenant - redirecting to login`)
-    console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/login?error=no_access")
   }
 
@@ -232,7 +227,6 @@ export default async function AuthenticatedLayout({
 
   if (!userData) {
     debugLog.push(`[TENANT-LAYOUT] No user data - redirecting to login`)
-    console.error('[TENANT-LAYOUT DEBUG]', debugLog.join('\n'))
     redirect("/login")
   }
 

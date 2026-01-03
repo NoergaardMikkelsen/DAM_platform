@@ -167,7 +167,6 @@ export default function AssetsPage() {
     await refreshDataFromDatabase(clientId)
     } catch (error) {
       // Handle any errors during data loading
-      console.error('[ASSETS-PAGE] Error loading data:', error)
       setIsLoading(false)
       setIsLoadingCollections(false)
     }
@@ -278,7 +277,6 @@ export default function AssetsPage() {
     ])
 
     if (assetsError) {
-      console.error("Error loading assets:", assetsError)
       setIsLoading(false)
       setIsLoadingCollections(false)
       return
@@ -356,7 +354,6 @@ export default function AssetsPage() {
           }
         })
         .catch((error) => {
-          console.error('[ASSETS-PAGE] Error fetching signed URLs:', error)
         })
     }
   }

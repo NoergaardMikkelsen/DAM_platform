@@ -1,13 +1,12 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import { Clock, Download, Package, TrendingUp, Heart, ArrowRight, Filter } from "lucide-react"
+import { Clock, Download, Package, TrendingUp, Heart, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AssetPreview } from "@/components/asset-preview"
-import { FilterPanel } from "@/components/filter-panel"
 import { CollectionCard } from "@/components/collection-card"
 import { EmptyState } from "@/components/empty-state"
 import { FolderOpen } from "lucide-react"
@@ -36,10 +35,7 @@ interface Asset {
 
 export default function DashboardPage() {
   const [collections, setCollections] = useState<Collection[]>([])
-  const [filteredCollections, setFilteredCollections] = useState<Collection[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
-  const [filteredAssets, setFilteredAssets] = useState<Asset[]>([])
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [collectionSort, setCollectionSort] = useState("newest")
   const [assetSort, setAssetSort] = useState("newest")
   const [isLoading, setIsLoading] = useState(true) // Start with loading true to show skeletons immediately
@@ -86,14 +82,14 @@ export default function DashboardPage() {
           })
 
           if (error) {
-            console.error('[AUTH-TRANSFER] Error setting session:', error)
+            // Error setting session
           } else {
             // Remove auth params from URL to clean up
             const cleanUrl = window.location.pathname
             window.history.replaceState({}, '', cleanUrl)
           }
         } catch (err) {
-          console.error('[AUTH-TRANSFER] Unexpected error:', err)
+          // Unexpected error
         }
       }
     }
@@ -117,7 +113,6 @@ export default function DashboardPage() {
 
     // Use userData from context - already verified server-side
     if (!userData) {
-      console.error('[DASHBOARD] No userData in context')
       setIsLoading(false)
       return
     }
@@ -134,7 +129,6 @@ export default function DashboardPage() {
       // Use cached data - show immediately
       // Batch state updates to prevent multiple re-renders
       setAssets(cachedAssets)
-      setFilteredAssets(cachedAssets)
       
       // Mark that we're using cached data (for instant display)
       setIsUsingCachedData(true)
@@ -158,7 +152,6 @@ export default function DashboardPage() {
       if (cachedCollections && cachedCollections.length > 0) {
         // Show cached collections immediately, but rebuild in background to ensure previewAssets are fresh
         setCollections(cachedCollections)
-        setFilteredCollections(cachedCollections)
         setIsLoadingCollections(false)
         setCollectionsToShow(Math.min(cachedCollections.length, 4))
         // Mark collections as ready for animation
@@ -181,7 +174,6 @@ export default function DashboardPage() {
             if (currentIds !== newIds || JSON.stringify(cachedCollections) !== JSON.stringify(allCollections)) {
               setCachedData('collections', allCollections)
               setCollections(allCollections)
-              setFilteredCollections(allCollections)
               setCollectionsToShow(Math.min(allCollections.length, 4))
             }
           })()
@@ -199,7 +191,6 @@ export default function DashboardPage() {
           )
           setCachedData('collections', allCollections)
           setCollections(allCollections)
-          setFilteredCollections(allCollections)
           setIsLoadingCollections(false)
           setCollectionsToShow(Math.min(allCollections.length, 4))
           // Mark collections as ready for animation
@@ -266,7 +257,7 @@ export default function DashboardPage() {
           storageLimitGB = storageData.storage_limit_gb || 10
         }
       } catch (error) {
-        console.error('[DASHBOARD] Error fetching storage usage:', error)
+        // Error fetching storage usage
       }
       
       const storagePercentage = storageLimitGB > 0 ? Math.min(Math.round((storageUsedGB / storageLimitGB) * 1000) / 10, 100) : 0
@@ -310,7 +301,6 @@ export default function DashboardPage() {
             )
             setCachedData('collections', allCollections)
             setCollections(allCollections)
-            setFilteredCollections(allCollections)
             setIsLoadingCollections(false)
             setCollectionsToShow(Math.min(allCollections.length, 4))
             setTimeout(() => setCollectionsReady(true), 50)
@@ -383,22 +373,12 @@ export default function DashboardPage() {
         storageUsedBytes = storageData.total_bytes || 0
         storageUsedGB = storageData.total_gb || 0
         storageLimitGB = storageData.storage_limit_gb || 10
-        console.log('[DASHBOARD] Storage data:', { 
-          storageUsedBytes, 
-          storageUsedGB, 
-          storageLimitGB, 
-          storageLimitMB: storageData.storage_limit_mb,
-          percentage: storageLimitGB > 0 ? Math.round((storageUsedGB / storageLimitGB) * 100) : 0,
-          fullData: storageData 
-        })
       } else {
-        console.error('[DASHBOARD] Storage API failed:', storageResponse.status, await storageResponse.text())
         // Fallback to DB calculation if API fails
         storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
         storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
       }
     } catch (error) {
-      console.error('[DASHBOARD] Error fetching storage usage:', error)
       // Fallback to DB calculation if API fails
       storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
       storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
@@ -406,12 +386,6 @@ export default function DashboardPage() {
     
     const storagePercentage = storageLimitGB > 0 ? Math.min(Math.round((storageUsedGB / storageLimitGB) * 1000) / 10, 100) : 0 // Round to 1 decimal place
 
-    console.log('[DASHBOARD] Calculated storage percentage:', {
-      storageUsedGB,
-      storageLimitGB,
-      storagePercentage,
-      calculation: `${storageUsedGB} / ${storageLimitGB} * 100 = ${storagePercentage}%`
-    })
 
     const allAssets = allAssetsResult?.data || []
     const statsData = {
@@ -424,7 +398,6 @@ export default function DashboardPage() {
       userName: userData?.full_name || ""
     }
     
-    console.log('[DASHBOARD] Setting statsData:', statsData)
 
     // Only update state if data actually changed to prevent unnecessary re-renders
     setAssets(prevAssets => {
@@ -433,17 +406,14 @@ export default function DashboardPage() {
           prevAssets.length > 0 && 
           prevAssets[0]?.id === allAssets[0]?.id) {
         // Still update stats even if assets haven't changed (storage might have)
-        console.log('[DASHBOARD] Assets unchanged, but updating stats:', statsData)
         setCachedData('stats', statsData)
         setStats(statsData)
         return prevAssets // No change, return previous to prevent re-render
       }
       // Data changed - update cache and other states
-      console.log('[DASHBOARD] Assets changed, updating all data:', statsData)
       setCachedData('assets', allAssets)
       setCachedData('dimensions', dimensions || [])
       setCachedData('stats', statsData)
-      setFilteredAssets(allAssets)
       setStats(statsData)
       return allAssets
     })
@@ -460,7 +430,6 @@ export default function DashboardPage() {
         )
         setCachedData('collections', allCollections)
         setCollections(allCollections)
-        setFilteredCollections(allCollections)
         setIsLoadingCollections(false)
         setCollectionsToShow(Math.min(allCollections.length, 4))
         // Mark collections as ready for animation
@@ -469,7 +438,6 @@ export default function DashboardPage() {
     } else {
       // No dimensions - no collections possible
       setCollections([])
-      setFilteredCollections([])
       setIsLoadingCollections(false)
     }
 
@@ -500,7 +468,6 @@ export default function DashboardPage() {
           }
         })
         .catch((error) => {
-          console.error('[DASHBOARD] Error fetching signed URLs:', error)
         })
     }
   }
@@ -569,22 +536,12 @@ export default function DashboardPage() {
         storageUsedBytes = storageData.total_bytes || 0
         storageUsedGB = storageData.total_gb || 0
         storageLimitGB = storageData.storage_limit_gb || 10
-        console.log('[DASHBOARD] Storage data:', { 
-          storageUsedBytes, 
-          storageUsedGB, 
-          storageLimitGB, 
-          storageLimitMB: storageData.storage_limit_mb,
-          percentage: storageLimitGB > 0 ? Math.round((storageUsedGB / storageLimitGB) * 100) : 0,
-          fullData: storageData 
-        })
       } else {
-        console.error('[DASHBOARD] Storage API failed:', storageResponse.status, await storageResponse.text())
         // Fallback to DB calculation if API fails
         storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
         storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
       }
     } catch (error) {
-      console.error('[DASHBOARD] Error fetching storage usage:', error)
       // Fallback to DB calculation if API fails
       storageUsedBytes = assetsData?.reduce((sum: number, asset: any) => sum + (asset.file_size || 0), 0) || 0
       storageUsedGB = Math.round(storageUsedBytes / 1024 / 1024 / 1024 * 100) / 100
@@ -592,12 +549,6 @@ export default function DashboardPage() {
     
     const storagePercentage = storageLimitGB > 0 ? Math.min(Math.round((storageUsedGB / storageLimitGB) * 1000) / 10, 100) : 0 // Round to 1 decimal place
 
-    console.log('[DASHBOARD] Calculated storage percentage:', {
-      storageUsedGB,
-      storageLimitGB,
-      storagePercentage,
-      calculation: `${storageUsedGB} / ${storageLimitGB} * 100 = ${storagePercentage}%`
-    })
 
     const allAssets = allAssetsResult?.data || []
     const statsData = {
@@ -610,7 +561,6 @@ export default function DashboardPage() {
       userName: userData?.full_name || ""
     }
     
-    console.log('[DASHBOARD] Setting statsData:', statsData)
 
     // Cache the data
     setCachedData('assets', allAssets)
@@ -618,7 +568,6 @@ export default function DashboardPage() {
     setCachedData('stats', statsData)
 
     setAssets(allAssets)
-    setFilteredAssets(allAssets)
     setStats(statsData)
     setIsLoading(false)
     // Mark assets as ready for animation after collections have started (collections show first)
@@ -628,7 +577,6 @@ export default function DashboardPage() {
 
     if (!dimensions || dimensions.length === 0) {
       setCollections([])
-      setFilteredCollections([])
       setIsLoadingCollections(false)
     } else {
       // Build collections for each dimension - load asynchronously in background (don't await)
@@ -643,7 +591,6 @@ export default function DashboardPage() {
         // Cache and update collections when ready
         setCachedData('collections', allCollections)
         setCollections(allCollections)
-        setFilteredCollections(allCollections)
         setIsLoadingCollections(false)
         // Set how many collections to show (max 4)
         setCollectionsToShow(Math.min(allCollections.length, 4))
@@ -679,77 +626,10 @@ export default function DashboardPage() {
           }
         })
         .catch((error) => {
-          console.error('[DASHBOARD] Error fetching signed URLs:', error)
         })
     }
   }
 
-  const handleApplyFilters = async (filters: Record<string, string[]>) => {
-    const allSelectedTags = Object.values(filters).flat()
-
-    const supabase = supabaseRef.current
-
-    // Filter assets
-    let filteredAssetsResult = [...assets]
-
-    if (allSelectedTags.length > 0) {
-      // Filter by tags via asset_tags junction table
-      const { data: assetTags } = await supabase
-        .from("asset_tags")
-        .select("asset_id, tag_id")
-        .in("tag_id", allSelectedTags)
-
-      // Build map of tag_id -> asset_ids for each dimension
-      const tagAssetMap = new Map<string, Set<string>>()
-      assetTags?.forEach((at: any) => {
-        if (!tagAssetMap.has(at.tag_id)) {
-          tagAssetMap.set(at.tag_id, new Set())
-        }
-        tagAssetMap.get(at.tag_id)!.add(at.asset_id)
-      })
-
-      // For each dimension, find assets that match ALL selected tags in that dimension
-      // Then intersect results across dimensions (AND logic between dimensions, OR logic within dimension)
-      const dimensionAssetSets: Set<string>[] = []
-
-      for (const [dimensionKey, tagIds] of Object.entries(filters)) {
-        if (tagIds.length === 0) continue
-
-        // Get assets that have ANY of the selected tags in this dimension (OR logic within dimension)
-        const assetSet = new Set<string>()
-        tagIds.forEach((tagId) => {
-          const assetIds = tagAssetMap.get(tagId)
-          if (assetIds) {
-            assetIds.forEach((assetId) => assetSet.add(assetId))
-          }
-        })
-        dimensionAssetSets.push(assetSet)
-      }
-
-      // Intersect all dimension sets (AND logic between dimensions)
-      if (dimensionAssetSets.length > 0) {
-        let matchingAssetIds = dimensionAssetSets[0]
-        for (let i = 1; i < dimensionAssetSets.length; i++) {
-          matchingAssetIds = new Set([...matchingAssetIds].filter((id) => dimensionAssetSets[i].has(id)))
-        }
-        filteredAssetsResult = filteredAssetsResult.filter((asset) => matchingAssetIds.has(asset.id))
-      }
-    }
-
-    // Filter collections based on the same filters
-    let filteredCollectionsResult = [...collections]
-
-    if (allSelectedTags.length > 0) {
-      // Show collections that match any of the selected tags
-      filteredCollectionsResult = collections.filter((collection: any) =>
-        allSelectedTags.includes(collection.id)
-      )
-    }
-
-    setFilteredAssets(filteredAssetsResult)
-    setFilteredCollections(filteredCollectionsResult)
-    setIsFilterOpen(false)
-  }
 
 
   if (isLoading) {
@@ -769,7 +649,7 @@ export default function DashboardPage() {
     )
   }
 
-  const sortedCollections = [...filteredCollections].sort((a, b) => {
+  const sortedCollections = [...collections].sort((a, b) => {
     switch (collectionSort) {
       case "newest":
         return b.assetCount - a.assetCount // Most assets first
@@ -794,10 +674,6 @@ export default function DashboardPage() {
                 Manage your digital assets, explore collections, and track your storage usage all in one place.
               </p>
             </div>
-            <Button variant="secondary" onClick={() => setIsFilterOpen(true)}>
-              <Filter className="mr-2 h-4 w-4" />
-              Filters
-            </Button>
           </div>
 
           {/* Stats */}
@@ -853,7 +729,7 @@ export default function DashboardPage() {
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-              {isLoadingCollections ? "Loading..." : `${filteredCollections.length} Collection${filteredCollections.length !== 1 ? "s" : ""}`}
+              {isLoadingCollections ? "Loading..." : `${collections.length} Collection${collections.length !== 1 ? "s" : ""}`}
             </h2>
             <button
               onClick={() => router.push('/assets/collections')}
@@ -876,7 +752,7 @@ export default function DashboardPage() {
 
         {isLoadingCollections ? (
           <CollectionGridSkeleton count={4} />
-        ) : filteredCollections.length === 0 ? (
+        ) : collections.length === 0 ? (
           <EmptyState
             icon={FolderOpen}
             title="No collections yet"
@@ -1006,11 +882,6 @@ export default function DashboardPage() {
       </div>
     </div>
 
-    <FilterPanel
-      isOpen={isFilterOpen}
-      onClose={() => setIsFilterOpen(false)}
-      onApplyFilters={handleApplyFilters}
-    />
     </>
   )
 }

@@ -20,3 +20,4 @@ USING (
   (is_system = false AND client_id IS NOT NULL AND has_client_access(auth.uid(), client_id))
 );
 
+

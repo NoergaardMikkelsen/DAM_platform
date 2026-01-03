@@ -72,3 +72,4 @@ async function runMigration059Direct() {
 
 runMigration059Direct()
 
+

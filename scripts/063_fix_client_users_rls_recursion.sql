@@ -19,3 +19,4 @@ USING (
   OR is_superadmin(auth.uid())  -- Superadmins can see all memberships
 );
 
+

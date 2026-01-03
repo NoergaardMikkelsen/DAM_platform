@@ -546,7 +546,6 @@ export default function AssetDetailPage() {
       // Handle gracefully - table might not exist (PGRST205) or no versions (PGRST116)
       // Silently ignore these expected errors
       if (error && error.code !== "PGRST116" && error.code !== "PGRST205") {
-        console.error("Error loading versions:", error)
       }
     setVersions(data || [])
     } catch (err) {
@@ -582,7 +581,6 @@ export default function AssetDetailPage() {
         setFavorite(newFavorite)
       }
     } catch (error) {
-      console.error("Favorite toggle failed:", error)
       setErrorMessage("Kunne ikke opdatere favorit.")
     }
   }
@@ -640,7 +638,6 @@ export default function AssetDetailPage() {
 
       setIsEditingTags(true)
     } catch (error) {
-      console.error("Failed to load tags for editing:", error)
       setErrorMessage("Kunne ikke indlæse tags til redigering.")
     }
   }
@@ -687,7 +684,6 @@ export default function AssetDetailPage() {
         }))
         const { error: insertError } = await supabase.from("asset_tags").insert(insertData)
         if (insertError) {
-          console.error('[TAG SAVE] Insert error:', insertError)
           throw insertError
         }
       }
@@ -700,7 +696,6 @@ export default function AssetDetailPage() {
           .eq("asset_id", asset.id)
           .in("tag_id", tagsToRemove)
         if (deleteError) {
-          console.error('[TAG SAVE] Delete error:', deleteError)
           throw deleteError
         }
       }
@@ -737,7 +732,6 @@ export default function AssetDetailPage() {
       })
 
     } catch (error) {
-      console.error("Failed to save tags:", error)
       setErrorMessage("Kunne ikke gemme tag ændringer.")
     }
   }
@@ -884,7 +878,6 @@ export default function AssetDetailPage() {
 
       await loadAsset(asset.id, false)
     } catch (err) {
-      console.error("Replace failed:", err)
       setErrorMessage("Failed to replace file.")
     } finally {
       setIsReplacing(false)
@@ -932,7 +925,6 @@ export default function AssetDetailPage() {
     }
 
     if (format === "tiff") {
-      console.warn("TIFF transform not supported client-side. Falling back to original.")
       await downloadOriginal({ label, source, fallback: "tiff-original" })
       return
     }
@@ -960,7 +952,6 @@ export default function AssetDetailPage() {
       downloadBlob(transformedBlob, filename)
       await logAssetEvent("download", { label, source, format, width, height })
     } catch (error) {
-      console.error("Transform download failed", error)
       setErrorMessage("Kunne ikke downloade. Viser original.")
       await downloadOriginal({ label, source, fallback: "transform-failed" })
     }
@@ -1066,7 +1057,6 @@ export default function AssetDetailPage() {
         })
       } catch (error) {
         // User cancelled or error - silently fail
-        console.error("Share failed", error)
       }
     } else {
       await handleCopyLink()
@@ -1101,7 +1091,6 @@ export default function AssetDetailPage() {
         })
       }
     } catch (error) {
-      console.error("Copy failed", error)
       toast({
         title: "Failed to copy",
         description: "Could not copy link to clipboard.",
@@ -1148,7 +1137,6 @@ export default function AssetDetailPage() {
       // Navigate back to assets list
       router.push("/assets")
     } catch (err) {
-      console.error("Delete error:", err)
       setErrorMessage("Failed to delete asset")
     }
   }
@@ -1349,7 +1337,6 @@ export default function AssetDetailPage() {
 
                             // Only log if URL doesn't match current asset
                             if (!currentSrc.includes(expectedPath)) {
-                              console.warn("Video URL mismatch - clearing and reloading")
                               setStorageData(null)
                               setVideoErrorCount(0)
                               return

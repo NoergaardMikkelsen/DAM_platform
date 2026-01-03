@@ -57,3 +57,4 @@ USING (
 -- Enable RLS on tag_dimensions table
 ALTER TABLE tag_dimensions ENABLE ROW LEVEL SECURITY;
 
+

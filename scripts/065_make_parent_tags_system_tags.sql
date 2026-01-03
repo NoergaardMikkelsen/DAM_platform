@@ -67,3 +67,4 @@ ALTER TABLE tags ADD CONSTRAINT check_tag_system_rules CHECK (
   (parent_id IS NOT NULL AND is_system = false AND client_id IS NOT NULL)
 );
 
+

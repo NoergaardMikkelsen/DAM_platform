@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings, BarChart3, Shield, Briefcase, Tags, ArrowLeftRight } from "lucide-react"
+import { BookOpen, Building, Home, LogOut, Tag, Upload, Users, ChevronLeft, ChevronRight, Settings, BarChart3, Shield, Briefcase, Tags, ArrowLeftRight, Check } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,12 @@ import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import { useTenant } from "@/lib/context/tenant-context"
 import { UploadAssetModal } from "@/components/upload-asset-modal"
-import { SwitchClientDialog } from "@/components/switch-client-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type SidebarProps = {
   user: {
@@ -26,20 +31,29 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
   const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
-  const [isSwitchClientDialogOpen, setIsSwitchClientDialogOpen] = useState(false)
   const [hasMultipleClients, setHasMultipleClients] = useState(false)
+  const [clients, setClients] = useState<Array<{
+    id: string
+    name: string
+    slug: string
+    domain: string | null
+    primary_color: string
+    logo_collapsed_url?: string | null
+    user_count?: number
+  }>>([])
+  const [isLoadingClients, setIsLoadingClients] = useState(false)
 
   // Only use tenant context in tenant layout, not in system-admin
   const tenant = isSystemAdminContext ? null : useTenant().tenant
 
-  // Check if user has multiple clients
+  // Check if user has multiple clients and load clients
   useEffect(() => {
     if (isSystemAdminContext) {
       setHasMultipleClients(false)
       return
     }
 
-    const checkMultipleClients = async () => {
+    const loadUserClients = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -49,19 +63,82 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
         const { data: clientUsers } = await supabase
           .from("client_users")
-          .select("id")
+          .select(`
+            *,
+            clients!inner (
+              id,
+              name,
+              slug,
+              domain,
+              primary_color,
+              logo_collapsed_url
+            )
+          `)
           .eq("user_id", user.id)
           .eq("status", "active")
+          .eq("clients.status", "active")
+          .order("clients(name)")
 
-        setHasMultipleClients((clientUsers?.length || 0) > 1)
+        if (!clientUsers) {
+          setHasMultipleClients(false)
+          return
+        }
+
+        setHasMultipleClients(clientUsers.length > 1)
+
+        // Get user counts for each client
+        const clientsWithCounts = await Promise.all(
+          clientUsers.map(async (cu: any) => {
+            const { count } = await supabase
+              .from("client_users")
+              .select("id", { count: "exact", head: true })
+              .eq("client_id", cu.clients.id)
+              .eq("status", "active")
+
+            return {
+              id: cu.clients.id,
+              name: cu.clients.name,
+              slug: cu.clients.slug,
+              domain: cu.clients.domain,
+              primary_color: cu.clients.primary_color,
+              logo_collapsed_url: cu.clients.logo_collapsed_url,
+              user_count: count || 0,
+            }
+          })
+        )
+
+        setClients(clientsWithCounts)
       } catch {
         setHasMultipleClients(false)
       }
     }
 
-    checkMultipleClients()
+    loadUserClients()
   }, [isSystemAdminContext, supabase])
 
+
+  const handleSwitchClient = (clientSlug: string) => {
+    const isDevelopment = window.location.hostname.includes('localhost')
+    const port = window.location.port || '3000'
+    
+    if (isDevelopment) {
+      window.location.href = `http://${clientSlug}.localhost:${port}/dashboard`
+    } else {
+      window.location.href = `https://${clientSlug}.brandassets.space/dashboard`
+    }
+  }
+
+  const handleOpenInNewTab = (clientSlug: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const isDevelopment = window.location.hostname.includes('localhost')
+    const port = window.location.port || '3000'
+    
+    if (isDevelopment) {
+      window.open(`http://${clientSlug}.localhost:${port}/dashboard`, '_blank')
+    } else {
+      window.open(`https://${clientSlug}.brandassets.space/dashboard`, '_blank')
+    }
+  }
 
   const handleLogout = async () => {
     try {
@@ -396,9 +473,134 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
           </div>
         </div>
 
-        {/* Upload Button, Switch Client, Profile, and Logout - Only show in tenant context (not in system admin context) */}
+        {/* Switch Client, Upload Button, Profile, and Logout - Only show in tenant context (not in system admin context) */}
         {!isSystemAdminContext && (
-          <div className={`${isCollapsed ? 'px-3' : 'px-3'} space-y-2 pb-12`} style={{ transition: 'padding 300ms ease-in-out' }}>
+          <div className={`${isCollapsed ? 'px-3' : 'px-3'} space-y-2 pb-20`} style={{ transition: 'padding 300ms ease-in-out' }}>
+            {/* Switch Client Dropdown - Only show if user has multiple clients */}
+            {hasMultipleClients && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full justify-start'}
+                    title={isCollapsed ? "Switch client" : undefined}
+                    variant="secondary"
+                    style={{
+                      borderRadius: isCollapsed ? '50%' : '25px',
+                      padding: isCollapsed ? '0' : '14px 16px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      border: '0.5px solid rgba(0, 0, 0, 0.1)',
+                      transition: 'width 300ms ease-in-out, height 300ms ease-in-out, border-radius 300ms ease-in-out, padding 300ms ease-in-out',
+                    }}
+                  >
+                    {!isCollapsed && (
+                      <>
+                        <span className="flex-1 text-left">Switch client</span>
+                        <ArrowLeftRight className="h-4 w-4 ml-2 flex-shrink-0" />
+                      </>
+                    )}
+                    {isCollapsed && <ArrowLeftRight className="h-4 w-4" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent 
+                  align="end" 
+                  side="top"
+                  alignOffset={-288}
+                  sideOffset={8}
+                  className="w-[400px] p-4 bg-white border border-gray-200 shadow-lg rounded-lg"
+                >
+                  <div className="mb-2">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-1">Switch client</h3>
+                    <p className="text-xs text-gray-500">
+                      When you select a client, it opens the client's domain.
+                    </p>
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    {clients.map((client) => {
+                      const isCurrentClient = tenant?.id === client.id
+                      const clientDomain = client.domain || `${client.slug}.brandassets.space`
+
+                      return (
+                        <div
+                          key={client.id}
+                          onClick={() => !isCurrentClient && handleSwitchClient(client.slug)}
+                          className={`
+                            flex items-center justify-between p-4 rounded-lg border
+                            transition-all
+                            ${isCurrentClient 
+                              ? 'bg-gray-50 border-gray-200 cursor-default' 
+                              : 'border-gray-100 cursor-pointer hover:bg-gray-50'
+                            }
+                          `}
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden flex-shrink-0">
+                              {client.logo_collapsed_url ? (
+                                <img
+                                  src={client.logo_collapsed_url}
+                                  alt={`${client.name} logo`}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center bg-gray-600">
+                                  <Building className="h-5 w-5 text-white" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 truncate">
+                                {client.name}
+                              </h3>
+                              <p className="text-sm text-gray-500 truncate">{clientDomain}</p>
+                              <p className="text-sm text-gray-500">{client.user_count || 0} members</p>
+                            </div>
+                          </div>
+                          {isCurrentClient ? (
+                            <div className="rounded-full flex items-center justify-center flex-shrink-0 bg-gray-200" style={{ width: '32px', height: '32px' }}>
+                              <Check className="h-4 w-4 text-gray-600" />
+                            </div>
+                          ) : (
+                            <button
+                              className="rounded-full flex items-center justify-center hover:scale-105 transition-transform flex-shrink-0"
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                backgroundColor: '#000000',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenInNewTab(client.slug, e)
+                              }}
+                              title="Open in new tab"
+                            >
+                              <svg
+                                viewBox="0 8 25 20"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                preserveAspectRatio="xMidYMid"
+                                style={{
+                                  width: '18px',
+                                  height: '16px',
+                                }}
+                              >
+                                <path
+                                  d="M5.37842 18H19.7208M19.7208 18L15.623 22.5M19.7208 18L15.623 13.5"
+                                  stroke="white"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="1.5"
+                                />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             <Button
               onClick={() => setIsUploadModalOpen(true)}
               className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}
@@ -415,26 +617,6 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
               <Upload className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
               {!isCollapsed && 'Upload'}
             </Button>
-            
-            {/* Switch Client Button - Only show if user has multiple clients */}
-            {hasMultipleClients && (
-              <Button
-                onClick={() => setIsSwitchClientDialogOpen(true)}
-                className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}
-                title={isCollapsed ? "Switch client" : undefined}
-                variant="secondary"
-                style={{
-                  borderRadius: isCollapsed ? '50%' : '25px',
-                  padding: isCollapsed ? '0' : '12px 16px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  transition: 'width 300ms ease-in-out, height 300ms ease-in-out, border-radius 300ms ease-in-out, padding 300ms ease-in-out',
-                }}
-              >
-                <ArrowLeftRight className={`${isCollapsed ? '' : 'mr-2'} h-4 w-4`} />
-                {!isCollapsed && 'Switch client'}
-              </Button>
-            )}
 
             {/* User Profile */}
             <div className={`relative z-10 ${isCollapsed ? 'px-0' : 'px-0'}`}>
@@ -561,24 +743,18 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
 
       {/* Upload Modal - Only render in tenant context */}
       {!isSystemAdminContext && (
-        <>
-          <UploadAssetModal
-            open={isUploadModalOpen}
-            onOpenChange={setIsUploadModalOpen}
-            onSuccess={() => {
-              // Dispatch custom event to refresh assets list
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('assets-uploaded'))
-              }
-              // Also refresh router for server components
-              router.refresh()
-            }}
-          />
-          <SwitchClientDialog
-            open={isSwitchClientDialogOpen}
-            onOpenChange={setIsSwitchClientDialogOpen}
-          />
-        </>
+        <UploadAssetModal
+          open={isUploadModalOpen}
+          onOpenChange={setIsUploadModalOpen}
+          onSuccess={() => {
+            // Dispatch custom event to refresh assets list
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('assets-uploaded'))
+            }
+            // Also refresh router for server components
+            router.refresh()
+          }}
+        />
       )}
     </div>
   )

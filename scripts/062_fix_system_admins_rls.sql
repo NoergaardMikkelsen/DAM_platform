@@ -18,3 +18,4 @@ CREATE POLICY "system_admins_select" ON system_admins
     OR is_superadmin(auth.uid())  -- Superadmins can see all records (via SECURITY DEFINER function)
   );
 
+
