@@ -9,7 +9,7 @@ import { UsePaginationReturn } from "@/hooks/use-pagination"
 import { EmptyState } from "@/components/empty-state"
 
 export interface TableColumn<T> {
-  header: string
+  header: string | ReactNode
   accessor?: keyof T
   render?: (item: T) => ReactNode
   className?: string

@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Pencil, Trash2, Plus, Tag } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Pencil, Trash2, Plus, Tag, Layers, Search } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ListPageHeaderSkeleton, SearchSkeleton, TableSkeleton } from "@/components/skeleton-loaders"
@@ -67,6 +69,24 @@ export default function SystemTagsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [tagToDelete, setTagToDelete] = useState<SystemTag | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCreateDimensionModalOpen, setIsCreateDimensionModalOpen] = useState(false)
+  const [createDimensionLoading, setCreateDimensionLoading] = useState(false)
+  const [createDimensionForm, setCreateDimensionForm] = useState({
+    label: '',
+    dimensionKey: '',
+    isHierarchical: false,
+    requiresSubtag: false,
+    allowsMultiple: true,
+    required: false,
+    displayOrder: 0,
+    generatesCollection: false,
+    allowUserCreation: true,
+  })
+  const [createDimensionError, setCreateDimensionError] = useState<string | null>(null)
+  const [isDeleteDimensionDialogOpen, setIsDeleteDimensionDialogOpen] = useState(false)
+  const [dimensionToDelete, setDimensionToDelete] = useState<TagDimension | null>(null)
+  const [isDeletingDimension, setIsDeletingDimension] = useState(false)
+  const [activeTab, setActiveTab] = useState<"tags" | "dimensions">("tags")
   const router = useRouter()
   const supabaseRef = useRef(createClient())
 
@@ -79,6 +99,7 @@ export default function SystemTagsPage() {
     items: tags,
     searchFields: (tag) => [tag.label, tag.slug],
   })
+  const [dimensionSearchQuery, setDimensionSearchQuery] = useState("")
 
   // Apply dimension filter on top of search filter
   const filteredTags = dimensionFilter === "all"
@@ -247,10 +268,157 @@ export default function SystemTagsPage() {
     const supabase = supabaseRef.current
     const { data } = await supabase
       .from("tag_dimensions")
-      .select("dimension_key, label, allow_user_creation, is_hierarchical")
+      .select("*")
       .order("display_order")
 
     setDimensions(data || [])
+  }
+
+  const handleCreateDimension = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCreateDimensionLoading(true)
+    setCreateDimensionError(null)
+
+    try {
+      const supabase = supabaseRef.current
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        throw new Error("Not authenticated")
+      }
+
+      if (!createDimensionForm.label.trim()) {
+        throw new Error("Dimension label is required")
+      }
+
+      // Generate dimension_key from label (slug format)
+      const dimensionKey = generateSlug(createDimensionForm.label.trim())
+
+      // Check if dimension already exists
+      const { data: existing } = await supabase
+        .from("tag_dimensions")
+        .select("dimension_key")
+        .eq("dimension_key", dimensionKey)
+        .maybeSingle()
+
+      if (existing) {
+        throw new Error("A dimension with this key already exists")
+      }
+
+      // Get max display_order to place new dimension at the end
+      const { data: maxOrderData } = await supabase
+        .from("tag_dimensions")
+        .select("display_order")
+        .order("display_order", { ascending: false })
+        .limit(1)
+
+      const maxDisplayOrder = maxOrderData && maxOrderData.length > 0 
+        ? maxOrderData[0].display_order + 1 
+        : (createDimensionForm.displayOrder || 1)
+
+      // Create dimension
+      const { data: newDimension, error: dimensionError } = await supabase
+        .from("tag_dimensions")
+        .insert({
+          dimension_key: dimensionKey,
+          label: createDimensionForm.label.trim(),
+          is_hierarchical: createDimensionForm.isHierarchical,
+          requires_subtag: createDimensionForm.requiresSubtag,
+          allows_multiple: createDimensionForm.allowsMultiple,
+          required: createDimensionForm.required,
+          display_order: maxDisplayOrder,
+          generates_collection: createDimensionForm.generatesCollection,
+          allow_user_creation: createDimensionForm.allowUserCreation,
+        })
+        .select()
+        .single()
+
+      if (dimensionError) {
+        throw dimensionError
+      }
+
+      // If hierarchical, create parent tag automatically
+      if (createDimensionForm.isHierarchical && newDimension) {
+        const parentTagId = await createSystemTag(supabase, {
+          label: createDimensionForm.label.trim(),
+          dimensionKey: dimensionKey,
+          userId: user.id,
+          dimension: newDimension,
+          parentId: null, // Explicitly set to null for parent tag
+          sortOrder: 0,
+        })
+
+        if (!parentTagId) {
+          console.warn("Failed to create parent tag for hierarchical dimension")
+        }
+      }
+
+      // Reset form and reload dimensions
+      setCreateDimensionForm({
+        label: '',
+        dimensionKey: '',
+        isHierarchical: false,
+        requiresSubtag: false,
+        allowsMultiple: true,
+        required: false,
+        displayOrder: 0,
+        generatesCollection: false,
+        allowUserCreation: true,
+      })
+      setIsCreateDimensionModalOpen(false)
+      await loadDimensions()
+      await loadTags() // Reload tags in case parent tag was created
+    } catch (error) {
+      setCreateDimensionError(error instanceof Error ? error.message : "Failed to create dimension")
+      logError("Error creating dimension", error)
+    } finally {
+      setCreateDimensionLoading(false)
+    }
+  }
+
+  const handleDeleteDimension = async () => {
+    if (!dimensionToDelete) return
+
+    setIsDeletingDimension(true)
+    try {
+      const supabase = supabaseRef.current
+
+      // Check if dimension has associated tags
+      const { data: tagsInDimension, error: tagsError } = await supabase
+        .from("tags")
+        .select("id")
+        .eq("dimension_key", dimensionToDelete.dimension_key)
+        .limit(1)
+
+      if (tagsError) {
+        throw tagsError
+      }
+
+      if (tagsInDimension && tagsInDimension.length > 0) {
+        throw new Error(`Cannot delete dimension. It has ${tagsInDimension.length} tag(s) associated. Please delete all tags in this dimension first.`)
+      }
+
+      // Delete dimension
+      const { error: deleteError } = await supabase
+        .from("tag_dimensions")
+        .delete()
+        .eq("dimension_key", dimensionToDelete.dimension_key)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      setIsDeleteDimensionDialogOpen(false)
+      setDimensionToDelete(null)
+      await loadDimensions()
+    } catch (error) {
+      logError("Error deleting dimension", error)
+      alert(error instanceof Error ? error.message : "Failed to delete dimension")
+    } finally {
+      setIsDeletingDimension(false)
+    }
   }
 
   const handleCreateTag = async (e: React.FormEvent) => {
@@ -430,7 +598,7 @@ export default function SystemTagsPage() {
     {
       header: "Dimension",
       render: (tag) => (
-        <Badge variant="outline">
+        <Badge variant="outline" className="max-w-[200px] truncate">
           {tag.dimension?.label || tag.dimension_key || "Legacy"}
         </Badge>
       ),
@@ -475,6 +643,76 @@ export default function SystemTagsPage() {
     },
   ]
 
+  const dimensionColumns: TableColumn<TagDimension>[] = [
+    {
+      header: "Label",
+      render: (dim) => (
+        <div className="min-w-0">
+          <div className="font-medium truncate">{dim.label}</div>
+        </div>
+      ),
+    },
+    {
+      header: "Type",
+      render: (dim) => (
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {dim.is_hierarchical && (
+            <Badge variant="secondary" className="text-xs shrink-0 whitespace-nowrap">
+              Hierarchical
+            </Badge>
+          )}
+          {dim.generates_collection && (
+            <Badge variant="secondary" className="text-xs shrink-0 whitespace-nowrap">
+              Generates Collections
+            </Badge>
+          )}
+          {!dim.is_hierarchical && !dim.generates_collection && (
+            <span className="text-sm text-gray-400">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: "Settings",
+      render: (dim) => (
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {dim.allows_multiple ? (
+            <Badge variant="outline" className="text-xs shrink-0 whitespace-nowrap">Multiple</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs shrink-0 whitespace-nowrap">Single</Badge>
+          )}
+          {dim.allow_user_creation ? (
+            <Badge variant="outline" className="text-xs shrink-0 whitespace-nowrap">User creation</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs shrink-0 whitespace-nowrap">Admin only</Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: "Display Order",
+      render: (dim) => dim.display_order,
+    },
+    {
+      header: "Actions",
+      render: (dim) => (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setDimensionToDelete(dim)
+              setIsDeleteDimensionDialogOpen(true)
+            }}
+            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   if (isLoading) {
     return (
       <div className="p-8">
@@ -487,37 +725,52 @@ export default function SystemTagsPage() {
 
   return (
     <div className="p-8">
-      <TablePage
-        title="System Tags"
-        description="Manage system-wide tags that are available across all tenants"
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "tags" | "dimensions")}>
+        <TabsContent value="tags" className="mt-0">
+          <TablePage
+        title="Tags & Dimensions"
+        description="Manage system-wide tags and tag dimensions"
         search={{
           placeholder: "Search tags...",
           value: searchQuery,
           onChange: setSearchQuery,
+          position: "below",
         }}
         tabs={{
-          value: dimensionFilter,
-          onChange: setDimensionFilter,
+          value: activeTab,
+          onChange: (value) => setActiveTab(value as "tags" | "dimensions"),
           content: (
-            <Select value={dimensionFilter} onValueChange={setDimensionFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Dimensions</SelectItem>
-                {dimensions.map((dim) => (
-                  <SelectItem key={dim.dimension_key} value={dim.dimension_key}>
-                    {dim.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TabsList>
+              <TabsTrigger value="tags">
+                <Tag className="h-4 w-4 mr-2" />
+                Tags
+              </TabsTrigger>
+              <TabsTrigger value="dimensions">
+                <Layers className="h-4 w-4 mr-2" />
+                Dimensions
+              </TabsTrigger>
+            </TabsList>
           ),
         }}
         createButton={{
           label: "Create System Tag",
           onClick: () => setIsCreateModalOpen(true),
         }}
+        actions={
+          <Select value={dimensionFilter} onValueChange={setDimensionFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Dimensions</SelectItem>
+              {dimensions.map((dim) => (
+                <SelectItem key={dim.dimension_key} value={dim.dimension_key}>
+                  {dim.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
         columns={columns}
         data={filteredTags}
         getRowKey={(tag) => tag.id}
@@ -596,6 +849,64 @@ export default function SystemTagsPage() {
           </DialogContent>
         </Dialog>
       </TablePage>
+        </TabsContent>
+
+        <TabsContent value="dimensions" className="mt-0">
+          <TablePage
+            title="Tags & Dimensions"
+            description="Manage system-wide tags and tag dimensions"
+            search={{
+              placeholder: "Search dimensions...",
+              value: dimensionSearchQuery,
+              onChange: setDimensionSearchQuery,
+              position: "below",
+            }}
+            tabs={{
+              value: activeTab,
+              onChange: (value) => setActiveTab(value as "tags" | "dimensions"),
+              content: (
+                <TabsList>
+                  <TabsTrigger value="tags">
+                    <Tag className="h-4 w-4 mr-2" />
+                    Tags
+                  </TabsTrigger>
+                  <TabsTrigger value="dimensions">
+                    <Layers className="h-4 w-4 mr-2" />
+                    Dimensions
+                  </TabsTrigger>
+                </TabsList>
+              ),
+            }}
+            createButton={{
+              label: "Create Dimension",
+              onClick: () => setIsCreateDimensionModalOpen(true),
+            }}
+            columns={dimensionColumns}
+            data={dimensions.filter((dim) => 
+              dimensionSearchQuery === "" || 
+              dim.label.toLowerCase().includes(dimensionSearchQuery.toLowerCase()) ||
+              dim.dimension_key.toLowerCase().includes(dimensionSearchQuery.toLowerCase())
+            )}
+            getRowKey={(dim) => dim.dimension_key}
+            pagination={{
+              currentPage: 1,
+              itemsPerPage: dimensions.length,
+              totalPages: 1,
+              paginatedItems: dimensions,
+              goToPage: () => {},
+              nextPage: () => {},
+              prevPage: () => {},
+              isFirstPage: true,
+              isLastPage: true,
+            }}
+            emptyState={{
+              icon: Layers,
+              title: "No dimensions found",
+              description: "Create your first dimension to get started.",
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Tag Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -647,6 +958,163 @@ export default function SystemTagsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Create Dimension Modal */}
+      <Dialog open={isCreateDimensionModalOpen} onOpenChange={setIsCreateDimensionModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Tag Dimension</DialogTitle>
+            <DialogDescription>
+              Create a new tag dimension that defines a category of tags. Dimensions can be hierarchical or flat.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateDimension} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="dimLabel">Dimension Label *</Label>
+              <Input
+                id="dimLabel"
+                required
+                value={createDimensionForm.label}
+                onChange={(e) => {
+                  const label = e.target.value
+                  setCreateDimensionForm({ 
+                    ...createDimensionForm, 
+                    label,
+                    // Auto-generate dimension_key from label
+                    dimensionKey: generateSlug(label)
+                  })
+                }}
+                placeholder="e.g., Campaign, Visual Style"
+              />
+              <p className="text-xs text-gray-500">Display name for the dimension. Dimension key will be auto-generated.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="displayOrder">Display Order</Label>
+              <Input
+                id="displayOrder"
+                type="number"
+                value={createDimensionForm.displayOrder}
+                onChange={(e) => setCreateDimensionForm({ ...createDimensionForm, displayOrder: parseInt(e.target.value) || 0 })}
+                placeholder="0"
+              />
+              <p className="text-xs text-gray-500">Determines order in UI. Will be set to end if not specified.</p>
+            </div>
+
+            <div className="space-y-4 border-t pt-4">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isHierarchical"
+                    checked={createDimensionForm.isHierarchical}
+                    onCheckedChange={(checked) => setCreateDimensionForm({ ...createDimensionForm, isHierarchical: checked === true })}
+                  />
+                  <Label htmlFor="isHierarchical" className="font-normal cursor-pointer">
+                    Hierarchical (has parent tag + child tags)
+                  </Label>
+                </div>
+                {createDimensionForm.isHierarchical && (
+                  <div className="ml-6 space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="requiresSubtag"
+                        checked={createDimensionForm.requiresSubtag}
+                        onCheckedChange={(checked) => setCreateDimensionForm({ ...createDimensionForm, requiresSubtag: checked === true })}
+                      />
+                      <Label htmlFor="requiresSubtag" className="font-normal cursor-pointer">
+                        Requires subtag (child tag must be selected)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="generatesCollection"
+                        checked={createDimensionForm.generatesCollection}
+                        onCheckedChange={(checked) => setCreateDimensionForm({ ...createDimensionForm, generatesCollection: checked === true })}
+                      />
+                      <Label htmlFor="generatesCollection" className="font-normal cursor-pointer">
+                        Generates collections (child tags create collections)
+                      </Label>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="allowsMultiple"
+                    checked={createDimensionForm.allowsMultiple}
+                    onCheckedChange={(checked) => setCreateDimensionForm({ ...createDimensionForm, allowsMultiple: checked === true })}
+                  />
+                  <Label htmlFor="allowsMultiple" className="font-normal cursor-pointer">
+                    Allows multiple tags (can select multiple tags from this dimension)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="required"
+                    checked={createDimensionForm.required}
+                    onCheckedChange={(checked) => setCreateDimensionForm({ ...createDimensionForm, required: checked === true })}
+                  />
+                  <Label htmlFor="required" className="font-normal cursor-pointer">
+                    Required (must select at least one tag from this dimension)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="allowUserCreation"
+                    checked={createDimensionForm.allowUserCreation}
+                    onCheckedChange={(checked) => setCreateDimensionForm({ ...createDimensionForm, allowUserCreation: checked === true })}
+                  />
+                  <Label htmlFor="allowUserCreation" className="font-normal cursor-pointer">
+                    Allow user creation (users can create tags in this dimension)
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            {createDimensionError && (
+              <div className="text-sm text-red-600">{createDimensionError}</div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsCreateDimensionModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createDimensionLoading}>
+                {createDimensionLoading ? "Creating..." : "Create Dimension"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dimension Dialog */}
+      <AlertDialog open={isDeleteDimensionDialogOpen} onOpenChange={setIsDeleteDimensionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Tag Dimension</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the dimension "{dimensionToDelete?.label}"? 
+              This action cannot be undone.
+              <br />
+              <br />
+              <strong>Note:</strong> You can only delete dimensions that have no associated tags. 
+              Please delete all tags in this dimension first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDimension}
+              disabled={isDeletingDimension}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeletingDimension ? "Deleting..." : "Delete Dimension"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
