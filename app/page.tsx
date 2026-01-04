@@ -3,7 +3,6 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowUpRight } from "lucide-react"
 import type { Metadata } from "next"
 
 // Metadata for landing page - includes Adobe Fonts CSS
