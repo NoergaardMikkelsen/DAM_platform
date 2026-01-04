@@ -53,14 +53,13 @@ export default async function LandingPage() {
   }
 
   // Landing page - only shown on main domain
-  // Kit ID from Webflow: gtv6qgd (found in Network tab: use.typekit.net/gtv6qgd.js)
-  const adobeFontsKitId = process.env.ADOBE_FONTS_API_TOKEN || 'gtv6qgd'
+  const adobeFontsKitId = process.env.ADOBE_FONTS_API_TOKEN
   
   return (
     <>
       {/* Adobe Fonts - only loaded on landing page */}
       {/* Using Adobe Fonts JavaScript embed (same as Webflow) */}
-      {/* Kit ID: gtv6qgd - found from Webflow Network tab: use.typekit.net/gtv6qgd.js */}
+      {/* Kit ID: 15ad753c9696fc713ad033348fdfb051332dba97 */}
       <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
       <script
         src={`https://use.typekit.net/${adobeFontsKitId}.js`}
@@ -73,26 +72,25 @@ export default async function LandingPage() {
           __html: `
             (function() {
               var attempts = 0;
-              var maxAttempts = 100; // Try for up to 5 seconds
+              var maxAttempts = 200;
               function loadTypekit() {
                 attempts++;
                 if (typeof window !== 'undefined' && window.Typekit && window.Typekit.load) {
                   try {
                     window.Typekit.load();
-                    console.log('[ADOBE-FONTS] Typekit.load() called successfully');
                   } catch(e) {
-                    console.error('[ADOBE-FONTS] Error calling Typekit.load():', e);
+                    // Error loading Typekit
                   }
                 } else if (attempts < maxAttempts) {
                   setTimeout(loadTypekit, 50);
-                } else {
-                  console.warn('[ADOBE-FONTS] Typekit not found after', attempts, 'attempts');
                 }
               }
-              // Start checking immediately and also on DOMContentLoaded
-              loadTypekit();
               if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', loadTypekit);
+                document.addEventListener('DOMContentLoaded', function() {
+                  setTimeout(loadTypekit, 100);
+                });
+              } else {
+                setTimeout(loadTypekit, 100);
               }
             })();
           `,
@@ -112,28 +110,6 @@ export default async function LandingPage() {
               font-family: 'canada-type-gibson';
               font-display: swap;
             }
-          `,
-        }}
-      />
-      {/* Debug script to check what fonts are loaded and help find Kit ID */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            setTimeout(function() {
-              if (typeof document !== 'undefined' && document.fonts) {
-                document.fonts.ready.then(function() {
-                  console.log('[ADOBE-FONTS] All fonts loaded');
-                  var fonts = Array.from(document.fonts).map(f => f.family);
-                  console.log('[ADOBE-FONTS] Available fonts:', fonts);
-                  var gibsonFonts = fonts.filter(f => f.toLowerCase().includes('gibson') || f.toLowerCase().includes('canada'));
-                  if (gibsonFonts.length > 0) {
-                    console.log('[ADOBE-FONTS] Found Gibson fonts:', gibsonFonts);
-                  } else {
-                    console.warn('[ADOBE-FONTS] Gibson font not found. Check Network tab for typekit requests to find Kit ID.');
-                  }
-                });
-              }
-            }, 3000);
           `,
         }}
       />
