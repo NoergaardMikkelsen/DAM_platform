@@ -63,17 +63,7 @@ export default function UsersPage() {
     : searchFilteredUsers.filter((user) => user.roles?.key === roleFilter)
 
   // Use pagination hook
-  const {
-    currentPage,
-    itemsPerPage,
-    totalPages,
-    paginatedItems: paginatedUsers,
-    goToPage,
-    nextPage,
-    prevPage,
-    isFirstPage,
-    isLastPage,
-  } = usePagination(filteredUsers, {
+  const pagination = usePagination(filteredUsers, {
     calculateItemsPerPage: true,
     fixedHeight: PAGINATION.DEFAULT_FIXED_HEIGHT,
     rowHeight: PAGINATION.DEFAULT_ROW_HEIGHT,
@@ -245,17 +235,7 @@ export default function UsersPage() {
         columns={columns}
         data={filteredUsers}
         getRowKey={(user) => user.id}
-        pagination={{
-          currentPage,
-          itemsPerPage,
-          totalPages,
-          paginatedItems: paginatedUsers,
-          goToPage,
-          nextPage,
-          prevPage,
-          isFirstPage,
-          isLastPage,
-        }}
+        pagination={pagination}
         isLoading={isLoading}
         loadingSkeleton={loadingSkeleton}
       >
