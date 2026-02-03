@@ -98,7 +98,7 @@ export function InitialLoadingScreen({
         <div style={{
           height: '100%',
           width: '100%', // Start fyldt for at vise animation
-          backgroundColor: tenant?.primary_color || '#007bff', // Client primary color for fyldt del (fallback blue)
+          backgroundColor: tenant?.primary_color || '#000000', // Client primary color for fyldt del (fallback black)
           transform: 'scaleX(0)',
           transformOrigin: 'left center',
           animation: 'progressFill 2.5s ease-in-out forwards'

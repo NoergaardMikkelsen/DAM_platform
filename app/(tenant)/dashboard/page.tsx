@@ -688,7 +688,7 @@ export default function DashboardPage() {
             <div className="text-lg font-bold text-gray-900">{stats.storagePercentage.toFixed(1).replace('.', ',')}%</div>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-            <div className="h-full" style={{ width: `${stats.storagePercentage}%`, backgroundColor: tenant.primary_color || '#dc3545' }} />
+            <div className="h-full" style={{ width: `${stats.storagePercentage}%`, backgroundColor: tenant.primary_color || '#000000' }} />
           </div>
             </div>
 

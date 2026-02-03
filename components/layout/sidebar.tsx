@@ -606,7 +606,7 @@ export function Sidebar({ user, role, isSystemAdminContext = false }: SidebarPro
               className={isCollapsed ? 'w-10 h-10 p-0 mx-auto' : 'w-full'}
               title={isCollapsed ? "Upload" : undefined}
               style={{
-                backgroundColor: tenant?.primary_color || '#DF475C',
+                backgroundColor: tenant?.primary_color || '#000000',
                 borderRadius: isCollapsed ? '50%' : '25px',
                 padding: isCollapsed ? '0' : '24px 16px',
                 fontSize: '14px',

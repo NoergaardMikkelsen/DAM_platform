@@ -193,7 +193,7 @@ export default function UserDetailPage() {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#DF475C] text-white">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full text-white" style={{ backgroundColor: tenant.primary_color || '#000000' }}>
               {user.full_name
                 .split(" ")
                 .map((n) => n[0])

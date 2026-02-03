@@ -7,6 +7,7 @@ import { X, Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useTenant } from "@/lib/context/tenant-context"
+import { getHoverColor } from "@/lib/utils/colors"
 import type { Tag, TagDimension } from "@/lib/types/database"
 
 interface FilterPanelProps {
@@ -179,7 +180,7 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                       <AccordionTrigger className="py-4 text-base font-medium hover:no-underline">
                         {dimension.label}
                         {selected.length > 0 && (
-                          <span className="ml-2 rounded-full bg-[#DF475C] px-2 py-0.5 text-xs text-white">
+                          <span className="ml-2 rounded-full px-2 py-0.5 text-xs text-white" style={{ backgroundColor: tenant.primary_color || '#000000' }}>
                             {selected.length}
                           </span>
                         )}
@@ -193,9 +194,13 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
                               onClick={() => toggleTag(dimension.dimension_key, tag.id)}
                               className={`rounded-full border px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                                 selected.includes(tag.id)
-                                  ? "border-[#DF475C] bg-[#DF475C] text-white"
+                                  ? "text-white"
                                   : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                               }`}
+                              style={selected.includes(tag.id) ? { 
+                                backgroundColor: tenant.primary_color || '#000000',
+                                borderColor: tenant.primary_color || '#000000'
+                              } : {}}
                             >
                               {tag.label}
                             </button>
@@ -213,7 +218,17 @@ export function FilterPanel({ isOpen, onClose, onApplyFilters, showCategoryFilte
             <Button variant="outline" onClick={handleClear} className="flex-1 bg-transparent">
               Clear
             </Button>
-            <Button onClick={handleApply} className="flex-1 bg-[#DF475C] hover:bg-[#C82333]">
+            <Button 
+              onClick={handleApply} 
+              className="flex-1 text-white"
+              style={{ backgroundColor: tenant.primary_color || '#000000' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = getHoverColor(tenant.primary_color, '#000000')
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = tenant.primary_color || '#000000'
+              }}
+            >
               Apply filters
             </Button>
           </div>

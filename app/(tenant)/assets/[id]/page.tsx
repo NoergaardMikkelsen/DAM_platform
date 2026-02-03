@@ -56,6 +56,7 @@ import { useToast } from "@/hooks/use-toast"
 import { formatDate } from "@/lib/utils/date"
 import { TagBadgeSelector } from "@/components/tag-badge-selector"
 import { createTagHandler as createTagHandlerUtil } from "@/lib/utils/tag-creation"
+import { getHoverColor } from "@/lib/utils/colors"
 import type { TagDimension } from "@/lib/types/database"
 
 function isValidUUID(str: string): boolean {
@@ -1289,7 +1290,7 @@ export default function AssetDetailPage() {
                       {!previewUrl && isMediaLoading && (
                         <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl bg-gray-100">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: tenant.primary_color || '#000000' }} />
                             <p className="text-sm text-gray-600">Loading image…</p>
                           </div>
                         </div>
@@ -1315,7 +1316,7 @@ export default function AssetDetailPage() {
                       {!previewUrl && isMediaLoading && (
                         <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl bg-gray-100">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DF475C] border-t-transparent" />
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: tenant.primary_color || '#000000' }} />
                             <p className="text-sm text-gray-600">Loading video…</p>
                           </div>
                         </div>
@@ -1583,7 +1584,14 @@ export default function AssetDetailPage() {
                 <DropdownMenuTrigger asChild>
                   <Button 
                     ref={downloadDropdownRef}
-                    className="flex items-center gap-2 rounded-full bg-[#e65872] text-white hover:bg-[#d74f68] border-transparent"
+                    className="flex items-center gap-2 rounded-full text-white border-transparent"
+                    style={{ backgroundColor: tenant.primary_color || '#000000' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = getHoverColor(tenant.primary_color, '#000000')
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = tenant.primary_color || '#000000'
+                    }}
                   >
                     <Download className="h-4 w-4" />
                     <span className="hidden sm:inline">Download</span>
@@ -1651,9 +1659,18 @@ export default function AssetDetailPage() {
                         </div>
                         <Button
                           size="sm"
-                          className="h-10 w-full rounded-full bg-[#e65872] text-white hover:bg-[#d74f68]"
+                          className="h-10 w-full rounded-full text-white"
+                          style={{ backgroundColor: tenant.primary_color || '#000000' }}
                           onClick={handleCustomDownload}
                           disabled={isDownloadingCustom}
+                          onMouseEnter={(e) => {
+                            if (!isDownloadingCustom) {
+                              e.currentTarget.style.backgroundColor = getHoverColor(tenant.primary_color, '#000000')
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = tenant.primary_color || '#000000'
+                          }}
                         >
                           {isDownloadingCustom ? "Downloading…" : "Download custom"}
                         </Button>
@@ -1715,9 +1732,18 @@ export default function AssetDetailPage() {
                         </div>
                         <Button
                           size="sm"
-                          className="h-10 w-full rounded-full bg-[#e65872] text-white hover:bg-[#d74f68]"
+                          className="h-10 w-full rounded-full text-white"
+                          style={{ backgroundColor: tenant.primary_color || '#000000' }}
                           onClick={handleVideoCustomDownload}
                           disabled={isDownloadingVideoCustom}
+                          onMouseEnter={(e) => {
+                            if (!isDownloadingVideoCustom) {
+                              e.currentTarget.style.backgroundColor = getHoverColor(tenant.primary_color, '#000000')
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = tenant.primary_color || '#000000'
+                          }}
                         >
                           {isDownloadingVideoCustom ? "Downloading…" : "Download custom video"}
                         </Button>

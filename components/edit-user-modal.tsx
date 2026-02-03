@@ -198,11 +198,11 @@ export function EditUserModal({ open, onOpenChange, onSuccess, userId, initialDa
               steps={steps.map((s, i) => ({ label: s.label }))}
               activeStep={currentStep - 1}
               styleConfig={{
-                activeBgColor: tenant.primary_color || '#E55C6A',
+                activeBgColor: tenant.primary_color || '#000000',
                 activeTextColor: '#ffffff',
                 inactiveBgColor: '#D9D9D9',
                 inactiveTextColor: '#000000',
-                completedBgColor: tenant.primary_color || '#E55C6A',
+                completedBgColor: tenant.primary_color || '#000000',
                 completedTextColor: '#ffffff',
                 size: '40px',
                 circleFontSize: '14px',
@@ -212,8 +212,8 @@ export function EditUserModal({ open, onOpenChange, onSuccess, userId, initialDa
               }}
               connectorStyleConfig={{
                 disabledColor: '#D9D9D9',
-                activeColor: tenant.primary_color || '#E55C6A',
-                completedColor: tenant.primary_color || '#E55C6A',
+                activeColor: tenant.primary_color || '#000000',
+                completedColor: tenant.primary_color || '#000000',
                 size: 1,
                 stepSize: '40px',
                 style: 'solid',
